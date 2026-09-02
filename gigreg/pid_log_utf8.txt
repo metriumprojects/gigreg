@@ -1,0 +1,72 @@
+﻿--------- beginning of main
+04-08 22:57:03.419 16712 16712 W main    : type=1400 audit(0.0:56362): avc: denied { read } for name="u:object_r:vendor_memfusion_size_prop:s0" dev="tmpfs" ino=8665 scontext=u:r:untrusted_app:s0:c129,c257,c512,c768 tcontext=u:object_r:vendor_memfusion_size_prop:s0 tclass=file permissive=0 app=com.courses.app
+04-08 22:57:03.419 16712 16712 W main    : type=1400 audit(0.0:56363): avc: denied { read } for name="u:object_r:vendor_memfusion_state_prop:s0" dev="tmpfs" ino=8666 scontext=u:r:untrusted_app:s0:c129,c257,c512,c768 tcontext=u:object_r:vendor_memfusion_state_prop:s0 tclass=file permissive=0 app=com.courses.app
+04-08 22:57:03.419 16712 16712 W main    : type=1400 audit(0.0:56364): avc: denied { read } for name="u:object_r:vendor_memfusion_tranlog_prop:s0" dev="tmpfs" ino=8668 scontext=u:r:untrusted_app:s0:c129,c257,c512,c768 tcontext=u:object_r:vendor_memfusion_tranlog_prop:s0 tclass=file permissive=0 app=com.courses.app
+04-08 22:57:03.419 16712 16712 W main    : type=1400 audit(0.0:56365): avc: denied { read } for name="u:object_r:vendor_memfusion_ui_enable_prop:s0" dev="tmpfs" ino=8669 scontext=u:r:untrusted_app:s0:c129,c257,c512,c768 tcontext=u:object_r:vendor_memfusion_ui_enable_prop:s0 tclass=file permissive=0 app=com.courses.app
+04-08 22:57:03.425 16712 16712 I com.courses.ap: Using CollectorTypeCC GC.
+04-08 22:57:03.470 16712 16712 I LoadedApk: No resource references to update in package com.transsion.theme.icon
+04-08 22:57:03.489 16712 16729 I libMEOW_gift: open /data/performance/gift/arc.ini
+04-08 22:57:03.489 16712 16729 E QT      : [QT]file does not exist
+04-08 22:57:03.540 16712 16712 I WebViewFactory: Loading com.google.android.webview version 146.0.7680.164 (code 768016403)
+04-08 22:57:03.580 16712 16712 I cr_WVCFactoryProvider: version=146.0.7680.164 (768016403) minSdkVersion=29 multiprocess=true packageId=127 splits=<none>
+04-08 22:57:03.592 16712 16734 I chromium: [0408/225703.591891:INFO:android_webview/browser/variations/variations_seed_loader.cc:67] Failed to open file for reading.: No such file or directory (2)
+04-08 22:57:03.614 16712 16712 I cr_LibraryLoader: Successfully loaded native library
+04-08 22:57:03.615 16712 16712 I cr_CachingUmaRecorder: Flushed 20 samples from 19 histograms, 0 samples were dropped.
+04-08 22:57:03.622 16712 16712 I cr_ChildProcLH: ScopedServiceBindingBatch.tryActivate: false
+04-08 22:57:03.623 16712 16712 I cr_CombinedPProvider: #registerProvider() provider:WV.qk@8e38cec isPolicyCacheEnabled:false policyProvidersSize:0
+04-08 22:57:03.625 16712 16712 I cr_PolicyProvider: #setManagerAndSource() 0
+04-08 22:57:03.631 16712 16712 I cr_DisplayManager: Is Display Topology available: false
+04-08 22:57:03.652 16712 16712 I cr_CombinedPProvider: #linkNativeInternal() 1
+04-08 22:57:03.654 16712 16712 I cr_AppResProvider: #getApplicationRestrictionsFromUserManager() Bundle[EMPTY_PARCEL]
+04-08 22:57:03.654 16712 16712 I cr_PolicyProvider: #notifySettingsAvailable() 0
+04-08 22:57:03.654 16712 16712 I cr_CombinedPProvider: #onSettingsAvailable() 0
+04-08 22:57:03.654 16712 16712 I cr_CombinedPProvider: #flushPolicies()
+04-08 22:57:03.697 16712 16756 W chromium: [WARNING:net/dns/dns_config_service_android.cc:69] Failed to read DnsConfig.
+04-08 22:57:03.698 16712 16755 W libc    : Access denied finding property "ro.vendor.api_level"
+04-08 22:57:03.705 16712 16712 W chromium: [WARNING:android_webview/browser/network_service/net_helpers.cc:137] HTTP Cache size is: 20971520
+04-08 22:57:03.803 16712 16760 W cr_media: BLUETOOTH_CONNECT permission is missing.
+04-08 22:57:03.804 16712 16760 W cr_media: getBluetoothAdapter() requires BLUETOOTH permission
+04-08 22:57:03.804 16712 16760 W cr_media: registerBluetoothIntentsIfNeeded: Requires BLUETOOTH permission
+04-08 22:57:03.856 16712 16712 I SurfaceFactory: [static] sSurfaceFactory = com.transsion.rt.SurfaceFactoryImpl@7c091db
+04-08 22:57:03.858 16712 16712 I MsyncFactory: [static] sMsyncFactory = com.mediatek.view.impl.MsyncFactoryImpl@3d10478
+04-08 22:57:03.883 16712 16712 I PowerHalWrapper: PowerHalWrapper.getInstance 
+04-08 22:57:03.911 16712 16802 I CameraManagerGlobal: Connecting to camera service
+04-08 22:57:03.918 16712 16721 I CameraManagerGlobal: onTorchStatusChangedLocked id:2 ignore callback
+04-08 22:57:03.918 16712 16721 I CameraManagerGlobal: onTorchStatusChangedLocked id:3 ignore callback
+04-08 22:57:03.951 16712 16769 W AudioCapabilities: Unsupported mime audio/x-adpcm-dvi-ima
+04-08 22:57:03.951 16712 16769 W AudioCapabilities: Unsupported mime audio/x-adpcm-dvi-ima
+04-08 22:57:03.951 16712 16769 W AudioCapabilities: Unsupported mime audio/x-adpcm-ms
+04-08 22:57:03.952 16712 16769 W AudioCapabilities: Unsupported mime audio/x-adpcm-ms
+04-08 22:57:03.952 16712 16769 W AudioCapabilities: Unsupported mime audio/alac
+04-08 22:57:03.952 16712 16769 W AudioCapabilities: Unsupported mime audio/alac
+04-08 22:57:03.952 16712 16769 W AudioCapabilities: Unsupported mime audio/ape
+04-08 22:57:03.952 16712 16769 W AudioCapabilities: Unsupported mime audio/ape
+04-08 22:57:03.969 16712 16769 W VideoCapabilities: Unrecognized profile/level 32768/256 for video/mp4v-es
+04-08 22:57:03.970 16712 16769 W VideoCapabilities: Unrecognized profile/level 32768/256 for video/mp4v-es
+04-08 22:57:06.854 16712 16774 I mali    : [DebugProp] GPU Debug-Mechanism Disable !
+04-08 22:57:06.926 16712 16774 I GED     : ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 31, oppidx_max 31, oppidx_min 0
+04-08 22:57:06.939 16712 16774 I GED     : ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 31, oppidx_max 31, oppidx_min 0
+04-08 22:57:06.947 16712 16774 I GED     : ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 31, oppidx_max 31, oppidx_min 0
+04-08 22:57:22.155 16712 16890 E FilePhenotypeFlags: Config package com.google.android.gms.clearcut_client#com.courses.app cannot use FILE backing without declarative registration. See go/phenotype-android-integration#phenotype for more information. This will lead to stale flags.
+04-08 22:57:22.216 16712 16890 E FilePhenotypeFlags: Config package com.google.android.gms.clearcut_client#com.courses.app cannot use FILE backing without declarative registration. See go/phenotype-android-integration#phenotype for more information. This will lead to stale flags.
+04-08 22:57:22.218 16712 16890 E FilePhenotypeFlags: Config package com.google.android.gms.clearcut_client#com.courses.app cannot use FILE backing without declarative registration. See go/phenotype-android-integration#phenotype for more information. This will lead to stale flags.
+04-08 22:57:47.282 16712 16720 I CameraManagerGlobal: onTorchStatusChangedLocked id:2 ignore callback
+04-08 22:57:47.283 16712 16720 I CameraManagerGlobal: onTorchStatusChangedLocked id:3 ignore callback
+04-08 22:57:48.872 16712 16712 I BufferQueueConsumer: [](id:414800000000,api:0,p:-1,c:16712) connect: controlledByApp=false
+04-08 22:57:48.874 16712 16712 I BLASTBufferQueue: [ViewRootImpl[MainActivity]#0] constructor()
+04-08 22:57:48.876 16712 16727 E OpenGLRenderer: Device claims wide gamut support, cannot find matching config, error = EGL_SUCCESS
+04-08 22:57:48.877 16712 16727 W OpenGLRenderer: Failed to initialize 101010-2 format, error = EGL_SUCCESS
+04-08 22:57:48.877 16712 16727 E OpenGLRenderer: EglManager::makeCurrent mED = 0xb4000079fbe4d990, surface = 0x0, mEC = 0xb40000799be719b0, error = EGL_SUCCESS
+04-08 22:57:48.884 16712 16727 I BufferQueueProducer: [ViewRootImpl[MainActivity]#0(BLAST Consumer)0](id:414800000000,api:1,p:16712,c:16712) connect: api=1 producerControlledByApp=true
+04-08 22:57:48.934 16712 16727 E OpenGLRenderer: fbcNotifyFrameComplete error: undefined symbol: fbcNotifyFrameComplete
+04-08 22:57:48.934 16712 16727 E OpenGLRenderer: fbcNotifyNoRender error: undefined symbol: fbcNotifyNoRender
+04-08 22:57:48.976 16712 16806 E BLASTBufferQueue: [ViewRootImpl[MainActivity]#0](f:0,a:2) isEGL=1, mPendingRelease.size()=1, mMaxAcquiredBuffers=4, currentMaxAcquiredBufferCount=2
+04-08 22:57:49.006 16712 16806 E BLASTBufferQueue: [ViewRootImpl[MainActivity]#0](f:0,a:3) isEGL=1, mPendingRelease.size()=2, mMaxAcquiredBuffers=4, currentMaxAcquiredBufferCount=2
+04-08 22:57:49.180 16712 16806 I CameraManagerGlobal: onTorchStatusChangedLocked id:2 ignore callback
+04-08 22:57:49.189 16712 16806 I CameraManagerGlobal: onTorchStatusChangedLocked id:3 ignore callback
+04-08 22:58:11.204 16712 16727 E OpenGLRenderer: EglManager::makeCurrent mED = 0xb4000079fbe4d990, surface = 0x0, mEC = 0xb40000799be719b0, error = EGL_SUCCESS
+04-08 22:58:11.205 16712 16727 I BufferQueueProducer: [ViewRootImpl[MainActivity]#0(BLAST Consumer)0](id:414800000000,api:1,p:16712,c:16712) disconnect: api 1
+04-08 22:58:11.213 16712 16712 I BLASTBufferQueue: [ViewRootImpl[MainActivity]#0] destructor()
+04-08 22:58:11.213 16712 16712 I BufferQueueConsumer: [ViewRootImpl[MainActivity]#0(BLAST Consumer)0](id:414800000000,api:0,p:-1,c:16712) disconnect
+04-08 22:58:11.217 16712 16727 I GED     : ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 31, oppidx_max 31, oppidx_min 0
+04-08 22:58:11.248 16712 16806 I BLASTBufferQueue: releaseBufferCallbackThunk bufferId:71777493450755 framenumber:22 blastBufferQueue is dead

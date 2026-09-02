@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Courses App",
+    "slug": "courses-website",
+    "ios": {
+      "bundleIdentifier": "com.nicolasmartinlemaire.coursesapp2026"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fb88845a-fc9e-4eb7-8fd7-837bbe4814c8"
+      }
+    }
+  }
+}

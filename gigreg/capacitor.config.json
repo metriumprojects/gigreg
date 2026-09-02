@@ -1,0 +1,23 @@
+{
+  "appId": "com.courses.app",
+  "appName": "CoursesApp",
+  "webDir": "dist",
+  "server": {
+    "allowNavigation": [
+      "skillslide.com",
+      "*.skillslide.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "GoogleAuth": {
+      "clientId": "230492259677-v5rfmpjdop76oqaqhnkorbpvjjmqbsfd.apps.googleusercontent.com",
+      "androidClientId": "230492259677-v5rfmpjdop76oqaqhnkorbpvjjmqbsfd.apps.googleusercontent.com",
+      "scopes": ["profile", "email"],
+      "serverClientId": "230492259677-v5rfmpjdop76oqaqhnkorbpvjjmqbsfd.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}

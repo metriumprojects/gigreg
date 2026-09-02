@@ -1,0 +1,56 @@
+{
+  "name": "gigreg",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "npx vite",
+    "build": "npx vite build",
+    "lint": "eslint .",
+    "preview": "npx vite preview",
+    "eas-build-post-install": "npm run build && npx cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "6.2.0",
+    "@capacitor/core": "6.2.0",
+    "@capacitor/ios": "6.2.0",
+    "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
+    "@reduxjs/toolkit": "^2.10.1",
+    "@stripe/connect-js": "^3.4.6",
+    "@stripe/react-connect-js": "^3.4.4",
+    "@stripe/react-stripe-js": "^5.4.1",
+    "@stripe/stripe-js": "^8.5.3",
+    "@tailwindcss/vite": "^4.1.16",
+    "axios": "^1.13.2",
+    "eas-cli": "^18.5.0",
+    "firebase": "^12.6.0",
+    "framer-motion": "^12.23.24",
+    "lucide-react": "^0.552.0",
+    "moment-timezone": "^0.6.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-easy-crop": "^5.5.6",
+    "react-icons": "^5.5.0",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.9.5",
+    "react-toastify": "^11.0.5",
+    "socket.io-client": "^4.8.1",
+    "swiper": "^12.0.3",
+    "tailwindcss": "^4.1.16"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "@eslint/js": "^9.36.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^16.4.0",
+    "vite": "^7.1.7"
+  }
+}

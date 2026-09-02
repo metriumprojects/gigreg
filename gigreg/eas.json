@@ -1,0 +1,27 @@
+{
+  "build": {
+    "preview": {
+      "node": "22.12.0",
+      "android": {
+        "buildType": "apk",
+        "image": "ubuntu-22.04-jdk-17-ndk-r25b"
+      },
+      "ios": {
+        "simulator": true,
+        "scheme": "App",
+        "image": "macos-sequoia-15.3-xcode-16.2"
+      }
+    },
+    "production": {
+      "node": "22.12.0",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "scheme": "App",
+        "image": "macos-sequoia-15.3-xcode-16.2"
+      }
+    }
+  }
+}

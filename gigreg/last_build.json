@@ -1,0 +1,38 @@
+﻿[
+  {
+    "id": "eb6ce0ea-e0dd-4b0c-accc-b455f1cf3233",
+    "status": "IN_QUEUE",
+    "platform": "ANDROID",
+    "artifacts": {},
+    "initiatingActor": {
+      "id": "39d4fc3d-b333-4657-8afe-4f7c472c6aac",
+      "displayName": "tauheedahmad"
+    },
+    "logFiles": [
+      "https://job-logs.eascdn.net/production/eb6ce0ea-e0dd-4b0c-accc-b455f1cf3233/1775676458631-28b89d36-a6ec-4e80-97b7-8d0160f15168.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260408%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260408T192756Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=68943a8eea6488ca406c8ed9a8cee9944c4f59b7c8939113dc4af460bce0784d4a113e3851713f7876f2abdb74341eae6886ee7baba9cc586a850ad172e82afeaa003f9f27d52d194c8e734acf3bcb3062ab552a905b7924042c7ef9a35d7dcbab5cb315e648de5e5e0bba3877521d55d915ef9292d8b5268f79d0a8557b6493e67f5d3067ada57c58f11dc94735871fd8ee8e48463c158b4f8db51fdd81346737479e1e7f78455628ed3589730d136d8057e88878b76fad4fa5d8b68ad48c55411856266e4700d06f3f208c2a6e8a0276ae402bce0a66d7c4f2d4ef88341d38ca3761f0a5735c11d5925e11dea328a0fdfda31c95c5683024b173ba050334d6"
+    ],
+    "project": {
+      "id": "fb88845a-fc9e-4eb7-8fd7-837bbe4814c8",
+      "name": "Courses-website",
+      "slug": "courses-website",
+      "ownerAccount": {
+        "id": "74e39d81-4a66-4294-ba21-0f0d52160f81",
+        "name": "tauheedahmad"
+      }
+    },
+    "distribution": "STORE",
+    "buildProfile": "preview",
+    "appVersion": "1.0",
+    "appBuildVersion": "1",
+    "gitCommitHash": "dabd95666f1e27e5455e755a35efa19683844447",
+    "gitCommitMessage": "chore: use tauheedahmad expo project",
+    "initialQueuePosition": 1564,
+    "queuePosition": 1471,
+    "estimatedWaitTimeLeftSeconds": 6144,
+    "priority": "NORMAL",
+    "createdAt": "2026-04-08T19:27:38.441Z",
+    "updatedAt": "2026-04-08T19:27:38.803Z",
+    "expirationDate": "2026-05-08T19:27:38.463Z",
+    "isForIosSimulator": false
+  }
+]

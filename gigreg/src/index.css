@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+
+@theme {
+    --color-primary: #008CFF;
+}
+
+@theme {
+  --breakpoint-3xl: 100rem;
+  --breakpoint-4xl: 120rem;
+}
+
+.fAlnEc .gNJDp a:not(.TrZEUc):not(.WpHeLc), .fAlnEc .gNJDp button:not(.TrZEUc) {
+    font-weight: 500;
+    font-weight: var(--c-stfwt, 500);
+    display: none !important;
+}
