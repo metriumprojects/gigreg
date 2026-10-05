@@ -42,10 +42,12 @@ export default function Profile() {
   const [showDropdown, setShowDropdown] = useState(false);
 
   const requestedTab = searchParams.get("tab");
+  const normalizedTab =
+    requestedTab === "My Listing" ? "My Listings" : requestedTab;
   const tab =
-    requestedTab === "Bookmarks"
+    normalizedTab === "Bookmarks"
       ? "My Bookmarks"
-      : requestedTab || (userInfo?.role === "user" ? "My Orders" : "Revenue");
+      : normalizedTab || (userInfo?.role === "user" ? "My Orders" : "Revenue");
 
   useEffect(() => {
     if (userInfo) {
@@ -121,7 +123,7 @@ export default function Profile() {
 
   const teacherStates = [
     "Revenue",
-    "My Listing",
+    "My Listings",
     "My Orders",
     "My Availability",
     "My Bookmarks",
@@ -132,12 +134,12 @@ export default function Profile() {
 
   return (
     <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen w-full flex flex-col items-center py-10">
+      <div className="min-h-screen w-full flex flex-col items-center pt-[30px] pb-10">
         {/* Bottom Tabs Section */}
         <div className="w-full">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-[30px] flex flex-wrap items-center justify-between gap-3">
             {/* Desktop Tabs */}
-            <div className="hidden w-fit max-w-full rounded-full overflow-hidden border border-black bg-white p-1 font-medium text-black md:block">
+            <div className="hidden w-fit max-w-full rounded-full overflow-hidden border-[1.5px] border-black bg-white p-1 font-medium text-black md:block">
             <Swiper
               modules={[FreeMode]}
               freeMode={{ enabled: true, momentum: true }}
@@ -167,7 +169,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => handleTeacher("teacher")}
-                className="rounded-full border border-black bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-50"
+                className="rounded-full border-[1.5px] border-black bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
                 Become a Seller
               </button>
@@ -175,7 +177,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => handleTeacher("user")}
-                className="rounded-full border border-black bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-50"
+                className="rounded-full border-[1.5px] border-black bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
                 Become a Buyer
               </button>
@@ -240,7 +242,7 @@ export default function Profile() {
           {(tab === "My Availability" || tab === "My Availability Calendar") && <Calender />}
           {tab === "My Requests" && <Request />}
           {tab === "My Profile" && <MyProfile />}
-          {tab === "My Listing" && <MyListings />}
+          {(tab === "My Listings" || tab === "My Listing") && <MyListings />}
         </div>
       </div>
     </MainLayout>

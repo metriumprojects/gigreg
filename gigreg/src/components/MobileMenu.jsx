@@ -21,7 +21,7 @@ const MobileMenu = () => {
   const navigationItems = isLoggedIn 
     ? [
         { label: 'Build', icon: Search, path: '/', className: getActiveClass('/') },
-        { label: 'Saved', icon: Heart, path: '/profile?tab=Bookmarks', className: getActiveClass('/profile?tab=Bookmarks') },
+        { label: 'Favorites', icon: Heart, path: '/profile?tab=Bookmarks', className: getActiveClass('/profile?tab=Bookmarks') },
         { label: 'Create', icon: Plus, path: '/create-listing', className: getActiveClass('/create-listing') },
         { label: 'Messages', icon: MessageSquare, path: '/chat', className: getActiveClass('/chat') },
         { label: 'Profile', icon: User, path: '/profile', className: getActiveClass('/profile') },

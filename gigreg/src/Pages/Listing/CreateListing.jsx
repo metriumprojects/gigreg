@@ -83,9 +83,9 @@ const CreateListing = () => {
   const [images, setImages] = useState([]);
   const [coverImage, setCoverImage] = useState(null);
   const [status, setStatus] = useState("Active");
-  const [capacity, setCapacity] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [isGroupAvailable, setIsGroupAvailable] = useState(false);
+  const [capacity] = useState("");
+  const [discount] = useState("");
+  const [isGroupAvailable] = useState(false);
   const [pricingType, setPricingType] = useState("hourly_calendar");
   const [listingCurrency, setListingCurrency] = useState(currency);
   const [allowMessageWithoutPayment, setAllowMessageWithoutPayment] = useState(true);
@@ -100,6 +100,7 @@ const CreateListing = () => {
   const [proposalNote, setProposalNote] = useState(
     "Hi I'd love to help you with your task!"
   );
+  const [errors, setErrors] = useState({});
   const [placeId, setPlaceId] = useState("");
   const enableCalendar = pricingType === "hourly_calendar";
   const isHourlyPricing = pricingType === "hourly_calendar" || pricingType === "hourly";
@@ -221,6 +222,11 @@ const CreateListing = () => {
         type: "image/jpeg",
       });
       setCoverImage(croppedFile);
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.coverImage;
+        return next;
+      });
       setShowCoverImageCropModal(false);
       setTempCoverImagePreview(null);
       setCoverImageCrop({ x: 0, y: 0 });
@@ -284,26 +290,11 @@ const CreateListing = () => {
     return String(duration).replace(/\bm\b/g, "min");
   };
 
-  // Check if form is valid
-  const isFormValid = () => {
-    return (
-      formData.title.trim() &&
-      formData.description.trim() &&
-      (!isHourlyPricing || formData.duration) &&
-      (isOnDemandPricing || formData.price) &&
-      selectedCategory &&
-      coverImage &&
-      images.length >= 2 && images.length <= 10 &&
-      (isOnlineSelected || isInPersonSelected) &&
-      (!isInPersonSelected || formData.location.trim())
-    );
-  };
-
   // Fetch categories and availability on component mount
   useEffect(() => {
     dispatch(getCategories());
     dispatch(getAvailability());
-  }, []);
+  }, [dispatch]);
 
   // ✅ Handle text input changes
   const handleChange = (e) => {
@@ -315,15 +306,37 @@ const CreateListing = () => {
     }
     
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
   };
 
   // ✅ Handle duration change
   const handleDurationChange = (e) => {
     setFormData((prev) => ({ ...prev, duration: e.target.value }));
+    if (errors.duration) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.duration;
+        return next;
+      });
+    }
   };
 
   const handlePricingTypeChange = (type) => {
     setPricingType(type);
+    if (errors.price || errors.duration) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.price;
+        delete next.duration;
+        return next;
+      });
+    }
     if (type !== "hourly_calendar") {
       setCalendarData(null);
     }
@@ -335,65 +348,72 @@ const CreateListing = () => {
     }
   };
 
-  // ✅ Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const validateForm = () => {
+    const newErrors = {};
 
-    // Validation
     if (!formData.title.trim()) {
-      toast.info("Title is required");
-      return;
+      newErrors.title = "Listing name is required";
     }
 
     if (!formData.description.trim()) {
-      toast.info("Description is required");
-      return;
-    }
-
-    if (formData.description.trim().length < 50) {
-      toast.info("Description should be at least 50 characters long");
-      return;
-    }
-
-    if (isHourlyPricing && !formData.duration) {
-      toast.info("Duration is required");
-      return;
-    }
-
-    if (!isOnDemandPricing && !formData.price) {
-      toast.info("Price is required");
-      return;
-    }
-
-    if (!selectedCategory) {
-      toast.info("Please select a category");
-      return;
+      newErrors.description = "Description is required";
+    } else if (formData.description.trim().length < 50) {
+      newErrors.description = `Description should be at least 50 characters long (${formData.description.trim().length}/50)`;
     }
 
     if (!coverImage) {
-      toast.info("Please upload a lesson cover image");
-      return;
+      newErrors.coverImage = "Cover image is required";
     }
 
     if (images.length < 2) {
-      toast.info("Please upload at least 2 lesson images");
-      return;
+      newErrors.images = "Please upload at least 2 listing images";
+    } else if (images.length > 10) {
+      newErrors.images = "You can upload a maximum of 10 images";
     }
-    if (images.length > 10) {
-      toast.info("You can upload a maximum of 10 images");
-      return;
+
+    if (!isOnDemandPricing && !formData.price) {
+      newErrors.price = "Price is required";
+    }
+
+    if (isHourlyPricing && !formData.duration) {
+      newErrors.duration = "Duration is required";
     }
 
     const hasAnyLocationType = isOnlineSelected || isInPersonSelected;
     if (!hasAnyLocationType) {
-      toast.info("Select at least one lesson location option");
-      return;
+      newErrors.locationType = "Select at least one listing location option";
     }
 
     if (isInPersonSelected && !formData.location.trim()) {
-      toast.info("Location is required for in-person lessons");
+      newErrors.location = "Location is required for in-person listings";
+    }
+
+    if (!selectedCategory) {
+      newErrors.category = "Please select a category";
+    }
+
+    return newErrors;
+  };
+
+  // ✅ Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const newErrors = validateForm();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fill in the required fields marked in red");
+      const firstField = Object.keys(newErrors)[0];
+      const el = document.getElementById(`field-${firstField}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const input = el.querySelector("input, textarea, select");
+        if (input && typeof input.focus === "function") input.focus();
+      }
       return;
     }
+
+    setErrors({});
 
     // Create FormData
     const lessonFormData = new FormData();
@@ -659,9 +679,37 @@ const CreateListing = () => {
         </Motion.div>
       )}
 
-      <div className="min-h-screen bg-white py-10">
+      <div className="min-h-screen bg-white pt-[30px] pb-10">
         <div className="w-full mx-auto">
-          <h1 className="mb-8 text-xl md:text-2xl font-semibold text-black">Create a listing</h1>
+          <div className="flex items-center gap-3 mb-[30px]">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="shrink-0"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 23C14.4477 23 16.3465 22.8672 17.8271 22.5381C19.2964 22.2115 20.2925 21.7056 20.999 20.999C21.7056 20.2925 22.2115 19.2964 22.5381 17.8271C22.8672 16.3465 23 14.4477 23 12C23 9.55232 22.8672 7.65353 22.5381 6.17285C22.2115 4.70364 21.7056 3.70752 20.999 3.00098C20.2925 2.29443 19.2964 1.78846 17.8271 1.46191C16.3465 1.13284 14.4477 1 12 1C9.55232 1 7.65353 1.13284 6.17285 1.46191C4.70364 1.78846 3.70752 2.29443 3.00098 3.00098C2.29443 3.70752 1.78846 4.70364 1.46191 6.17285C1.13284 7.65353 1 9.55232 1 12C1 14.4477 1.13284 16.3465 1.46191 17.8271C1.78846 19.2964 2.29443 20.2925 3.00098 20.999C3.70752 21.7056 4.70364 22.2115 6.17285 22.5381C7.65353 22.8672 9.55232 23 12 23Z"
+                stroke="black"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 8V12M12 16V12M12 12H16H8"
+                stroke="black"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <h1 className="text-[20px] sm:text-[24px] font-normal text-black tracking-tight leading-none">
+              {isProposalFlow ? "Create & Send Listing Proposal" : "Create a listing"}
+            </h1>
+          </div>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
             {/* LEFT COLUMN: LESSON FORM */}
@@ -729,8 +777,8 @@ const CreateListing = () => {
 
               <form onSubmit={handleSubmit} className="space-y-6">
               {/* Title */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
-                <label className="block mb-2 text-sm font-semibold text-gray-900">Listing name</label>
+              <div id="field-title" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.title ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
+                <label className="block mb-2 text-sm font-semibold text-gray-900">Listing name *</label>
                 <input
                   type="text"
                   name="title"
@@ -738,13 +786,18 @@ const CreateListing = () => {
                   onChange={handleChange}
                   disabled={loading}
                   maxLength="300"
-                  className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                  className={`w-full bg-white border ${errors.title ? "border-red-400" : "border-gray-200"} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50`}
                 />
-                <p className="text-xs text-gray-500 mt-1">{formData.title.length}/300 characters</p>
+                <div className="flex justify-between items-center mt-1">
+                  {errors.title ? (
+                    <p className="text-xs text-red-500">{errors.title}</p>
+                  ) : <span />}
+                  <p className="text-xs text-gray-500">{formData.title.length}/300 characters</p>
+                </div>
               </div>
 
               {/* Description */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
+              <div id="field-description" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.description ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
                 <label className="block mb-2 text-sm font-semibold text-gray-900">Description *</label>
                 <textarea
                   name="description"
@@ -752,8 +805,11 @@ const CreateListing = () => {
                   value={formData.description}
                   onChange={handleChange}
                   disabled={loading}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50 resize-none"
+                  className={`w-full bg-white border ${errors.description ? "border-red-400" : "border-gray-200"} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50 resize-none`}
                 ></textarea>
+                {errors.description && (
+                  <p className="text-xs text-red-500 mt-1">{errors.description}</p>
+                )}
                 <div className="flex justify-between text-xs mt-2">
                   <div className={formData.description.length >= 50 ? "text-green-600" : "text-amber-600"}>
                     {formData.description.length >= 50 ? "✓ Long enough" : `Minimum 50 characters (${formData.description.length}/50)`}
@@ -765,9 +821,9 @@ const CreateListing = () => {
               </div>
 
               {/* Lesson Cover Image */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
-                <label className="block mb-2 text-sm font-semibold text-gray-900">Upload listing cover image</label>
-                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
+              <div id="field-coverImage" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.coverImage ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
+                <label className="block mb-2 text-sm font-semibold text-gray-900">Upload listing cover image *</label>
+                <div className={`bg-white border ${errors.coverImage ? "border-red-400" : "border-gray-200"} rounded-xl p-4 space-y-4`}>
                   <div className=" flex items-center justify-center">
                   {/* Upload Button */}
                   <label className="flex items-center justify-center gap-2 text-gray-700  rounded-md px-4 py-2 text-base hover:bg-gray-50 cursor-pointer w-fit disabled:opacity-50 transition-colors">
@@ -832,25 +888,40 @@ const CreateListing = () => {
                     </div>
                   )}
                 </div>
+                {errors.coverImage && (
+                  <p className="text-xs text-red-500 mt-2">{errors.coverImage}</p>
+                )}
               </div>
 
               {/* Images */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
-                <label className="block mb-2 text-sm font-semibold text-gray-900">Upload listing images</label>
-                <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-center">
+              <div id="field-images" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.images ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
+                <label className="block mb-2 text-sm font-semibold text-gray-900">Upload listing images (min 2, max 10) *</label>
+                <div className={`bg-white border ${errors.images ? "border-red-400" : "border-gray-200"} rounded-xl p-4 flex items-center justify-center`}>
                   <ImageUploader
                     images={images}
-                    onImagesChange={setImages}
+                    onImagesChange={(imgs) => {
+                      setImages(imgs);
+                      if (errors.images) {
+                        setErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.images;
+                          return next;
+                        });
+                      }
+                    }}
                     maxImages={10}
                     minImages={2}
                     disabled={loading}
                     label="Upload Images (min 2, max 10)"
                   />
                 </div>
+                {errors.images && (
+                  <p className="text-xs text-red-500 mt-2">{errors.images}</p>
+                )}
               </div>
 
               {/* Listing Price */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
+              <div id="field-price" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.price || errors.duration ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
                 <label className="block mb-3 text-sm font-semibold text-gray-900">Listing pricing *</label>
                 <div className="space-y-3">
                   {[
@@ -891,7 +962,7 @@ const CreateListing = () => {
                                     step="1"
                                     min="0"
                                     placeholder="50"
-                                    className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50 ${
+                                    className={`w-full bg-white border ${errors.price ? "border-red-400" : "border-gray-200"} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50 ${
                                       hourlyOption ? "pr-12" : ""
                                     }`}
                                   />
@@ -920,7 +991,7 @@ const CreateListing = () => {
                                 value={formData.duration}
                                 onChange={handleDurationChange}
                                 disabled={loading}
-                                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                                className={`w-full bg-white border ${errors.duration ? "border-red-400" : "border-gray-200"} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50`}
                               >
                                 <option value="">Select duration</option>
                                 {durationOptions.map((option) => (
@@ -936,6 +1007,12 @@ const CreateListing = () => {
                     );
                   })}
                 </div>
+                {errors.price && (
+                  <p className="text-xs text-red-500 mt-2">{errors.price}</p>
+                )}
+                {errors.duration && (
+                  <p className="text-xs text-red-500 mt-2">{errors.duration}</p>
+                )}
               </div>
 
               {/* Message Without Payment */}
@@ -953,15 +1030,24 @@ const CreateListing = () => {
               </div>
 
               {/* Lesson Location */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
+              <div id="field-location" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.locationType || errors.location ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
                 <label className="block mb-2 text-sm font-semibold text-gray-900">Lesson Location *</label>
-                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className={`bg-white border ${errors.locationType || errors.location ? "border-red-400" : "border-gray-200"} rounded-xl p-4 space-y-3`}>
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={isOnlineSelected}
-                        onChange={() => setIsOnlineSelected((prev) => !prev)}
+                        onChange={() => {
+                          setIsOnlineSelected((prev) => !prev);
+                          if (errors.locationType) {
+                            setErrors((p) => {
+                              const n = { ...p };
+                              delete n.locationType;
+                              return n;
+                            });
+                          }
+                        }}
                         disabled={loading}
                         className="w-4 h-4 accent-black"
                       />
@@ -971,7 +1057,16 @@ const CreateListing = () => {
                       <input
                         type="checkbox"
                         checked={isInPersonSelected}
-                        onChange={() => setIsInPersonSelected((prev) => !prev)}
+                        onChange={() => {
+                          setIsInPersonSelected((prev) => !prev);
+                          if (errors.locationType) {
+                            setErrors((p) => {
+                              const n = { ...p };
+                              delete n.locationType;
+                              return n;
+                            });
+                          }
+                        }}
                         disabled={loading}
                         className="w-4 h-4 accent-black"
                       />
@@ -980,36 +1075,65 @@ const CreateListing = () => {
                   </div>
 
                   {isInPersonSelected && (
-                    <div>
+                    <div className={errors.location ? "ring-1 ring-red-400 rounded-lg p-1" : ""}>
                       <LocationAutocomplete
                         value={locationFilter}
                         onChange={(val) => {
                           setLocationFilter(val);
                           setFormData((prev) => ({ ...prev, location: val }));
                           setPlaceId("");
+                          if (errors.location) {
+                            setErrors((p) => {
+                              const n = { ...p };
+                              delete n.location;
+                              return n;
+                            });
+                          }
                         }}
-                        onSelectDetails={handleLocationSelect}
+                        onSelectDetails={(details) => {
+                          handleLocationSelect(details);
+                          if (errors.location) {
+                            setErrors((p) => {
+                              const n = { ...p };
+                              delete n.location;
+                              return n;
+                            });
+                          }
+                        }}
                         placeholder={`Enter location for in-person lessons`}
                         className="w-full px-0 py-0 text-sm"
                       />
                     </div>
                   )}
                 </div>
+                {errors.locationType && (
+                  <p className="text-xs text-red-500 mt-2">{errors.locationType}</p>
+                )}
+                {errors.location && (
+                  <p className="text-xs text-red-500 mt-2">{errors.location}</p>
+                )}
               </div>
 
-
-
               {/* Category */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
+              <div id="field-category" className={`bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border transition-colors ${errors.category ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-gray-100"}`}>
                 <label className="block mb-2 text-sm font-semibold text-gray-900">Category *</label>
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <div className={`bg-white border ${errors.category ? "border-red-400" : "border-gray-200"} rounded-xl p-4`}>
                   {categories.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {categories.map((cat, idx) => (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => setSelectedCategory(cat.name)}
+                          onClick={() => {
+                            setSelectedCategory(cat.name);
+                            if (errors.category) {
+                              setErrors((p) => {
+                                const n = { ...p };
+                                delete n.category;
+                                return n;
+                              });
+                            }
+                          }}
                           disabled={loading}
                           className={`px-3 py-1 rounded-full border text-sm transition-all disabled:opacity-50 ${
                             selectedCategory === cat.name
@@ -1025,6 +1149,9 @@ const CreateListing = () => {
                     <p className="text-gray-500 text-sm">Loading categories...</p>
                   )}
                 </div>
+                {errors.category && (
+                  <p className="text-xs text-red-500 mt-2">{errors.category}</p>
+                )}
               </div>
 
                        <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
@@ -1071,8 +1198,6 @@ const CreateListing = () => {
                 </div>
               </div>
 
-
-
               {isProposalFlow && (
                 <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
                   <label className="block text-sm font-semibold text-gray-900">Proposal message</label>
@@ -1092,7 +1217,7 @@ const CreateListing = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || !isFormValid()}
+                disabled={loading}
                 className="flex w-fit items-center justify-center gap-2 rounded-xl bg-black px-6 py-3 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (

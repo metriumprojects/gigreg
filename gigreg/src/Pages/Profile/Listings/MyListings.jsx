@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader } from "lucide-react";
+import { Loader, Plus } from "lucide-react";
 import { getMyListings } from "../../../redux/reducers/ListingReducer";
 import { getUserFavorites } from "../../../redux/reducers/FavoriteReducer";
 import { ListingCard } from "../../Home/Listing";
@@ -25,10 +25,13 @@ export const MyListings = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-5 mt-7.5 flex items-center justify-between">
-        <h2 className="text-[28px] font-medium">My Listings</h2>
-        <Link to="/create-listing" className="flex cursor-pointer items-center gap-1 text-base">
-          Create listing +
+      <div className="mb-[20px] flex items-center justify-start">
+        <Link
+          to="/create-listing"
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+        >
+          <Plus size={16} strokeWidth={2.5} />
+          Create listing
         </Link>
       </div>
 

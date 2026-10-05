@@ -1,18 +1,13 @@
-import React from "react";
 import { Link } from "react-router-dom";
 import MainLayout from "../../components/MainLayout";
-
-const LOGO_URL =
-  "https://res.cloudinary.com/dinwxxnzm/image/upload/v1784044801/Logo_1_jldcf8.png";
+import Logo from "../../components/Logo";
 
 const SendMessage = () => {
   return (
     <MainLayout hideHeader hideFooter hideMobileMenu contentClassName="!min-h-screen">
       <div className="flex min-h-[calc(100vh-32px)] items-center justify-center py-10">
-        <div className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-[#000000]">
-          <Link to="/" className="inline-flex" aria-label="Gigreg home">
-            <img src={LOGO_URL} alt="Gigreg" className="h-11 w-auto object-contain" />
-          </Link>
+        <div className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-black">
+          <Logo variant="auth" />
 
           <h1 className="text-[32px] font-bold">Check your email</h1>
 

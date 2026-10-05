@@ -8,9 +8,7 @@ import {
   createListingProposalUrl,
   loadProposalRequest,
 } from "../../utils/proposalRequest";
-
-const LOGO_URL =
-  "https://res.cloudinary.com/dinwxxnzm/image/upload/v1784044801/Logo_1_jldcf8.png";
+import Logo from "../../components/Logo";
 
 const formatRequestDate = (value) => {
   if (!value) return "Date not available";
@@ -52,9 +50,7 @@ export default function SellerCreated() {
   return (
     <MainLayout hideHeader hideFooter hideMobileMenu contentClassName="!min-h-screen">
       <div className="mx-auto w-full max-w-4xl px-2 py-10">
-        <Link to="/" className="inline-flex" aria-label="Gigreg home">
-          <img src={LOGO_URL} alt="Gigreg" className="h-11 w-auto object-contain" />
-        </Link>
+        <Logo variant="auth" />
 
         <div className="mt-12 flex flex-col items-center text-center">
           <div className="flex items-start justify-center gap-3">

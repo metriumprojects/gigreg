@@ -11,12 +11,12 @@ export default function SearchCategoryToolbar({
   onSelectCategory,
 }) {
   return (
-    <section className="mb-5 mt-5 min-w-0 w-full">
+    <section className="mt-[30px] mb-[30px] min-w-0 w-full">
       <div className="relative min-w-0 w-full overflow-hidden">
         <Swiper
-          className="category-free-slider !overflow-visible pb-2 select-none"
+          className="category-free-slider !overflow-visible select-none"
           modules={[FreeMode, Mousewheel]}
-          spaceBetween={12}
+          spaceBetween={10}
           slidesPerView="auto"
         >
           <SwiperSlide className="!w-auto">
@@ -27,18 +27,24 @@ export default function SearchCategoryToolbar({
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") onSelectCategory?.("");
               }}
-              className={`relative flex h-[50px] min-w-[140px] cursor-grab select-none items-center justify-center overflow-hidden rounded-lg px-5 active:cursor-grabbing md:min-w-[160px] ${
-                !selectedCategory ? "ring-2 ring-primary" : ""
+              className={`group relative flex h-[150px] w-[150px] sm:h-[180px] sm:w-[180px] shrink-0 cursor-grab select-none items-center justify-center overflow-hidden rounded-[10px] p-3 sm:px-[30px] sm:py-[15px] text-center transition-all duration-200 active:cursor-grabbing hover:opacity-95 ${
+                !selectedCategory ? "shadow-md" : "opacity-90 hover:opacity-100"
               }`}
             >
               <img
                 src={FALLBACK_CATEGORY_IMAGE}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 loading="lazy"
               />
-              <div className={`absolute inset-0 ${!selectedCategory ? "bg-primary/75" : "bg-black/45"}`} />
-              <span className="relative z-10 whitespace-nowrap text-center text-sm font-medium text-white md:text-base">
+              <div
+                className={`absolute inset-0 transition-colors ${
+                  !selectedCategory
+                    ? "bg-[rgba(0,140,255,0.6)]"
+                    : "bg-black/35 group-hover:bg-black/45"
+                }`}
+              />
+              <span className="relative z-10 text-center text-sm sm:text-base font-bold text-white leading-snug">
                 Trending
               </span>
             </div>
@@ -56,18 +62,24 @@ export default function SearchCategoryToolbar({
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") onSelectCategory?.(category.name);
                   }}
-                  className={`relative flex h-[50px] min-w-[140px] cursor-grab select-none items-center justify-center overflow-hidden rounded-lg px-5 active:cursor-grabbing md:min-w-[160px] ${
-                    isSelected ? "ring-2 ring-primary" : ""
+                  className={`group relative flex h-[150px] w-[150px] sm:h-[180px] sm:w-[180px] shrink-0 cursor-grab select-none items-center justify-center overflow-hidden rounded-[10px] p-3 sm:px-[30px] sm:py-[15px] text-center transition-all duration-200 active:cursor-grabbing hover:opacity-95 ${
+                    isSelected ? "shadow-md" : "opacity-90 hover:opacity-100"
                   }`}
                 >
                   <img
                     src={imageUrl}
                     alt={category.name}
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     loading="lazy"
                   />
-                  <div className={`absolute inset-0 ${isSelected ? "bg-primary/75" : "bg-black/45"}`} />
-                  <span className="relative z-10 whitespace-nowrap text-center text-sm font-medium text-white md:text-base">
+                  <div
+                    className={`absolute inset-0 transition-colors ${
+                      isSelected
+                        ? "bg-[rgba(0,140,255,0.6)]"
+                        : "bg-black/35 group-hover:bg-black/45"
+                    }`}
+                  />
+                  <span className="relative z-10 text-center text-sm sm:text-base font-bold text-white leading-snug break-words line-clamp-2">
                     {category.name}
                   </span>
                 </div>

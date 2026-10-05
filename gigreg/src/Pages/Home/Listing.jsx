@@ -406,7 +406,7 @@ const Listing = () => {
         setPage(1);
       }}
       onFilterClick={() => setShowFilter(true)}
-      searchPlaceholder="Search open requests"
+      searchPlaceholder="Search"
     >
       <div className="w-full pb-6">
 

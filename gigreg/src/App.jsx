@@ -1,13 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { ToastContainer, cssTransition } from "react-toastify";
+import { ToastContainer, Slide } from "react-toastify";
 import PrivateRoute from "./redux/PrivateRoute";
-
-const NoToastAnimation = cssTransition({
-  enter: "toast-no-animation",
-  exit: "toast-no-animation",
-  collapse: false,
-});
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -90,17 +84,17 @@ const App = () => {
         </Suspense>
       </Router>
       <ToastContainer
-        position="top-right"
-        autoClose={1000}
+        position="bottom-center"
+        autoClose={2000}
         hideProgressBar
         newestOnTop={false}
-        closeOnClick={false}
+        closeOnClick
         rtl={false}
         pauseOnFocusLoss={false}
         draggable
         pauseOnHover
         theme="light"
-        transition={NoToastAnimation}
+        transition={Slide}
       />
     </>
   );

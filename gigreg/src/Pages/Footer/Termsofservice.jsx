@@ -7,22 +7,22 @@ export default function Termsofservice() {
     }, []);
   return (
     <MainLayout>
-      <div className="bg-white text-[#000000] px-8 py-12 sm:px-6 sm:py-8 md:px-12 lg:px-24">
+      <div className="bg-white text-black px-8 py-12 sm:px-6 sm:py-8 md:px-12 lg:px-24">
         <div className="max-w-5xl mx-auto space-y-8">
 
           {/* Header */}
           <h1 className="text-3xl font-bold leading-tight">Terms of Service (Terms & Conditions)</h1>
-          <p className="text-[#000000]">
+          <p className="text-black">
             Last updated: 15 February 2026, 09:00 CET
           </p>
-          <p className="text-[#000000]">
-            Company: SkillSlide<br/>
+          <p className="text-black">
+            Company: Gigslide<br/>
             Address: 95 3rd St, San Francisco, CA 94103, United States<br/>
-            Email: contact@skillslide.com
+            Email: contact@gigslide.com
           </p>
 
           <p className="mt-4">
-            These Terms of Service (“Terms”) govern access to and use of the Skillslide platform (the “Platform”), a marketplace where independent teachers offer lessons and students can book classes.
+            These Terms of Service (“Terms”) govern access to and use of the Gigslide platform (the “Platform”), a marketplace where independent teachers offer lessons and students can book classes.
           </p>
           <p>
             By creating an account or using the Platform, you agree to these Terms.
@@ -33,7 +33,7 @@ export default function Termsofservice() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-2">1. Platform Role</h2>
-              <p>Skillslide provides an online marketplace connecting teachers and students. We are not a party to lesson agreements and do not act as the employer, agent, or partner of teachers. Teachers are independent providers responsible for their own services.</p>
+              <p>Gigslide provides an online marketplace connecting teachers and students. We are not a party to lesson agreements and do not act as the employer, agent, or partner of teachers. Teachers are independent providers responsible for their own services.</p>
             </section>
 
             <section>
@@ -87,7 +87,7 @@ export default function Termsofservice() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-2">8. Platform Fees</h2>
-              <p>Skillslide may charge commission on lesson bookings and processing or service fees. Fees will be clearly disclosed before payment confirmation.</p>
+              <p>Gigslide may charge commission on lesson bookings and processing or service fees. Fees will be clearly disclosed before payment confirmation.</p>
             </section>
 
             <section>
@@ -103,12 +103,12 @@ export default function Termsofservice() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-2">10. Intellectual Property</h2>
-              <p>All platform content, branding, and software are owned by SkillSlide or licensed to us. Users may not copy, reproduce, or distribute platform materials without permission. Teachers retain ownership of their lesson materials but grant us a license to display them on the Platform.</p>
+              <p>All platform content, branding, and software are owned by Gigslide or licensed to us. Users may not copy, reproduce, or distribute platform materials without permission. Teachers retain ownership of their lesson materials but grant us a license to display them on the Platform.</p>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold mb-2">11. Liability Limitation</h2>
-              <p>To the maximum extent permitted by law: SkillSlide is not responsible for the quality, safety, or legality of lessons provided by teachers. We do not guarantee uninterrupted or error-free platform operation. Our liability is limited to the amount paid through the Platform in the 12 months preceding the claim. Nothing excludes liability where prohibited by law (e.g., fraud, gross negligence, or consumer rights).</p>
+              <p>To the maximum extent permitted by law: Gigslide is not responsible for the quality, safety, or legality of lessons provided by teachers. We do not guarantee uninterrupted or error-free platform operation. Our liability is limited to the amount paid through the Platform in the 12 months preceding the claim. Nothing excludes liability where prohibited by law (e.g., fraud, gross negligence, or consumer rights).</p>
             </section>
 
             <section>
@@ -138,7 +138,7 @@ export default function Termsofservice() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-2">17. Contact</h2>
-              <p>Email: contact@skillslide.com</p>
+              <p>Email: contact@gigslide.com</p>
             </section>
 
           </div>

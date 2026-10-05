@@ -844,8 +844,33 @@ const ListingDetails = () => {
   const locationText =
     listing?.address || listing?.location || modeLabel;
 
+  const breadcrumbContent = (
+    <nav className="flex items-center gap-2 text-sm leading-none text-black select-none">
+      <Link to="/" className="hidden items-center gap-2 text-gray-500 hover:text-black md:flex">
+        Home <ChevronRight size={18} />
+      </Link>
+      <Link
+        to={{
+          pathname: "/listing",
+          search: listing?.category
+            ? `?category=${encodeURIComponent(listing.category)}`
+            : "",
+        }}
+        className="flex items-center gap-2 text-black hover:text-primary"
+      >
+        <ArrowLeft className="md:hidden" size={20} />
+        <span className="md:hidden">Listings</span>
+        <span className="hidden md:inline">{listing?.category || "Listings"}</span>
+      </Link>
+    </nav>
+  );
+
   return (
-    <MainLayout width="4440px" contentClassName="lg:overflow-x-visible">
+    <MainLayout
+      width="4440px"
+      contentClassName="lg:overflow-x-visible"
+      breadcrumbs={breadcrumbContent}
+    >
       <div className="min-h-screen pb-8">
         {loading ? (
           <div className="w-full py-16 text-center text-gray-500">Loading listing...</div>
@@ -857,66 +882,52 @@ const ListingDetails = () => {
           <>
 
             <div className="mx-auto w-full lg:max-w-7xl md:px-8">
-
-              <div className="mt-5 grid h-fit grid-cols-1 md:mt-7.5 md:gap-[30px] lg:grid-cols-6">
-                <div className="lg:col-span-4">
-                  <div>
-                    
-            <div className="mx-auto flex w-full items-center justify-between gap-4 pt-8 lg:max-w-7xl">
-              <nav className="flex items-center gap-2 text-sm">
-                <Link to="/" className="hidden items-center gap-2 md:flex">
-                  Home <ChevronRight size={18} />
-                </Link>
-                <Link
-                  to={{ pathname: "/listing", search: listing?.category ? `?category=${encodeURIComponent(listing.category)}` : "" }}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowLeft className="md:hidden" size={20} />
-                  <span className="md:hidden">Listings</span>
-                  <span className="hidden md:inline">{listing?.category || "Listings"}</span>
-                </Link>
-              </nav>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="flex cursor-pointer items-center gap-2 rounded-md bg-[#F5F5F5] px-4 py-2.5 text-sm font-medium"
-                >
-                  <span className="hidden md:inline">Copy link</span>
-                  <Copy size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFavorite}
-                  className="flex cursor-pointer items-center gap-2 rounded-md bg-[#F5F5F5] px-4 py-2.5 text-sm font-medium"
-                >
-                  <span className="hidden md:inline">{isBookmarked ? "Saved" : "Save"}</span>
-                  <Heart
-                    size={18}
-                    className={isBookmarked ? "fill-primary text-primary" : ""}
-                  />
-                </button>
-              </div>
-            </div>
-                    
-              <h1 className="mt-4 w-full text-left text-lg font-semibold md:text-2xl">
+              {/* Title: 40px gap below search bar */}
+              <h1 className="mt-[40px] w-full text-left text-lg font-semibold leading-none md:text-2xl">
                 {listing?.title}
               </h1>
 
-              <div className="my-4 flex flex-wrap items-center gap-4 text-sm text-black md:gap-5">
-                <div className="flex items-center gap-2">
-                  <MapPin size={18} className="shrink-0" />
-                  <span>{locationText}</span>
-                </div>
-                {isHourlyPricing && listing?.duration && (
+              {/* Location & Duration on left, Copy link & Save on right */}
+              <div className="mt-[14px] flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-4 text-sm leading-none text-black md:gap-5">
                   <div className="flex items-center gap-2">
-                    <Timer size={18} />
-                    <span>{listing.duration}</span>
+                    <MapPin size={18} className="shrink-0" />
+                    <span>{locationText}</span>
                   </div>
-                )}
+                  {isHourlyPricing && listing?.duration && (
+                    <div className="flex items-center gap-2">
+                      <Timer size={18} />
+                      <span>{listing.duration}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-[#F5F5F5] px-3.5 text-xs font-medium transition hover:bg-gray-200"
+                  >
+                    <span className="hidden md:inline">Copy link</span>
+                    <Copy size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFavorite}
+                    className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-[#F5F5F5] px-3.5 text-xs font-medium transition hover:bg-gray-200"
+                  >
+                    <span className="hidden md:inline">{isBookmarked ? "Saved" : "Save"}</span>
+                    <Heart
+                      size={16}
+                      className={isBookmarked ? "fill-primary text-primary" : ""}
+                    />
+                  </button>
+                </div>
               </div>
-                  </div>
+
+              {/* Two-column grid: Images on left, Calendar on right perfectly aligned */}
+              <div className="mt-[18px] grid h-fit grid-cols-1 md:gap-[30px] lg:grid-cols-6">
+                <div className="lg:col-span-4">
                   <div className="max-w-7xl space-y-4">
                     <ImageGallery images={galleryImages} />
 

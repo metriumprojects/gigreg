@@ -262,9 +262,9 @@ const UpdateListing = () => {
 
   return (
     <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen bg-white py-10">
+      <div className="min-h-screen bg-white pt-[30px] pb-10">
         <div className="w-full mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-[30px]">
             <h1 className="text-3xl font-bold">Update listing</h1>
             <Link to="/profile?tab=My%20Listing" className="text-sm underline">
               Back to listings

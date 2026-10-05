@@ -16,9 +16,7 @@ import {
   saveProposalMessage,
   saveProposalRequest,
 } from "../../utils/proposalRequest";
-
-const LOGO_URL =
-  "https://res.cloudinary.com/dinwxxnzm/image/upload/v1784044801/Logo_1_jldcf8.png";
+import Logo from "../../components/Logo";
 
 export default function SendProposal() {
   const dispatch = useDispatch();
@@ -114,9 +112,7 @@ export default function SendProposal() {
   return (
     <MainLayout hideHeader hideFooter hideMobileMenu contentClassName="!min-h-screen">
       <div className="mx-auto w-full max-w-3xl px-2 py-10 space-y-6">
-        <Link to="/" className="inline-flex" aria-label="Gigreg home">
-          <img src={LOGO_URL} alt="Gigreg" className="h-11 w-auto object-contain" />
-        </Link>
+        <Logo variant="auth" />
 
         <div className="flex items-start gap-3">
           <span className=" flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-white">
@@ -238,7 +234,7 @@ export default function SendProposal() {
             Cancel and go back to buyer profile
           </button>
           <span className="mx-2">or</span>
-          <Link to="/profile?tab=My Listing" className="underline underline-offset-2 text-black ">
+          <Link to="/profile?tab=My Listings" className="underline underline-offset-2 text-black ">
             Cancel and see your newly created listing
           </Link>
         </div>

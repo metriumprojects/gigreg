@@ -29,7 +29,7 @@ export default function SearchBar({
           <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-black w-4 h-4" />
           <input
             type="text"
-            placeholder="Search skillslide.com"
+            placeholder="Search gigslide.com"
             value={searchInput}
             onChange={(e) => onSearchInputChange(e.target.value)}
             className="w-full outline-none pl-[28px] pr-2 text-black text-base lg:text-lg placeholder-black font-semibold hidden md:block"

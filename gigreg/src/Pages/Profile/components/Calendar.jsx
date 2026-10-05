@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, X } from "lucide-react"
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -394,8 +394,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white">
-      <h2 className="text-[28px] font-medium mb-5 mt-7.5">Calendar</h2>
       <div className="max-w-[1800px] mx-auto">
+        <div className="text-sm text-gray-500 mb-[16px]">Time Zone: {timeZone || "UTC"}</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
           {/* LEFT: WEEKLY HOURS */}
@@ -630,8 +630,6 @@ export default function Home() {
               </div>
             )}
           </div>
-
-          <div className="text-sm text-gray-500">Time Zone: {timeZone}</div>
         </div>
 
         <button

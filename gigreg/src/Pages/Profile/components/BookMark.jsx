@@ -33,8 +33,6 @@ export default function BookMark() {
 
   return (
     <div className="w-full">
-      <h2 className="mb-5 mt-7.5 text-[28px] font-medium text-gray-900">My Bookmarks</h2>
-
       {listingFavorites.length === 0 ? (
         <div className="mb-5 py-16 text-center">
           <p className="text-lg text-gray-500">No favorites yet</p>

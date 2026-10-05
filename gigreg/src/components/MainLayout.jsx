@@ -15,11 +15,12 @@ const MainLayout = ({
   onLocationChange = null,
   onLocationSelect = null,
   onFilterClick = null,
-  searchPlaceholder = "Search open requests",
+  searchPlaceholder = "Search",
   contentClassName = "",
   hideHeader = false,
   hideFooter = false,
   hideMobileMenu = false,
+  breadcrumbs = null,
 }) => {
   const maxWidth = width || '1400px'
   
@@ -38,6 +39,7 @@ const MainLayout = ({
         onLocationSelect={onLocationSelect}
         onFilterClick={onFilterClick}
         searchPlaceholder={searchPlaceholder}
+        breadcrumbs={breadcrumbs}
       />
     )}
       <div className={`min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>

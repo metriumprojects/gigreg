@@ -113,18 +113,16 @@ export default function LessonsDashboard() {
 
   return (
     <div className="w-full">
-      <h2 className="mb-5 mt-7.5 text-[28px] font-medium">My Orders</h2>
-
-      <div className="mb-5 flex w-fit max-w-full flex-wrap gap-1 rounded-full border border-black bg-white p-1 font-medium text-black">
+      <div className="mb-[20px] flex gap-6 justify-start text-sm font-medium">
         {ORDER_TABS.map((item) => (
           <button
             key={item.value}
             type="button"
             onClick={() => handleTabChange(item.value)}
-            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-medium transition-colors duration-200 md:text-base ${
+            className={`pb-2.5 transition-colors cursor-pointer ${
               activeTab === item.value
-                ? "bg-primary text-white shadow-sm"
-                : "text-gray-700 hover:bg-gray-100"
+                ? "border-b-2 border-black text-black font-semibold"
+                : "text-gray-500 hover:text-black"
             }`}
           >
             {item.label}
@@ -132,8 +130,8 @@ export default function LessonsDashboard() {
         ))}
       </div>
 
-      <div className="mb-5 flex items-center justify-end">
-        {ordersTotalPages > 1 && (
+      {ordersTotalPages > 1 && (
+        <div className="mb-5 flex items-center justify-end">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -155,8 +153,8 @@ export default function LessonsDashboard() {
               <FaChevronRight />
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="mb-10 overflow-x-auto rounded-2xl bg-[#F5F5F5]">
         <table className="w-full min-w-[1180px] overflow-hidden rounded-2xl text-sm">

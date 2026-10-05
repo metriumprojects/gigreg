@@ -57,9 +57,6 @@ const Revenu = () => {
       ];
   return (
     <div>
-        
-      <h2 className="text-[28px] font-medium mb-5 mt-7.5">Revenue</h2>
-      
       {/* ✅ Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
         {stats.map((item, index) => (

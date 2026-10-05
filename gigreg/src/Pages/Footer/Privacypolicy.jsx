@@ -7,18 +7,18 @@ export default function Privacypolicy() {
   }, []);
   return (
     <MainLayout>
-      <div className="bg-white text-[#000000] px-8 py-12 sm:px-6 sm:py-8 md:px-12 lg:px-24">
+      <div className="bg-white text-black px-8 py-12 sm:px-6 sm:py-8 md:px-12 lg:px-24">
       <div className="max-w-5xl mx-auto space-y-8">
 
         {/* Header */}
         <h1 className="text-3xl font-bold leading-tight">Privacy Policy</h1>
-        <p className="text-[#000000]">
+        <p className="text-black">
           Last updated: 15 February 2026, 09:00 CET
         </p>
-        <p className="text-[#000000]">
-          Company: SkillSlide<br/>
+        <p className="text-black">
+          Company: Gigslide<br/>
           Address: 95 3rd St, San Francisco, CA 94103, United States<br/>
-          Email: contact@skillslide.com
+          Email: contact@gigslide.com
         </p>
 
         {/* Sections */}
@@ -27,7 +27,7 @@ export default function Privacypolicy() {
           <section>
             <h2 className="text-2xl font-semibold mb-2">1. Overview</h2>
             <p>
-              This Privacy Policy explains how SkillSlide (“we”, “us”, “our”) collects, uses, and protects personal data when you use the Skillslide platform (the “Platform”), where teachers offer lessons and students book classes.
+              This Privacy Policy explains how Gigslide (“we”, “us”, “our”) collects, uses, and protects personal data when you use the Gigslide platform (the “Platform”), where teachers offer lessons and students book classes.
               <br/>
               We process personal data in accordance with the EU General Data Protection Regulation (GDPR).
             </p>
@@ -129,7 +129,7 @@ export default function Privacypolicy() {
               <li>Data portability</li>
               <li>Withdraw consent at any time (for consent-based processing)</li>
             </ul>
-            <p>To exercise rights, contact: contact@skillslide.com.</p>
+            <p>To exercise rights, contact: contact@gigslide.com.</p>
             <p>You may also lodge a complaint with your local data protection authority (e.g., CNIL in France).</p>
           </section>
 
@@ -161,7 +161,7 @@ export default function Privacypolicy() {
 
           <section>
             <h2 className="text-2xl font-semibold mb-2">14. Contact</h2>
-            <p>Email: contact@skillslide.com</p>
+            <p>Email: contact@gigslide.com</p>
             <p>Address: 95 3rd St, San Francisco, CA 94103, United States</p>
           </section>
 

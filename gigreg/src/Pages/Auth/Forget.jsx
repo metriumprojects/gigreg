@@ -4,9 +4,7 @@ import MainLayout from "../../components/MainLayout";
 import { useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import { forgetPassword } from "../../redux/reducers/AuthReducer";
-
-const LOGO_URL =
-  "https://res.cloudinary.com/dinwxxnzm/image/upload/v1784044801/Logo_1_jldcf8.png";
+import Logo from "../../components/Logo";
 
 export default function Forget() {
   const dispatch = useDispatch();
@@ -45,11 +43,9 @@ export default function Forget() {
       <div className="flex min-h-[calc(100vh-32px)] items-center justify-center py-10">
         <form
           onSubmit={handleForgetPassword}
-          className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-[#000000]"
+          className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-black"
         >
-          <Link to="/" className="inline-flex" aria-label="Gigreg home">
-            <img src={LOGO_URL} alt="Gigreg" className="h-11 w-auto object-contain" />
-          </Link>
+          <Logo variant="auth" />
 
           <h1 className="text-[32px] font-bold">Forgot password</h1>
 

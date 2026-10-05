@@ -5,9 +5,7 @@ import MainLayout from "../../components/MainLayout";
 import { useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import { ResetPassword } from "../../redux/reducers/AuthReducer";
-
-const LOGO_URL =
-  "https://res.cloudinary.com/dinwxxnzm/image/upload/v1784044801/Logo_1_jldcf8.png";
+import Logo from "../../components/Logo";
 
 const inputClass =
   "w-full rounded border-[1.5px] border-black px-4 py-[12px] text-[16px] outline-none transition-all duration-200 focus:outline-none focus:ring-0";
@@ -56,11 +54,9 @@ export default function NewPassword() {
       <div className="flex min-h-[calc(100vh-32px)] items-center justify-center py-10">
         <form
           onSubmit={handleSubmit}
-          className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-[#000000]"
+          className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-black"
         >
-          <Link to="/" className="inline-flex" aria-label="Gigreg home">
-            <img src={LOGO_URL} alt="Gigreg" className="h-11 w-auto object-contain" />
-          </Link>
+          <Logo variant="auth" />
 
           <h1 className="text-[32px] font-bold">Create new password</h1>
 

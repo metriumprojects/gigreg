@@ -11,6 +11,7 @@ const LocationAutocomplete = ({
   variant = "default",
   leadingIcon = null,
   positionRelative = true,
+  placeholderClassName = "placeholder:text-black",
 }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -105,7 +106,7 @@ const LocationAutocomplete = ({
             onChange(e.target.value);
             setShowSuggestions(true);
           }}
-          className="w-full min-w-0 bg-transparent text-inherit outline-none placeholder:text-inherit"
+          className={`w-full min-w-0 bg-transparent text-inherit outline-none ${placeholderClassName}`}
         />
       </div>
 

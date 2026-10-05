@@ -16,6 +16,7 @@ import CreateRequestPopup from "../Pages/Home/Components/CreateRequestPopup";
 import CategoriesBar from "../Pages/Home/Components/Categories";
 import CurrencySelector from "./CurrencySelector";
 import HeaderSearchOverlay from "./HeaderSearchOverlay";
+import Logo from "./Logo";
 
 const Header = ({
   categories = [],
@@ -28,7 +29,8 @@ const Header = ({
   onLocationChange = null,
   onLocationSelect = null,
   onFilterClick = null,
-  searchPlaceholder = "Search open requests",
+  searchPlaceholder = "Search",
+  breadcrumbs = null,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,12 +44,20 @@ const Header = ({
   const menuRef = useRef(null);
   const isHome = location.pathname === "/" || location.pathname === "/listing";
 
-  const isActiveLink = (path) => location.pathname === path;
-
-  const mobileMenuLinkClass = (path) =>
-    `px-4 py-2 rounded-full transition-colors ${
-      isActiveLink(path) ? "border border-white bg-[#008CFF] text-white" : "hover:text-[#1dbf73]"
+  const mobileMenuLinkClass = (path, searchTab = "") => {
+    const currentTab = new URLSearchParams(location.search).get("tab");
+    let isActive = false;
+    if (searchTab) {
+      isActive = location.pathname === path && currentTab === searchTab;
+    } else if (path === "/profile") {
+      isActive = location.pathname === path && currentTab !== "My Profile";
+    } else {
+      isActive = location.pathname === path;
+    }
+    return `px-4 py-2 transition-colors ${
+      isActive ? "font-bold text-black" : "text-black hover:text-[#1dbf73]"
     }`;
+  };
 
   useEffect(() => {
     dispatch(getUser());
@@ -126,19 +136,10 @@ const Header = ({
   };
 
   return (
-    <header className={`relative mx-auto flex items-center justify-between gap-4 px-3 pt-5 md:px-10 ${isHome ? "" : "pb-2"}`}>
-      <span
-        className="flex shrink-0 justify-start lg:hidden"
-        onClick={() => {
-          window.location.href = "/";
-        }}
-      >
-        <img
-          src="https://res.cloudinary.com/dinwxxnzm/image/upload/v1784044801/Logo_1_jldcf8.png"
-          alt="logo"
-          className="h-8 w-auto md:h-10"
-        />
-      </span>
+    <header className="relative mx-auto flex items-center justify-between gap-4 px-3 pt-[20px] md:px-10">
+      <div className="flex shrink-0 justify-start lg:hidden">
+        <Logo variant="header" />
+      </div>
 
       <div className="flex w-full justify-center">
         <CategoriesBar
@@ -161,12 +162,13 @@ const Header = ({
           onLocationSelect={onLocationSelect}
           onFilterClick={onFilterClick || (() => setShowHeaderSearch(true))}
           searchPlaceholder={searchPlaceholder}
+          breadcrumbs={breadcrumbs}
         />
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-4 lg:hidden">
         <div className="flex items-center gap-3 lg:hidden">
-          <CurrencySelector className="w-[88px]" hideIcon />
+          <CurrencySelector className="shrink-0" buttonClassName="h-9 px-2.5 text-xs" />
           <button
             onClick={handleSearchClick}
             className="rounded-md p-2 transition-colors hover:bg-gray-100 focus:outline-none"
@@ -195,8 +197,8 @@ const Header = ({
           {userInfo ? (
             <>
               <Link
-                to="/profile"
-                className={mobileMenuLinkClass("/profile")}
+                to="/profile?tab=My Profile"
+                className={mobileMenuLinkClass("/profile", "My Profile")}
                 onClick={() => setShowMobileMenu(false)}
               >
                 View Profile
@@ -252,7 +254,7 @@ const Header = ({
                   setShowMobileMenu(false);
                 }}
               >
-                {userInfo?.role === "teacher" ? "Open request" : "Post a Request"}
+                {userInfo?.role === "teacher" ? "Open requests" : "Post a Request"}
               </button>
               <Link
                 to="/profile"
@@ -266,7 +268,7 @@ const Header = ({
                   handleLogout();
                   setShowMobileMenu(false);
                 }}
-                className="text-red-500"
+                className="text-black transition-colors hover:text-black/70 cursor-pointer"
               >
                 Logout
               </button>

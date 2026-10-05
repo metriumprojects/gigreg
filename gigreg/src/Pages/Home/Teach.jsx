@@ -232,7 +232,7 @@ const Teach = () => {
         setPage(1);
       }}
       onFilterClick={() => setShowFilter(true)}
-      searchPlaceholder="Search open requests"
+      searchPlaceholder="Search"
     >
       {/* Mobile controls */}
       <div className="mb-4 mt-2 flex items-center justify-center gap-4 font-medium md:hidden">
