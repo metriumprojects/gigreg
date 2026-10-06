@@ -104,7 +104,7 @@ export default function StudentOrders() {
 
   return (
     <div className="w-full">
-      <div className="mb-[20px] flex gap-6 justify-start text-sm font-medium">
+      <div className="mb-[10px] flex gap-6 justify-start text-sm font-medium">
         {ORDER_TABS.map((item) => (
           <button
             key={item.value}

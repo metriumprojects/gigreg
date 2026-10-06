@@ -31,6 +31,9 @@ const Header = ({
   onFilterClick = null,
   searchPlaceholder = "Search",
   breadcrumbs = null,
+  isOnlineSelected = true,
+  isInPersonSelected = true,
+  onModeChange = null,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -41,8 +44,18 @@ const Header = ({
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [showHeaderSearch, setShowHeaderSearch] = useState(false);
+  const [currentSearch, setCurrentSearch] = useState(searchInput);
   const menuRef = useRef(null);
   const isHome = location.pathname === "/" || location.pathname === "/listing";
+
+  useEffect(() => {
+    setCurrentSearch(searchInput);
+  }, [searchInput]);
+
+  const handleSearchChangeWrapper = (value) => {
+    setCurrentSearch(value);
+    onSearchChange?.(value);
+  };
 
   const mobileMenuLinkClass = (path, searchTab = "") => {
     const currentTab = new URLSearchParams(location.search).get("tab");
@@ -136,7 +149,7 @@ const Header = ({
   };
 
   return (
-    <header className="relative mx-auto flex items-center justify-between gap-4 px-3 pt-[20px] md:px-10">
+    <header className="relative z-50 mx-auto flex items-center justify-between gap-4 px-3 pt-[20px] md:px-10">
       <div className="flex shrink-0 justify-start lg:hidden">
         <Logo variant="header" />
       </div>
@@ -155,14 +168,17 @@ const Header = ({
           handleLogout={handleLogout}
           handleTeacher={handleTeacher}
           onOpenRequest={() => setShowCreateRequest(true)}
-          searchInput={searchInput}
-          onSearchChange={onSearchChange}
+          searchInput={currentSearch}
+          onSearchChange={handleSearchChangeWrapper}
           locationFilter={locationFilter}
           onLocationChange={onLocationChange}
           onLocationSelect={onLocationSelect}
           onFilterClick={onFilterClick || (() => setShowHeaderSearch(true))}
           searchPlaceholder={searchPlaceholder}
           breadcrumbs={breadcrumbs}
+          isOnlineSelected={isOnlineSelected}
+          isInPersonSelected={isInPersonSelected}
+          onModeChange={onModeChange}
         />
       </div>
 
@@ -174,7 +190,18 @@ const Header = ({
             className="rounded-md p-2 transition-colors hover:bg-gray-100 focus:outline-none"
             title="Search"
           >
-            <Search className="h-5 w-5 text-gray-800" />
+            <svg
+              className="h-5 w-5 text-gray-800"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M11.4785 21.9565C15.6062 21.9565 18.1249 21.2974 19.6533 19.8237C21.1731 18.3582 21.9561 15.8484 21.9561 11.478C21.956 7.10783 21.1731 4.59881 19.6533 3.1333C18.1249 1.6595 15.6064 1.00052 11.4785 1.00049C7.35046 1.00049 4.83116 1.65947 3.30273 3.1333C1.78311 4.59884 1.00003 7.10807 1 11.478C1 15.8484 1.78293 18.3582 3.30273 19.8237C4.83116 21.2976 7.35046 21.9565 11.4785 21.9565Z" />
+              <path d="M22.9565 22.9565L20.3478 20.3478" />
+            </svg>
           </button>
           <button
             onClick={() => setShowMobileMenu(!showMobileMenu)}
@@ -301,6 +328,7 @@ const Header = ({
       <HeaderSearchOverlay
         open={showHeaderSearch}
         onClose={() => setShowHeaderSearch(false)}
+        searchInput={currentSearch}
       />
     </header>
   );

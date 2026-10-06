@@ -60,9 +60,8 @@ const ResultRow = ({ item, onSelect }) => {
   );
 };
 
-export default function HeaderSearchOverlay({ open, onClose }) {
+export default function HeaderSearchOverlay({ open, onClose, searchInput = "" }) {
   const { currency } = useCurrency();
-  const [query, setQuery] = useState("");
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -70,9 +69,8 @@ export default function HeaderSearchOverlay({ open, onClose }) {
   const [isInPersonSelected, setIsInPersonSelected] = useState(true);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const inputRef = useRef(null);
 
-  const trimmedQuery = query.trim();
+  const trimmedQuery = (searchInput || "").trim();
   const hasResults = listings.length > 0;
 
   const searchParams = useMemo(() => {
@@ -102,34 +100,24 @@ export default function HeaderSearchOverlay({ open, onClose }) {
   useEffect(() => {
     if (!open) return;
 
-    const focusTimer = setTimeout(() => inputRef.current?.focus(), 50);
     const handleKeyDown = (event) => {
       if (event.key === "Escape") onClose();
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, onClose]);
 
   useEffect(() => {
     if (!open) {
-      setQuery("");
       setListings([]);
       setError("");
       setIsOnlineSelected(true);
       setIsInPersonSelected(true);
       setMinPrice("");
       setMaxPrice("");
-      return;
-    }
-
-    if (!trimmedQuery) {
-      setListings([]);
-      setError("");
-      setLoading(false);
       return;
     }
 
@@ -156,7 +144,7 @@ export default function HeaderSearchOverlay({ open, onClose }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [open, searchParams, trimmedQuery]);
+  }, [open, searchParams]);
 
   if (!open) return null;
 
@@ -173,43 +161,37 @@ export default function HeaderSearchOverlay({ open, onClose }) {
         className="w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3">
-          <Search className="h-5 w-5 shrink-0 text-gray-500" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search build listings"
-            className="w-full bg-transparent text-base font-semibold text-black outline-none placeholder:text-gray-400"
-          />
-          {loading && <Loader className="h-5 w-5 shrink-0 animate-spin text-gray-400" />}
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-black">Filters</h3>
+            {loading && <Loader className="h-4 w-4 shrink-0 animate-spin text-gray-400" />}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
-            aria-label="Close search"
+            className="rounded-full p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black cursor-pointer"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="mt-3 grid gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3 md:grid-cols-[auto_auto_1fr_1fr] md:items-center">
-          <label className="flex items-center gap-2 text-sm font-semibold text-black">
+          <label className="flex items-center gap-2 text-sm font-semibold text-black cursor-pointer">
             <input
               type="checkbox"
               checked={isOnlineSelected}
               onChange={() => setIsOnlineSelected((current) => !current)}
-              className="h-4 w-4 accent-black"
+              className="h-4 w-4 accent-black cursor-pointer"
             />
             Online
           </label>
-          <label className="flex items-center gap-2 text-sm font-semibold text-black">
+          <label className="flex items-center gap-2 text-sm font-semibold text-black cursor-pointer">
             <input
               type="checkbox"
               checked={isInPersonSelected}
               onChange={() => setIsInPersonSelected((current) => !current)}
-              className="h-4 w-4 accent-black"
+              className="h-4 w-4 accent-black cursor-pointer"
             />
             In-person
           </label>
@@ -232,22 +214,16 @@ export default function HeaderSearchOverlay({ open, onClose }) {
         </div>
 
         <div className="mt-4 max-h-[65vh] overflow-y-auto">
-          {!trimmedQuery && (
-            <p className="px-2 py-6 text-center text-sm text-gray-500">
-              Start typing to see build listing suggestions.
-            </p>
-          )}
-
           {error && <p className="px-2 py-6 text-center text-sm text-red-500">{error}</p>}
 
-          {trimmedQuery && !loading && !error && !hasResults && (
-            <p className="px-2 py-6 text-center text-sm text-gray-500">No suggestions found.</p>
+          {!loading && !error && !hasResults && (
+            <p className="px-2 py-6 text-center text-sm text-gray-500">No listings found.</p>
           )}
 
           {listings.length > 0 && (
             <div>
               <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wide text-gray-400">
-                Build
+                Listings
               </p>
               <div className="space-y-1">
                 {listings.map((item) => (

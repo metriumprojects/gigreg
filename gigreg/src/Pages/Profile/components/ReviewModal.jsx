@@ -311,7 +311,7 @@ export default function ReviewModal({ open, onClose, lesson }) {
 
         {/* Submit Button with Loading State */}
         <button
-          className="w-full bg-[#008CFF] text-white mt-6 py-3 rounded-md text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full bg-primary hover:bg-primary/90 text-white mt-6 py-3 rounded-md text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           onClick={handleSubmit}
           disabled={loading}
         >

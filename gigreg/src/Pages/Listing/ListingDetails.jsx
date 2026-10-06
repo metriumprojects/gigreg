@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Heart, MapPin, Timer, Upload } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Heart, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -208,25 +209,25 @@ const QuoteRequestModal = ({
   const { formatPrice } = useCurrency();
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-[675px] rounded-[22px] bg-white p-5 shadow-2xl md:p-6"
+        className="w-full max-w-[675px] rounded-[22px] bg-white p-[20px] shadow-2xl"
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-medium">Ask a quote</h2>
+        <div className="mb-[20px] flex items-center justify-between">
+          <h2 className="text-base font-medium leading-none">Request a quote</h2>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-full p-2 hover:bg-gray-100 disabled:opacity-50"
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50"
             aria-label="Submit quote request"
           >
             <ArrowLeft className="rotate-180" size={18} />
           </button>
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-2 block text-sm">Description (optional)</label>
           <textarea
             value={description}
@@ -237,7 +238,7 @@ const QuoteRequestModal = ({
         </div>
 
         {(quoteContext?.selectedDate || quoteContext?.selectedTimes?.length || quoteContext?.totalPrice !== undefined) && (
-          <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3 text-sm">
+          <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3 text-sm">
             <p className="mb-2 font-medium">Selected booking details</p>
             {quoteContext?.selectedDate && (
               <p className="text-gray-700">Date: {quoteContext.selectedDate}</p>
@@ -253,7 +254,7 @@ const QuoteRequestModal = ({
           </div>
         )}
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-3 block text-sm">Images (optional)</label>
           <label className="flex min-h-[52px] cursor-pointer items-center justify-center rounded-xl bg-white text-gray-700">
             <Upload size={20} />
@@ -272,25 +273,26 @@ const QuoteRequestModal = ({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-[10px]">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-full border border-black px-4 py-2 text-sm font-medium shadow-[0_3px_0_#ef4444] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-transparent bg-gray-200 px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-300 disabled:opacity-50 cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-full border border-black px-4 py-2 text-sm font-medium shadow-[0_3px_0_#65a30d] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary px-5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
             {submitting ? "Sending..." : "Submit"}
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -466,7 +468,7 @@ const ListingAvailabilityPanel = ({
             {!selectedDate
               ? hasAnyAvailableDatesInMonth()
                 ? "Pick a date"
-                : "Sorry, this teacher is currently fully booked."
+                : "Sorry, this expert is currently fully booked."
               : "No available times for this date"}
           </div>
         )}
@@ -510,7 +512,7 @@ const ListingAvailabilityPanel = ({
         disabled={selectedTimes.length === 0 || booking}
         className="mt-3 w-full rounded-full border border-black bg-white px-5 py-3 text-sm font-medium text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Ask for quote
+        Request a quote
       </button>
     </div>
   );
@@ -538,6 +540,103 @@ const ListingDetails = () => {
   const [quoteContext, setQuoteContext] = useState(null);
   const [quoteSubmitting, setQuoteSubmitting] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  const [reviewsList, setReviewsList] = useState(() => {
+    const saved = localStorage.getItem(`listing_reviews_${slug || "default"}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // ignore
+      }
+    }
+    return [
+      {
+        id: "rev-1",
+        image:
+          "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80",
+        userName: "Maya Thompson",
+        initials: "MT",
+        avatarBg: "#B25A38",
+        verifiedBadge: "Verified attendee",
+        rating: 5,
+        comment:
+          "Alex made every step feel approachable. The workshop moved at the perfect pace, and the thoughtful feedback helped me see my work differently.",
+        date: "JANUARY 18, 2025",
+      },
+    ];
+  });
+  const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
+  const [addReviewOpen, setAddReviewOpen] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newReviewerName, setNewReviewerName] = useState("");
+  const [newReviewComment, setNewReviewComment] = useState("");
+  const [newReviewImage, setNewReviewImage] = useState("");
+
+  const handleReviewSubmit = (e) => {
+    e.preventDefault();
+    if (!newReviewComment.trim()) {
+      toast.error("Please enter your review text.");
+      return;
+    }
+    const name = newReviewerName.trim() || userInfo?.name || "Anonymous";
+    const initials =
+      name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "U";
+
+    const months = [
+      "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+      "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+    ];
+    const now = new Date();
+    const formattedDate = `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
+    const newRev = {
+      id: `rev-${Date.now()}`,
+      image:
+        newReviewImage ||
+        galleryImages?.[0]?.url ||
+        "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80",
+      userName: name,
+      initials,
+      avatarBg: "#B25A38",
+      verifiedBadge: "Verified attendee",
+      rating: newRating,
+      comment: newReviewComment.trim(),
+      date: formattedDate,
+    };
+
+    const updated = [newRev, ...reviewsList];
+    setReviewsList(updated);
+    setCurrentReviewIndex(0);
+    try {
+      localStorage.setItem(`listing_reviews_${slug || "default"}`, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+
+    toast.success("Review added successfully!");
+    setAddReviewOpen(false);
+    setNewReviewComment("");
+    setNewReviewerName("");
+    setNewReviewImage("");
+    setNewRating(5);
+  };
+
+  const handlePrevReview = () => {
+    setCurrentReviewIndex((prev) => (prev > 0 ? prev - 1 : reviewsList.length - 1));
+  };
+
+  const handleNextReview = () => {
+    setCurrentReviewIndex((prev) => (prev < reviewsList.length - 1 ? prev + 1 : 0));
+  };
+
+  const activeReview = reviewsList[currentReviewIndex] || reviewsList[0];
 
   useEffect(() => {
     if (slug) dispatch(getListingBySlug(slug));
@@ -613,13 +712,13 @@ const ListingDetails = () => {
 
   const validateQuoteAccess = () => {
     if (!userInfo?._id) {
-      toast.info("Please log in to ask for a quote.");
+      toast.info("Please log in to request a quote.");
       navigate("/login");
       return false;
     }
 
     if (!listing?.createdBy?._id) {
-      toast.error("Teacher information not available");
+      toast.error("Expert information not available");
       return false;
     }
 
@@ -701,7 +800,7 @@ const ListingDetails = () => {
     }
 
     if (!listing?.createdBy?._id) {
-      toast.error("Teacher information not available");
+      toast.error("Expert information not available");
       return;
     }
 
@@ -752,7 +851,7 @@ const ListingDetails = () => {
     }
 
     if (!listing?.createdBy?._id) {
-      toast.error("Teacher information not available");
+      toast.error("Expert information not available");
       return;
     }
 
@@ -836,7 +935,7 @@ const ListingDetails = () => {
         onClick={() => handleAskForQuote()}
         className="w-full rounded-full bg-primary px-5 py-3.5 text-base font-semibold text-white cursor-pointer"
       >
-        Ask for Quote
+        Request a quote
       </button>
     );
   };
@@ -881,14 +980,14 @@ const ListingDetails = () => {
         ) : (
           <>
 
-            <div className="mx-auto w-full lg:max-w-7xl md:px-8">
+            <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8">
               {/* Title: 40px gap below search bar */}
               <h1 className="mt-[40px] w-full text-left text-lg font-semibold leading-none md:text-2xl">
                 {listing?.title}
               </h1>
 
               {/* Location & Duration on left, Copy link & Save on right */}
-              <div className="mt-[14px] flex flex-wrap items-center justify-between gap-4">
+              <div className="mt-[10px] flex flex-wrap items-center justify-between gap-4">
                 <div className="flex flex-wrap items-center gap-4 text-sm leading-none text-black md:gap-5">
                   <div className="flex items-center gap-2">
                     <MapPin size={18} className="shrink-0" />
@@ -925,9 +1024,10 @@ const ListingDetails = () => {
                 </div>
               </div>
 
-              {/* Two-column grid: Images on left, Calendar on right perfectly aligned */}
-              <div className="mt-[18px] grid h-fit grid-cols-1 md:gap-[30px] lg:grid-cols-6">
-                <div className="lg:col-span-4">
+              {/* Three-column grid: Main content on left, Booking panel in middle, Reviews on right */}
+              <div className="mt-[10px] grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
+                {/* Column 1: Main Content (Gallery, Description, TeacherCard) */}
+                <div className="lg:col-span-6 xl:col-span-6">
                   <div className="max-w-7xl space-y-4">
                     <ImageGallery images={galleryImages} />
 
@@ -942,6 +1042,8 @@ const ListingDetails = () => {
 
                   <TeacherCard
                     teacher={listing?.createdBy}
+                    title="Meet your expert"
+                    roleTitle="Expert"
                     name={listing?.createdBy?.name}
                     averageRating={listing?.createdBy?.averageRating}
                     hideLesson={listing?.createdBy?.hideLesson}
@@ -954,7 +1056,8 @@ const ListingDetails = () => {
                   />
                 </div>
 
-                <aside className="mt-6 space-y-4 lg:col-span-2 lg:mt-0 lg:sticky lg:top-6 lg:h-fit lg:self-start">
+                {/* Column 2: Booking/Quote Panel & How does it work */}
+                <aside className="space-y-4 lg:col-span-3 xl:col-span-3 lg:sticky lg:top-6 lg:h-fit lg:self-start">
                   <div
                     className={
                       listing?.pricingType === "hourly_calendar"
@@ -970,12 +1073,12 @@ const ListingDetails = () => {
                     <div className="space-y-4 text-sm leading-relaxed text-black">
                       <p className="flex items-start gap-2">
                         <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
-                        <span>Book your lesson and you&apos;ll be instantly connected with your teacher.</span>
+                        <span>Book your service and you&apos;ll be instantly connected with your expert.</span>
                       </p>
                       <p className="flex items-start gap-2">
                         <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
                         <span>
-                          Your teacher will let you know where the lesson will take place and share a
+                          Your expert will let you know where the session will take place and share a
                           meeting link with you.
                         </span>
                       </p>
@@ -989,11 +1092,225 @@ const ListingDetails = () => {
                     </div>
                   </div>
                 </aside>
+
+                {/* Column 3: Reviews Column */}
+                <aside className="space-y-4 lg:col-span-3 xl:col-span-3 lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100vh-40px)] lg:overflow-y-auto lg:self-start lg:pr-1">
+                  {/* Reviews Header with Write a Review Button on Top */}
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-lg font-semibold text-black">Reviews</h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newReviewerName && userInfo?.name) {
+                          setNewReviewerName(userInfo.name);
+                        }
+                        setAddReviewOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
+                    >
+                      <Plus size={14} />
+                      <span>Write a review</span>
+                    </button>
+                  </div>
+
+                  {/* Review Card matching reference design */}
+                  <div className="overflow-hidden rounded-2xl bg-[#F5F5F5]">
+                    {/* Top Cover Image */}
+                    {activeReview?.image && (
+                      <img
+                        src={activeReview.image}
+                        alt="Review"
+                        className="h-44 w-full object-cover"
+                      />
+                    )}
+
+                    <div className="p-5">
+                      {/* Reviewer info with website default filler avatar */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 overflow-hidden">
+                          {activeReview?.userAvatar ? (
+                            <img
+                              src={activeReview.userAvatar}
+                              alt={activeReview.userName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <svg
+                              className="h-4 w-4 shrink-0 text-gray-700"
+                              viewBox="0 0 22 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+                              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-semibold text-gray-900 leading-snug truncate">
+                            {activeReview?.userName || "Maya Thompson"}
+                          </h4>
+                          <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <Check size={12} className="stroke-[2.5]" />
+                            <span>{activeReview?.verifiedBadge || "Verified attendee"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 5 Stars in primary color */}
+                      <div className="mt-3.5 flex items-center gap-1 text-primary">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            size={14}
+                            className={
+                              i < (activeReview?.rating || 5)
+                                ? "fill-primary text-primary"
+                                : "text-gray-300"
+                            }
+                          />
+                        ))}
+                      </div>
+
+                      {/* Review Quote */}
+                      <p className="mt-3.5 text-sm leading-relaxed text-gray-700">
+                        &ldquo;{activeReview?.comment}&rdquo;
+                      </p>
+
+                      {/* Date & Carousel controls if multiple */}
+                      <div className="mt-5 flex items-center justify-between text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                        <span>{activeReview?.date}</span>
+                        {reviewsList.length > 1 && (
+                          <div className="flex items-center gap-1 text-gray-700 normal-case">
+                            <button
+                              type="button"
+                              onClick={handlePrevReview}
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-xs hover:bg-gray-100 transition cursor-pointer"
+                              title="Previous review"
+                            >
+                              <ChevronLeft size={14} />
+                            </button>
+                            <span className="text-[11px] text-gray-400">
+                              {currentReviewIndex + 1}/{reviewsList.length}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleNextReview}
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-xs hover:bg-gray-100 transition cursor-pointer"
+                              title="Next review"
+                            >
+                              <ChevronRight size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </aside>
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/* Add Review Modal */}
+      {addReviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={() => setAddReviewOpen(false)}
+              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Write a Review</h3>
+
+            <form onSubmit={handleReviewSubmit} className="space-y-4">
+              {/* Star Rating Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                  Your Rating
+                </label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setNewRating(star)}
+                      className="cursor-pointer transition hover:scale-110"
+                    >
+                      <Star
+                        size={24}
+                        className={
+                          star <= newRating
+                            ? "fill-primary text-primary"
+                            : "text-gray-300"
+                        }
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-2 text-xs font-medium text-gray-500">
+                    {newRating} / 5 stars
+                  </span>
+                </div>
+              </div>
+
+              {/* Reviewer Name */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newReviewerName}
+                  onChange={(e) => setNewReviewerName(e.target.value)}
+                  placeholder="e.g. Maya Thompson"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* Review Comment */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                  Review
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={newReviewComment}
+                  onChange={(e) => setNewReviewComment(e.target.value)}
+                  placeholder="Share your experience with this expert..."
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAddReviewOpen(false)}
+                  className="rounded-full bg-gray-100 hover:bg-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-full bg-primary hover:opacity-95 px-5 py-2 text-xs font-semibold text-white transition cursor-pointer"
+                >
+                  Submit Review
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <QuoteRequestModal
         open={quoteModalOpen}
         description={quoteDescription}

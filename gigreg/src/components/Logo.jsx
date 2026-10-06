@@ -10,7 +10,7 @@ export const LogoIcon = ({ size = 36, className = "" }) => (
     xmlns="http://www.w3.org/2000/svg"
     className={`shrink-0 ${className}`}
   >
-    <rect width="60" height="60" rx="10" fill="#008CFF" />
+    <rect width="60" height="60" rx="10" fill="var(--color-primary, #1034a6)" />
     <path
       d="M30.0936 29.2329H42.3676L39.8978 41.0018Q37.7274 42.4051 34.5747 43.378Q31.422 44.351 28.1477 44.351Q23.0584 44.351 20.3454 42.0496Q16.6407 38.9062 16.6407 32.9376Q16.6407 28.9335 18.2311 25.2663Q20.1396 20.8506 23.6571 18.4182Q27.1747 15.9859 31.9272 15.9859Q36.6796 15.9859 39.5517 18.1937Q42.4238 20.4015 43.3593 24.6301L38.1016 25.2288Q37.4094 22.9087 35.8657 21.73Q34.3221 20.5512 31.9833 20.5512Q29.2516 20.5512 26.9689 21.9732Q24.6862 23.3952 23.3952 26.3702Q22.1042 29.3451 22.1042 32.8627Q22.1042 36.3242 23.6759 37.98Q25.2475 39.6359 28.2786 39.6359Q30.0936 39.6359 32.002 39.1214Q33.9105 38.6068 35.2951 37.8958L36.137 33.8169H29.1393Z"
       fill="white"
@@ -42,7 +42,7 @@ const Logo = ({
       </div>
       {showText && (
         <span
-          className={`font-black tracking-[-0.025em] leading-none text-[#008CFF] select-none ${
+          className={`font-black tracking-[-0.025em] leading-none text-primary select-none ${
             isAuth
               ? "font-['Roboto',sans-serif] text-[28px]"
               : "font-['DM_Sans',sans-serif] text-xl sm:text-2xl md:text-[26px]"

@@ -508,22 +508,22 @@ const AskQuoteModal = ({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-[675px] max-h-[90vh] overflow-y-auto rounded-[22px] bg-white p-5 shadow-2xl md:p-6"
+        className="w-full max-w-[675px] max-h-[90vh] overflow-y-auto rounded-[22px] bg-white p-[20px] shadow-2xl"
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-medium">Ask a quote</h2>
+        <div className="mb-[20px] flex items-center justify-between">
+          <h2 className="text-base font-medium leading-none">Request a quote</h2>
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-full p-2 hover:bg-gray-100 disabled:opacity-50"
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50"
             aria-label="Close quote request"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-2 block text-sm">Description (optional)</label>
           <textarea
             value={description}
@@ -533,7 +533,7 @@ const AskQuoteModal = ({
           />
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-5 rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-3 block text-sm">Images (optional)</label>
           {previews.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-3">
@@ -572,7 +572,7 @@ const AskQuoteModal = ({
           )}
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-5 rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-3 block text-sm">
             {teacherName ? `${teacherName}'s listings` : "Teacher listings"}
           </label>
@@ -632,19 +632,19 @@ const AskQuoteModal = ({
           />
         )}
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-[10px]">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-full border border-black px-4 py-2 text-sm font-medium shadow-[0_3px_0_#ef4444] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-transparent bg-gray-200 px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-300 disabled:opacity-50 cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting || !selectedListingId}
-            className="rounded-full border border-black px-4 py-2 text-sm font-medium shadow-[0_3px_0_#65a30d] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary px-5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
             {submitting ? "Sending..." : "Submit"}
           </button>
@@ -674,21 +674,21 @@ const QuoteModal = ({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-[675px] rounded-[22px] bg-white p-5 shadow-2xl md:p-6"
+        className="w-full max-w-[675px] rounded-[22px] bg-white p-[20px] shadow-2xl"
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-medium">{mode === "edit" ? "Edit quote" : "Send a quote"}</h2>
+        <div className="mb-[20px] flex items-center justify-between">
+          <h2 className="text-base font-medium leading-none">{mode === "edit" ? "Edit quote" : "Send a quote"}</h2>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-full p-2 hover:bg-gray-100 disabled:opacity-50"
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50"
             aria-label={mode === "edit" ? "Update quote" : "Submit quote"}
           >
             <ArrowRight size={18} />
           </button>
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-2 block text-sm">Price</label>
           <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
             <input
@@ -714,7 +714,7 @@ const QuoteModal = ({
           </div>
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-3 block text-sm">Description (optional)</label>
           <textarea
             value={form.description}
@@ -724,7 +724,7 @@ const QuoteModal = ({
           />
         </div>
 
-        <div className="mb-6 rounded-xl bg-[#F7F7F7] p-3">
+        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-3 block text-sm">Images (optional)</label>
           {previews.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-3">
@@ -767,19 +767,19 @@ const QuoteModal = ({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-[10px]">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-full border border-black px-4 py-2 text-sm font-medium shadow-[0_3px_0_#ef4444] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-transparent bg-gray-200 px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-300 disabled:opacity-50 cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-full border border-black px-4 py-2 text-sm font-medium shadow-[0_3px_0_#65a30d] disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary px-5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
             {submitting ? "Saving..." : "Submit"}
           </button>
@@ -1794,7 +1794,7 @@ export default function Chat() {
                         }
                       }}
                       onChange={(e) => setMessage(e.target.value)}
-                      className="w-full border border-gray-300 rounded-full px-4 py-2 md:py-2.5 pr-12 focus:outline-none focus:border-primary disabled:bg-gray-100 text-sm md:text-base"
+                      className="h-10 md:h-11 w-full border border-gray-300 rounded-full px-4 pr-12 focus:outline-none focus:border-primary disabled:bg-gray-100 text-sm md:text-base"
                     />
 
                     <button
@@ -1812,9 +1812,9 @@ export default function Chat() {
                       type="button"
                       onClick={openAskQuoteModal}
                       disabled={!roomId || sendMessageLoading}
-                      className="shrink-0 inline-flex items-center rounded-full border border-gray-300 px-2.5 py-1.5 md:px-3 md:py-2 text-[11px] md:text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                      className="shrink-0 inline-flex h-10 md:h-11 items-center justify-center rounded-full border border-gray-300 px-4 md:px-5 text-sm md:text-base font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
                     >
-                      Ask a quote
+                      Request a quote
                     </button>
                   )}
                 </div>

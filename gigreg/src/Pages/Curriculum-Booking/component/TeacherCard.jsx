@@ -1,10 +1,9 @@
-import { BookOpen, Users } from 'lucide-react';
+import { Package, Star } from 'lucide-react';
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { startChat } from '../../../redux/reducers/ChatReducer';
 import { toast } from 'react-toastify';
-import { Info, MessageCircle } from "lucide-react";
 
 
 const TeacherCard = ({
@@ -15,7 +14,15 @@ const TeacherCard = ({
   classesAttended,
   bio,
   image,
- lession
+  lession,
+  listing,
+  listings,
+  orders,
+  orderCount,
+  reviews,
+  reviewCount,
+  title,
+  roleTitle,
 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -25,8 +32,9 @@ const TeacherCard = ({
   const displayRating = averageRating || teacher?.averageRating || 0;
   const displayBio = bio || teacher?.bio;
   const displayImage = image || teacher?.image;
-  const displayStudents = classesHosted ?? teacher?.classesHosted ?? 0;
-  const displayLessons = lession ;
+  const displayOrders = orders ?? orderCount ?? listing ?? listings ?? lession ?? 0;
+  const displayReviews = reviews ?? reviewCount ?? classesHosted ?? teacher?.reviewsCount ?? teacher?.classesHosted ?? 0;
+  const displayTitle = title ? (title.endsWith(":") ? title : `${title}:`) : "Meet your teacher:";
 
   const handleStartChat = async () => {
     if (!userInfo?._id) {
@@ -36,7 +44,7 @@ const TeacherCard = ({
     }
 
     if (!teacher?._id) {
-      toast.error("Teacher information not available");
+      toast.error(`${roleTitle || "Teacher"} information not available`);
       return;
     }
 
@@ -64,12 +72,12 @@ const TeacherCard = ({
   };
 
   return (
-    <div className="w-full mt-8 bg-[#008CFF1A] p-4 rounded-lg max-w-[720px]">
-      <div className="w-fit">
+    <div className="w-full mt-8 bg-primary text-white p-4 rounded-lg max-w-[720px]">
+      <div className="w-full">
       
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-lg md:text-xl font-semibold">Meet your teacher</h3>
+        <h3 className="text-lg md:text-xl font-semibold text-white">{displayTitle}</h3>
       </div>
 
       {/* Content */}
@@ -80,40 +88,59 @@ const TeacherCard = ({
           <img
             src={displayImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
             alt={displayName}
-            className="w-14 h-14 rounded-full object-cover"
+            className="w-[108px] h-[108px] rounded-xl object-cover border-2 border-white/20 shrink-0"
           />
         </Link>
 
         {/* Details */}
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col justify-center gap-1.5">
           
-          {/* Name + Rating + Chat */}
-          <div className="flex items-center justify-left gap-4">
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm">{displayName}</h4>
-              {displayRating > 0 && (
-                <span className="text-sm">
-                  ({displayRating}%)
-                </span>
-              )}
-            </div>
-
-            <MessageCircle 
-              size={16} 
-              className="cursor-pointer hover:text-blue-500 transition-colors" 
-              onClick={handleStartChat}
-            />
+          {/* Name + Rating */}
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-semibold text-white">{displayName}</h4>
+            {displayRating > 0 && (
+              <span className="text-sm text-white/90">
+                ({displayRating}%)
+              </span>
+            )}
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-sm mt-1">
-            <span className="flex items-center gap-1">
-              <BookOpen size={16} />
-              {displayLessons} Lessons
+          {/* Message Bubble Button */}
+          <div>
+            <button
+              type="button"
+              onClick={handleStartChat}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/30 cursor-pointer"
+              title="Message"
+            >
+              <svg
+                className="h-3.5 w-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 1C14.4525 1 16.3622 1.11115 17.8555 1.39844C19.3435 1.68476 20.3442 2.13238 21.0449 2.75C22.437 3.97718 23 6.1956 23 10.667C23 13.5483 22.7414 15.6686 22.0449 17.0498C21.7106 17.7128 21.2866 18.1796 20.7539 18.4902C20.2155 18.8041 19.4936 19 18.5 19C17.2191 19 16.2577 19.2876 15.5059 19.7969C14.7719 20.2942 14.3293 20.9457 14 21.4639C13.6386 22.0325 13.444 22.3727 13.1562 22.6309C12.9352 22.8292 12.6259 23 12 23C11.3746 22.9999 11.0658 22.8291 10.8447 22.6309C10.557 22.3727 10.3622 22.0323 10.001 21.4639C9.67166 20.9457 9.22903 20.2941 8.49512 19.7969C7.74319 19.2874 6.78116 19 5.5 19C4.51162 19 3.79216 18.7989 3.25391 18.4785C2.71973 18.1605 2.29346 17.6827 1.95703 17.0098C1.25819 15.6116 1.00002 13.488 1 10.667C1 6.25226 1.56212 4.02877 2.95898 2.78711C3.66173 2.16245 4.66331 1.70573 6.14941 1.41211C7.64112 1.11742 9.54954 1 12 1Z" />
+              </svg>
+              <span>Message</span>
+            </button>
+          </div>
+
+          {/* Orders Pill */}
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
+              <Package size={14} className="stroke-[2.5]" />
+              <span>{displayOrders} {displayOrders === 1 ? "Order" : "Orders"}</span>
             </span>
-            <span className="flex items-center gap-1">
-              <Users size={16} />
-              {displayStudents} Students
+          </div>
+
+          {/* Reviews Pill */}
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
+              <Star size={14} className="stroke-[2.5]" />
+              <span>{displayReviews} {displayReviews === 1 ? "Review" : "Reviews"}</span>
             </span>
           </div>
         </div>
@@ -121,7 +148,7 @@ const TeacherCard = ({
       </div>
           {/* Bio */}
           {displayBio && (
-            <p className="text-sm text-black mt-4 leading-relaxed">
+            <p className="text-sm text-white/95 mt-4 leading-relaxed">
               {displayBio}
             </p>
           )}

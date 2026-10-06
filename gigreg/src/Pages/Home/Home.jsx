@@ -5,6 +5,7 @@ import {
   SlidersHorizontal,
   ArrowRight,
   ListFilter,
+  Check,
 } from "lucide-react";
 import "swiper/css";
 import "swiper/css/navigation";
@@ -12,10 +13,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
 import MainLayout from "../../components/MainLayout";
 import Card from "./Components/Card";
-import Ads from "./Components/Ads";
-import { CiLocationOn } from "react-icons/ci";
 import { IoIosArrowDown } from "react-icons/io";
-import LocationAutocomplete from "./Components/LocationAutocomplete";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getAllLessons, getDiscoverFeed } from "../../redux/reducers/LessonReducer";
@@ -33,6 +31,7 @@ import CategoryMobile from "./Components/CategoryMobile";
 import SearchBar from "./Components/SearchBar";
 import SearchCategoryToolbar from "./Components/SearchCategoryToolbar";
 import HighlightSlider from "./Components/HighlightSlider";
+import FilterModal from "./Components/FilterModal";
 import { useCurrency } from "../../currency/CurrencyContext";
 
 
@@ -272,6 +271,7 @@ const Home = () => {
 
   const fetchLessons = useCallback(() => {
     if (isDiscoverSection) return;
+    if (!isOnlineSelected && !isInPersonSelected) return;
 
     const locationParam = isInPersonSelected ? debouncedLocation.trim() : "";
     const isFilteringOnlineOnly = isOnlineSelected && !isInPersonSelected;
@@ -307,6 +307,7 @@ const Home = () => {
 
   const fetchDiscover = useCallback(() => {
     if (!isDiscoverSection) return;
+    if (!isOnlineSelected && !isInPersonSelected) return;
 
     const locationParam = isInPersonSelected ? debouncedLocation.trim() : "";
     const isFilteringOnlineOnly = isOnlineSelected && !isInPersonSelected;
@@ -356,6 +357,8 @@ const Home = () => {
 
   // Combine and sort lessons and curriculum by createdAt
   const combinedCourses = React.useMemo(() => {
+    if (!isOnlineSelected && !isInPersonSelected) return [];
+
     if (isDiscoverSection) {
       return (discoverFeed || [])
         .map((item) => ({ ...item, type: item.feedType || item.type }))
@@ -463,6 +466,18 @@ const Home = () => {
         setPage(1);
       }}
       onSearchToggle={() => setShowFilter(true)}
+      searchInput={searchInput}
+      onSearchChange={(value) => {
+        setSearchInput(value);
+        setSearchFilter(value);
+      }}
+      locationFilter={locationFilter}
+      onLocationChange={handleLocationChange}
+      onLocationSelect={handleLocationSelect}
+      onFilterClick={() => setShowFilter(true)}
+      isOnlineSelected={isOnlineSelected}
+      isInPersonSelected={isInPersonSelected}
+      onModeChange={handleModeChange}
     >
     
 
@@ -610,7 +625,12 @@ const Home = () => {
 
       {/* Lessons Grid */}
       <div className="md:pb-4 w-full m-auto">
-        {isInitialLoading && page === 1 ? (
+        {!isOnlineSelected && !isInPersonSelected ? (
+          <div className="py-20 text-center">
+            <p className="text-base font-semibold text-gray-700">No services selected</p>
+            <p className="mt-1 text-sm text-gray-500">Please select Online or In-person to view available services.</p>
+          </div>
+        ) : isInitialLoading && page === 1 ? (
           <div className="w-full mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-4">
             {/* Show 8 skeleton cards while loading */}
             {[...Array(21)].map((_, index) =>
@@ -672,148 +692,20 @@ const Home = () => {
 
       {/* <Ads /> */}
 
-      {/* Filter Popup */}
-      {/* Filter Popup */}
-      {showFilter && (
-        <div className="fixed bg-black/20 inset-0 flex items-center justify-center z-50">
-          <Motion.div
-            initial={{ opacity: 0, y: -20, scale: 1 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -40, scale: 0.95 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-            className="bg-white w-[90%] md:max-w-[600px] rounded-xl p-6 shadow-xl relative"
-          >
-            <div className="flex justify-end items-center mb-6 w-full">
-              <div className="flex items-center gap-4">
-               
-                <button
-                  onClick={() => setShowFilter(false)}
-                  className="text-gray-500 hover:text-gray-700 flex items-center cursor-pointer ml-2"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-            
-
-            {/* Search Bar */}
-            <div className="mb-6">
-              <SearchBar
-                searchInput={searchInput}
-                onSearchInputChange={(value) => {
-                  setSearchInput(value);
-                  setSearchFilter(value);
-                }}
-                isOnlineSelected={isOnlineSelected}
-                isInPersonSelected={isInPersonSelected}
-                onModeChange={handleModeChange}
-                locationFilter={locationFilter}
-                onLocationChange={handleLocationChange}
-                onLocationSelect={handleLocationSelect}
-                onClose={() => {}}
-                onFilterOpen={() => {}}
-                showMobileLocation={true}
-              />
-            </div>
-              <div className="flex items-center gap-4 mb-6"  >
-                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isOnlineSelected}
-                    onChange={() => handleModeChange("online")}
-                    className="w-4 h-4 accent-black border border-gray-400 rounded bg-white cursor-pointer"
-                  />
-                  <span className="text-base text-black font-semibold">Online</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isInPersonSelected}
-                    onChange={() => handleModeChange("in-person")}
-                    className="w-4 h-4 accent-black border border-gray-400 rounded bg-white cursor-pointer"
-                  />
-                  <span className="text-base text-black font-semibold">Offline</span>
-                </label>
-                          <div className="flex items-center gap-1 border-l border-gray-300 px-2 w-full md:w-auto relative">
-                            <CiLocationOn className="h-4 w-4 shrink-0 hidden md:block" />
-                            <LocationAutocomplete
-                              placeholder="Enter a location"
-                              value={locationFilter}
-                              onChange={handleLocationChange}
-                              onSelectDetails={handleLocationSelect}
-                              className="px-0 text-sm hidden md:block w-full min-w-[300px]"
-                            />
-                          </div>
-              </div>
-
-            {/* Price Slider */}
-            <p className="text-base font-semibold mb-2">Price range:</p>
-
-            {/* Min & Max Inputs */}
-            <div className="flex justify-start gap-4 mb-6">
-              <div className="flex flex-col">
-                <span className="text-base text-black font-semibold">Minimum</span>
-                <div className="relative mt-1 w-[150px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black font-semibold pointer-events-none">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="99999"
-                    value={min}
-                    onChange={(e) => {
-                      const val = Math.min(
-                        Math.max(0, Number(e.target.value)),
-                        max - 1,
-                      );
-                      setMin(val);
-                    }}
-                    className="border border-[#ddd] rounded-lg pl-7 pr-3 py-2 w-full text-center font-semibold"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-base text-black font-semibold">Maximum</span>
-                <div className="relative mt-1 w-[150px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black font-semibold pointer-events-none">
-                    $
-                  </span>
-                <input
-                  type="number"
-                  min="1"
-                  max="100000"
-                  value={max}
-                  onChange={(e) => {
-                    const val = Math.max(
-                      Math.min(100000, Number(e.target.value)),
-                      min + 1,
-                    );
-                    setMax(val);
-                  }}
-                  className="border border-[#ddd] rounded-lg pl-7 pr-3 py-2 w-full text-center font-semibold"
-                />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between">
-              <button
-                onClick={clearAll}
-                className="px-5 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors cursor-pointer"
-              >
-                Clear filters
-              </button>
-              <button
-                onClick={() => setShowFilter(false)}
-                className="px-6 py-2 rounded-lg bg-primary text-white font-medium  transition-colors cursor-pointer"
-              >
-                Search
-              </button>
-            </div>
-          </Motion.div>
-        </div>
-      )}
+      {/* Filter Modal */}
+      <FilterModal
+        open={showFilter}
+        onClose={() => setShowFilter(false)}
+        isOnlineSelected={isOnlineSelected}
+        isInPersonSelected={isInPersonSelected}
+        onModeChange={handleModeChange}
+        min={min}
+        max={max}
+        onMinChange={setMin}
+        onMaxChange={setMax}
+        onClear={clearAll}
+        onApply={() => setShowFilter(false)}
+      />
     </MainLayout>
   );
 };

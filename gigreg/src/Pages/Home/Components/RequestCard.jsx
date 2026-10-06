@@ -219,7 +219,7 @@ const RequestCard = memo(function RequestCard({
               <button
                 type="button"
                 onClick={handleBecomeSeller}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-[#006fd1]"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors hover:opacity-90"
               >
                 <Smile size={16} />
                 Become a seller and send a proposal

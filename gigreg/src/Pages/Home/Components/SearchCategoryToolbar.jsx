@@ -11,7 +11,7 @@ export default function SearchCategoryToolbar({
   onSelectCategory,
 }) {
   return (
-    <section className="mt-[30px] mb-[30px] min-w-0 w-full">
+    <section className="relative mt-[20px] mb-[20px] min-w-0 w-full">
       <div className="relative min-w-0 w-full overflow-hidden">
         <Swiper
           className="category-free-slider !overflow-visible select-none"
@@ -40,7 +40,7 @@ export default function SearchCategoryToolbar({
               <div
                 className={`absolute inset-0 transition-colors ${
                   !selectedCategory
-                    ? "bg-[rgba(0,140,255,0.6)]"
+                    ? "bg-primary/60"
                     : "bg-black/35 group-hover:bg-black/45"
                 }`}
               />
@@ -75,7 +75,7 @@ export default function SearchCategoryToolbar({
                   <div
                     className={`absolute inset-0 transition-colors ${
                       isSelected
-                        ? "bg-[rgba(0,140,255,0.6)]"
+                        ? "bg-primary/60"
                         : "bg-black/35 group-hover:bg-black/45"
                     }`}
                   />

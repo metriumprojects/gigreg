@@ -49,7 +49,7 @@ const MyProfile = () => {
       {/* Profile Section */}
       <div className="flex flex-col">
         {/* Edit Button Bar - Left Aligned */}
-        <div className="flex items-center justify-start mb-[20px]">
+        <div className="flex items-center justify-start mb-[10px]">
           <button
             type="button"
             onClick={() => navigate("/edit-profile")}
@@ -77,7 +77,7 @@ const MyProfile = () => {
         <div className="w-full flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8">
           {/* Profile Image & Upload */}
           <div
-            className="w-72 h-72 sm:w-80 sm:h-80 aspect-square rounded-3xl overflow-hidden bg-white border-[1.5px] border-[#1A2B49] relative cursor-pointer group shrink-0"
+            className="w-72 h-72 sm:w-80 sm:h-80 aspect-square rounded-3xl overflow-hidden bg-white relative cursor-pointer group shrink-0"
             onClick={handleImageClick}
           >
             {profileImage && profileImage !== "https://i.ibb.co/tpV3m2GW/no-image.png" && !imageError ? (
@@ -123,7 +123,7 @@ const MyProfile = () => {
             )}
 
             {/* Stats Pills (Verified Seller, Rating) */}
-            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 mt-4">
+            <div className="flex flex-col items-start gap-[10px] mt-[10px]">
               {/* Verified Seller Pill */}
               {isSeller && (
                 <span className="inline-flex items-center gap-2 bg-[#E9EAEE] text-black px-3.5 py-2 rounded-full text-xs sm:text-sm font-normal shadow-none shrink-0">

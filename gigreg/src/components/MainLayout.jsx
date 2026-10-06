@@ -21,6 +21,9 @@ const MainLayout = ({
   hideFooter = false,
   hideMobileMenu = false,
   breadcrumbs = null,
+  isOnlineSelected = true,
+  isInPersonSelected = true,
+  onModeChange = null,
 }) => {
   const maxWidth = width || '1400px'
   
@@ -40,9 +43,12 @@ const MainLayout = ({
         onFilterClick={onFilterClick}
         searchPlaceholder={searchPlaceholder}
         breadcrumbs={breadcrumbs}
+        isOnlineSelected={isOnlineSelected}
+        isInPersonSelected={isInPersonSelected}
+        onModeChange={onModeChange}
       />
     )}
-      <div className={`min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>
+      <div className={`relative min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>
       <main className='mx-auto px-3 lg:px-10  py-0 pb-[32px]' style={{ maxWidth: maxWidth }}>
         {children}
       </main>

@@ -134,28 +134,28 @@ export default function Profile() {
 
   return (
     <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen w-full flex flex-col items-center pt-[30px] pb-10">
+      <div className="min-h-screen w-full flex flex-col items-center pt-[10px] pb-10">
         {/* Bottom Tabs Section */}
         <div className="w-full">
-          <div className="mb-[30px] flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-[20px] flex flex-wrap items-center justify-between gap-3">
             {/* Desktop Tabs */}
-            <div className="hidden w-fit max-w-full rounded-full overflow-hidden border-[1.5px] border-black bg-white p-1 font-medium text-black md:block">
+            <div className="hidden h-[46px] w-fit max-w-full items-center rounded-full overflow-hidden border-[1.5px] border-black bg-white p-[3.5px] font-semibold text-black md:inline-flex">
             <Swiper
               modules={[FreeMode]}
               freeMode={{ enabled: true, momentum: true }}
               slidesPerView="auto"
               spaceBetween={4}
               grabCursor
-              className="w-full"
+              className="h-9 w-full"
             >
               {tabsToShow.map((s, index) => (
-                <SwiperSlide key={index} className="!w-auto">
+                <SwiperSlide key={index} className="!w-auto !h-9">
                   <button
                     onClick={() => setSearchParams({ tab: s })}
-                    className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm transition-colors duration-200 ${
+                    className={`whitespace-nowrap rounded-full px-5 h-9 text-sm font-semibold flex items-center justify-center transition-colors duration-200 cursor-pointer ${
                       tab === s
                         ? "bg-primary text-white shadow-sm"
-                        : "text-gray-700 hover:bg-gray-100"
+                        : "text-black hover:bg-gray-100"
                     }`}
                   >
                     {s}
@@ -169,7 +169,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => handleTeacher("teacher")}
-                className="rounded-full border-[1.5px] border-black bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-50"
+                className="inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
                 Become a Seller
               </button>
@@ -177,16 +177,16 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => handleTeacher("user")}
-                className="rounded-full border-[1.5px] border-black bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-50"
+                className="inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
                 Become a Buyer
               </button>
             )}
           </div>
           {/* Mobile Dropdown Tabs */}
-          <div className="relative mb-4 md:hidden">
+          <div className="relative mb-[20px] md:hidden">
             <button
-              className="flex w-fit items-center justify-between rounded-full bg-primary px-5 py-2.5 font-medium text-white "
+              className="inline-flex h-9 items-center justify-between rounded-full bg-primary px-5 text-sm font-semibold text-white"
               onClick={() => setShowDropdown((prev) => !prev)}
               type="button"
             >

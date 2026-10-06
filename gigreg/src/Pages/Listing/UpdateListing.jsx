@@ -370,8 +370,8 @@ const UpdateListing = () => {
                         {selected && (
                           <div className="ml-7 space-y-3">
                             {!onDemandOption && (
-                              <div className="grid grid-cols-[1fr_120px] gap-2">
-                                <div className="relative">
+                              <div className="flex items-center gap-2">
+                                <div className="min-w-0 flex-1">
                                   <input
                                     type="number"
                                     name="price"
@@ -380,42 +380,42 @@ const UpdateListing = () => {
                                     disabled={loading}
                                     min="0"
                                     step="1"
-                                    className={`w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50 ${
-                                      hourlyOption ? "pr-12" : ""
-                                    }`}
+                                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
                                   />
-                                  {hourlyOption && (
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-900">/hr</span>
-                                  )}
                                 </div>
-                                <select
-                                  value={listingCurrency}
-                                  onChange={(event) => setListingCurrency(event.target.value)}
-                                  disabled={loading}
-                                  className="bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
-                                >
-                                  {supportedCurrencies.map((code) => (
-                                    <option key={code} value={code}>{code}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
 
-                            {hourlyOption && (
-                              <select
-                                name="duration"
-                                value={formData.duration}
-                                onChange={handleChange}
-                                disabled={loading}
-                                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
-                              >
-                                <option value="">Select duration</option>
-                                {durationOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
+                                {hourlyOption && (
+                                  <div className="w-[215px] shrink-0">
+                                    <select
+                                      name="duration"
+                                      value={formData.duration}
+                                      onChange={handleChange}
+                                      disabled={loading}
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                                    >
+                                      <option value="">Select minimum duration</option>
+                                      {durationOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+
+                                <div className="w-[100px] shrink-0">
+                                  <select
+                                    value={listingCurrency}
+                                    onChange={(event) => setListingCurrency(event.target.value)}
+                                    disabled={loading}
+                                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                                  >
+                                    {supportedCurrencies.map((code) => (
+                                      <option key={code} value={code}>{code}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )}
