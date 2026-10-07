@@ -129,7 +129,7 @@ export default function CategoriesBar({
     } else {
       isActive = location.pathname === path;
     }
-    return `w-full px-4 py-2 text-left flex items-center gap-2 text-sm transition-colors hover:bg-gray-50 ${
+    return `w-full px-4 py-2.5 text-left flex items-center gap-2 text-sm transition-colors hover:bg-gray-50 ${
       isActive ? "font-bold text-black" : "font-normal text-black"
     }`;
   };
@@ -218,7 +218,7 @@ export default function CategoriesBar({
       </button>
       {showProfileMenu && (
         <div
-          className="absolute left-0 top-10 z-[100] mt-1.5 w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 py-1"
+          className="absolute left-0 top-10 z-[100] mt-1.5 w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0"
         >
           <Link
             to="/profile?tab=My Profile"
@@ -233,9 +233,11 @@ export default function CategoriesBar({
                 handleTeacher("teacher");
                 handleProfileClick && handleProfileClick();
               }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
             >
-              {userInfo?.reverseRole ? "Seller profile" : "Become a Seller"}
+              {userInfo?.reverseRole || userInfo?.sellerName
+                ? "Visit your Seller profile"
+                : "Become a Seller"}
             </button>
           )}
           {userInfo?.role === "teacher" && (
@@ -244,9 +246,9 @@ export default function CategoriesBar({
                 handleTeacher("user");
                 handleProfileClick && handleProfileClick();
               }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
             >
-              Become a Buyer
+              Visit your Buyer profile
             </button>
           )}
           <Link
@@ -268,7 +270,7 @@ export default function CategoriesBar({
               handleLogout();
               handleProfileClick && handleProfileClick();
             }}
-            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
           >
             Logout
           </button>

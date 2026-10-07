@@ -44,7 +44,7 @@ const Logo = ({
         <span
           className={`font-black tracking-[-0.025em] leading-none text-primary select-none ${
             isAuth
-              ? "font-['Roboto',sans-serif] text-[28px]"
+              ? "font-['DM_Sans',sans-serif] text-[28px]"
               : "font-['DM_Sans',sans-serif] text-xl sm:text-2xl md:text-[26px]"
           }`}
         >

@@ -179,12 +179,12 @@ const GoogleLoginButton = ({
 
   if (variant === "custom") {
     return (
-      <div className="w-full max-w-sm">
+      <div className="w-full">
         <button
           type="button"
           disabled={loading}
           onClick={isNative ? handleNativeLogin : handleWebCustomLogin}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-[#F0F0F0] px-4 py-[12px] text-[16px] font-medium text-black transition-colors hover:bg-[#E8E8E8] disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-[#F0F0F0] px-4 py-[12px] text-[16px] font-medium text-black transition-colors hover:bg-[#E8E8E8] disabled:opacity-60 cursor-pointer outline-none focus:outline-none"
         >
           <FcGoogle className="text-2xl" />
           {loading ? "Connecting..." : "Continue with Google"}

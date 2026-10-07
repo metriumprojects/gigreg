@@ -5,10 +5,8 @@ import MainLayout from "../../components/MainLayout";
 import { useDispatch } from "react-redux";
 import { toast } from "react-toastify";
 import { ResetPassword } from "../../redux/reducers/AuthReducer";
+import ButtonSpinner from "../../components/ButtonSpinner";
 import Logo from "../../components/Logo";
-
-const inputClass =
-  "w-full rounded border-[1.5px] border-black px-4 py-[12px] text-[16px] outline-none transition-all duration-200 focus:outline-none focus:ring-0";
 
 export default function NewPassword() {
   const dispatch = useDispatch();
@@ -36,11 +34,11 @@ export default function NewPassword() {
     setLoading(true);
     dispatch(ResetPassword({ token, password }))
       .then((res) => {
-        if (res.payload.status) {
+        if (res.payload?.status) {
           toast.success(res.payload.message);
           navigate("/login");
         } else {
-          toast.error(res.payload.message);
+          toast.error(res.payload?.message || "Failed to reset password");
         }
       })
       .catch(() => {
@@ -51,75 +49,115 @@ export default function NewPassword() {
 
   return (
     <MainLayout hideHeader hideFooter hideMobileMenu contentClassName="!min-h-screen">
-      <div className="flex min-h-[calc(100vh-32px)] items-center justify-center py-10">
-        <form
-          onSubmit={handleSubmit}
-          className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-black"
-        >
+      <div className="flex min-h-[calc(100vh-32px)] flex-col pt-0 pb-0">
+        {/* Top: Logo with 32px top gap + heading with 32px gap below logo */}
+        <div className="w-full max-w-xl mx-auto px-2 mt-[32px] shrink-0">
           <Logo variant="auth" />
 
-          <h1 className="text-[32px] font-bold">Create new password</h1>
-
-          <p className="text-[16px] text-gray-600">
-            Enter a new password for your account.
-          </p>
-
-          <div className="relative w-full">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="New password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              aria-label="New password"
-              autoFocus
-              className={`${inputClass} pr-12`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-black"
-              aria-label={showPassword ? "Hide password" : "Show password"}
+          {/* Heading 40px below logo */}
+          <div className="mt-[40px] flex items-center gap-3">
+            <svg
+              width="26"
+              height="24"
+              viewBox="0 0 26 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="shrink-0"
+              aria-hidden="true"
             >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
+              <path
+                d="M20 7L25 12L20 17M25 12L11 12"
+                stroke="#212135"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M16.7023 19C17.3687 19 17.8657 19.6305 17.6195 20.2498C16.4497 23.1923 14.0189 24 9.29413 24C1.64062 23.9999 0.000185013 21.8819 0.000185013 12C0.000185013 2.11813 1.64062 5.52014e-05 9.29413 0C14.0189 0 16.4497 0.807678 17.6195 3.75017C17.8657 4.36951 17.3687 5 16.7023 5C16.2503 5 15.8626 4.69946 15.6787 4.28662C15.539 3.97283 15.3883 3.72215 15.2307 3.51855C14.5043 2.5808 13.1176 2 9.29413 2C5.47114 2.00003 4.08501 2.58094 3.35858 3.51855C2.95317 4.04202 2.59113 4.87607 2.34687 6.29492C2.10269 7.71347 2.00019 9.56405 2.00019 12C2.00019 14.436 2.10269 16.2865 2.34687 17.7051C2.59113 19.1239 2.95317 19.958 3.35858 20.4814C4.08501 21.4191 5.47115 22 9.29413 22C13.1176 22 14.5043 21.4192 15.2307 20.4814C15.3883 20.2779 15.539 20.0272 15.6787 19.7134C15.8626 19.3005 16.2503 19 16.7023 19Z"
+                fill="#212135"
+              />
+            </svg>
+            <span className="font-['DM_Sans',sans-serif] text-[20px] sm:text-[24px] font-normal text-black tracking-tight leading-none">
+              Create new password
+            </span>
           </div>
+        </div>
 
-          <div className="relative w-full">
-            <input
-              type={showConfirm ? "text" : "password"}
-              placeholder="Confirm new password"
-              value={cpassword}
-              onChange={(e) => setCpassword(e.target.value)}
-              aria-label="Confirm new password"
-              className={`${inputClass} pr-12`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirm((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-black"
-              aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
-            >
-              {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="block w-fit rounded-full bg-black px-12 py-[12px] text-center text-[16px] font-medium text-white transition-all duration-200 disabled:opacity-60"
+        <div className="flex w-full flex-1 flex-col items-center justify-start mt-[30px] pb-12">
+          <form
+            onSubmit={handleSubmit}
+            className="flex w-full max-w-xl flex-col gap-5 px-2 text-left text-sm text-[#000000]"
           >
-            {loading ? "Saving..." : "Continue"}
-          </button>
+            <p className="text-[16px] text-gray-600">
+              Enter a new password for your account.
+            </p>
 
-          <div className="h-px w-full bg-gray-200" />
+            <div className="flex items-center justify-between gap-4 rounded-[20px] bg-[#F4F4F4] px-5 py-[16px] h-[68px] w-full">
+              <div className="flex flex-col justify-center gap-[4px] text-left flex-1 min-w-0">
+                <label className="text-[14px] font-normal text-black select-none">
+                  New password
+                </label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  aria-label="New password"
+                  autoFocus
+                  className="w-full text-[14px] font-normal text-zinc-900 bg-transparent outline-none focus:outline-none focus:ring-0 p-0"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="cursor-pointer text-black shrink-0"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
 
-          <p className="text-[16px]">
-            Back to{" "}
-            <Link to="/login" className="font-medium underline underline-offset-2">
-              Log in
-            </Link>
-          </p>
-        </form>
+            <div className="flex items-center justify-between gap-4 rounded-[20px] bg-[#F4F4F4] px-5 py-[16px] h-[68px] w-full">
+              <div className="flex flex-col justify-center gap-[4px] text-left flex-1 min-w-0">
+                <label className="text-[14px] font-normal text-black select-none">
+                  Confirm new password
+                </label>
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={cpassword}
+                  onChange={(e) => setCpassword(e.target.value)}
+                  aria-label="Confirm new password"
+                  className="w-full text-[14px] font-normal text-zinc-900 bg-transparent outline-none focus:outline-none focus:ring-0 p-0"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConfirm((prev) => !prev)}
+                className="cursor-pointer text-black shrink-0"
+                aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
+              >
+                {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 w-full rounded-full bg-primary hover:bg-primary/90 py-[14px] text-center text-[16px] font-medium text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer outline-none focus:outline-none focus-visible:outline-none focus:ring-0"
+            >
+              {loading && <ButtonSpinner size={18} />}
+              {loading ? "Saving..." : "Continue"}
+            </button>
+
+            <div className="h-px w-full bg-gray-200" />
+
+            <p className="text-[16px] font-normal">
+              Back to{" "}
+              <Link to="/login" className="font-normal text-primary underline underline-offset-2">
+                Log in
+              </Link>
+            </p>
+          </form>
+        </div>
       </div>
     </MainLayout>
   );

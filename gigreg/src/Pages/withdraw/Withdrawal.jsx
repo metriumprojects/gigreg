@@ -93,8 +93,8 @@ export const Withdrawal = () => {
 
   return (
     <MainLayout>
-      <div className="max-w-4xl mx-auto py-10 px-4">
-        <div className="mb-6">
+      <div className="max-w-4xl mx-auto pt-[40px] pb-10 px-4">
+        <div className={`mb-6 text-left ${!connect && !showCustomOnboarding ? "max-w-xl mx-auto" : !connect ? "max-w-2xl mx-auto" : ""}`}>
           <h1 className="text-2xl font-bold text-gray-900">Direct Bank Payouts</h1>
           <p className="text-sm text-gray-600 mt-1">
             Manage your payout bank accounts and review your marketplace earnings.
@@ -120,7 +120,7 @@ export const Withdrawal = () => {
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Set up Payout Account</h2>
               <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
-                Connect your bank account directly on Gigreg to receive payments from buyers and client orders.
+                Connect your bank account directly on Gigslide to receive payments from buyers and client orders.
               </p>
 
               <button
@@ -270,11 +270,10 @@ export const Withdrawal = () => {
                           </td>
                           <td className="p-3.5">
                             <span
-                              className={`capitalize font-semibold px-2 py-0.5 rounded-md text-[11px] ${
-                                payout.status === "paid"
+                              className={`capitalize font-semibold px-2 py-0.5 rounded-md text-[11px] ${payout.status === "paid"
                                   ? "bg-green-100 text-green-700"
                                   : "bg-amber-100 text-amber-700"
-                              }`}
+                                }`}
                             >
                               {payout.status}
                             </span>

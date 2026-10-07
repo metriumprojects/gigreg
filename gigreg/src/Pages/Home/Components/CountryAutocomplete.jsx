@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { CiLocationOn } from "react-icons/ci";
+import { ChevronDown } from "lucide-react";
 
 const countries = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -28,10 +29,19 @@ const countries = [
   "Zambia", "Zimbabwe"
 ];
 
-const CountryAutocomplete = ({ value, onChange, placeholder, className, inputClassName }) => {
+const CountryAutocomplete = ({
+  value,
+  onChange,
+  placeholder = "Select country",
+  label = "Country",
+  variant = "default",
+  className = "",
+  inputClassName = "",
+}) => {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     // Close suggestions when clicking outside
@@ -48,11 +58,11 @@ const CountryAutocomplete = ({ value, onChange, placeholder, className, inputCla
 
   useEffect(() => {
     if (!value) {
-      setSuggestions([]);
+      setSuggestions(countries);
       return;
     }
 
-    const filtered = countries.filter(country => 
+    const filtered = countries.filter((country) =>
       country.toLowerCase().startsWith(value.toLowerCase())
     );
     setSuggestions(filtered);
@@ -65,18 +75,68 @@ const CountryAutocomplete = ({ value, onChange, placeholder, className, inputCla
 
   return (
     <div className={`relative ${className}`} ref={wrapperRef}>
-       <div className="flex items-center gap-1 w-full">
-        <input
+      {variant === "pill" ? (
+        <div
+          onClick={() => {
+            inputRef.current?.focus();
+            setShowSuggestions(true);
+          }}
+          className="flex items-center justify-between gap-4 rounded-[20px] bg-[#F4F4F4] px-5 py-[16px] h-[68px] w-full cursor-text select-none"
+        >
+          <div className="flex flex-col justify-center gap-[4px] text-left flex-1 min-w-0">
+            <label className="text-[14px] font-normal text-black select-none cursor-pointer">
+              {label}
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder={placeholder}
+              value={value}
+              onFocus={() => setShowSuggestions(true)}
+              onChange={(e) => {
+                onChange(e.target.value);
+                setShowSuggestions(true);
+              }}
+              className="w-full text-[14px] font-normal text-zinc-900 bg-transparent outline-none focus:outline-none focus:ring-0 p-0 placeholder:text-zinc-500"
+            />
+          </div>
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowSuggestions((prev) => !prev);
+              if (!showSuggestions) {
+                inputRef.current?.focus();
+              }
+            }}
+            className="text-black shrink-0 cursor-pointer p-1 -mr-1 hover:bg-black/5 rounded-full transition-colors"
+            aria-label="Toggle countries dropdown"
+          >
+            <ChevronDown
+              className={`h-5 w-5 transition-transform duration-200 ${
+                showSuggestions ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 w-full">
+          <input
             type="text"
             placeholder={placeholder}
             value={value}
             onChange={(e) => {
-                onChange(e.target.value);
-                setShowSuggestions(true);
+              onChange(e.target.value);
+              setShowSuggestions(true);
             }}
-            className={inputClassName || "w-full border rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-primary"}
-        />
-       </div>
+            className={
+              inputClassName ||
+              "w-full border rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            }
+          />
+        </div>
+      )}
 
       {showSuggestions && suggestions.length > 0 && (
         <ul className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-50 mt-1 max-h-60 overflow-y-auto hide-scrollbar">

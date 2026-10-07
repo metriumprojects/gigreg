@@ -23,6 +23,7 @@ import {
   getUser,
   updateProfileImage,
 } from "../../redux/reducers/AuthReducer";
+import { isSellerProfileComplete } from "../../utils/proposalRequest";
 import { toast } from "react-toastify";
 import Calender from "./components/Calendar";
 import Request from "./components/Request";
@@ -92,10 +93,14 @@ export default function Profile() {
   };
 
   const handleTeacher = (role) => {
+    if (role === "teacher" && !isSellerProfileComplete(userInfo)) {
+      navigate("/create-seller-profile");
+      return;
+    }
+
     dispatch(becomeTeacher(role)).then((res) => {
       if (res.payload?.needsSellerSetup) {
-        toast.info(res.payload.message || "Complete seller details in your profile first");
-        navigate("/edit-profile");
+        navigate("/create-seller-profile");
         return;
       }
       if (res.payload?.status) {
@@ -171,7 +176,9 @@ export default function Profile() {
                 onClick={() => handleTeacher("teacher")}
                 className="inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
-                Become a Seller
+                {userInfo?.reverseRole || userInfo?.sellerName
+                  ? "Visit your Seller profile"
+                  : "Become a Seller"}
               </button>
             ) : (
               <button
@@ -179,7 +186,7 @@ export default function Profile() {
                 onClick={() => handleTeacher("user")}
                 className="inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
-                Become a Buyer
+                Visit your Buyer profile
               </button>
             )}
           </div>

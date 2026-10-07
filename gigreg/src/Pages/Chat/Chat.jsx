@@ -1487,6 +1487,7 @@ export default function Chat() {
                     const quoteImagesInMessage = getMessageImages(msg);
                     const quoteStatus = msg?.quote?.status || "open";
                     const isDirectBookingCard = msg.type === "quote" && quoteStatus === "accepted" && !msg.quote?.requestMessageId;
+                    const isQuoteMessage = ["quote", "quote_request"].includes(msg.type);
 
                     return (
                       <div
@@ -1496,11 +1497,15 @@ export default function Chat() {
                         }`}
                       >
                         <div
-                          className={`max-w-[85%] md:max-w-[75%] lg:max-w-[65%] rounded-2xl px-3 py-2 md:px-3 md:py-3 shadow-sm ${
-                            isMine
-                              ? "bg-primary text-white rounded-br-sm"
-                              : "bg-white text-gray-900 rounded-bl-sm"
-                          }`}
+                          className={
+                            isQuoteMessage
+                              ? "w-full max-w-[85%] md:max-w-[75%] lg:max-w-[400px]"
+                              : `max-w-[85%] md:max-w-[75%] lg:max-w-[65%] rounded-2xl px-3 py-2 md:px-3 md:py-3 shadow-sm ${
+                                  isMine
+                                    ? "bg-primary text-white rounded-br-sm"
+                                    : "bg-white text-gray-900 rounded-bl-sm"
+                                }`
+                          }
                         >
                           {msg.image && (
                             <img
@@ -1517,9 +1522,17 @@ export default function Chat() {
                           )}
 
                           {msg.type === "quote_request" && (
-                            <div className="bg-white text-gray-900 rounded-xl p-3 border border-gray-200 mb-2 shadow-sm">
+                            <div className="bg-white text-gray-900 rounded-2xl p-4 border border-gray-200 shadow-sm w-full">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                  Quote request
+                                </p>
+                                <span className="shrink-0 text-[11px] text-gray-400 font-normal">
+                                  {formatTime(msg.createdAt)}
+                                </span>
+                              </div>
+
                               <div className="space-y-1">
-                                <p className="text-xs font-medium text-gray-500">Quote request</p>
                                 <p className="font-semibold text-sm">
                                   {msg.quoteRequest?.listingTitle || "Listing"}
                                 </p>
@@ -1562,7 +1575,7 @@ export default function Chat() {
                                 <button
                                   type="button"
                                   onClick={() => openSendQuoteModal(msg)}
-                                  className="mt-3 w-full rounded-full bg-primary px-4 py-2 text-xs font-medium text-white"
+                                  className="mt-3 w-full rounded-full bg-primary hover:bg-primary/90 px-4 py-2 text-xs font-medium text-white transition-colors cursor-pointer"
                                 >
                                   Send a quote
                                 </button>
@@ -1571,31 +1584,34 @@ export default function Chat() {
                           )}
 
                           {msg.type === "quote" && (
-                            <div className="bg-white text-gray-900 rounded-2xl p-4 border border-gray-200 mb-2 shadow-sm">
+                            <div className="bg-white text-gray-900 rounded-2xl p-4 border border-gray-200 shadow-sm w-full">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
                                     {isDirectBookingCard ? "Booking accepted" : "Quote offer"}
                                   </p>
-                                  <p className="mt-1 text-2xl font-semibold leading-tight">
+                                  <div className="mt-1">
+                                    <span
+                                      className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${
+                                        quoteStatus === "accepted"
+                                          ? "bg-green-100 text-green-700"
+                                          : quoteStatus === "cancelled"
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-blue-100 text-blue-700"
+                                      }`}
+                                    >
+                                      {quoteStatus}
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 text-2xl font-semibold leading-tight">
                                     {formatPrice(msg.quote?.price ?? 0, msg.quote?.currency || "USD")}
                                   </p>
                                   <p className="mt-1 text-xs text-gray-500">
                                     {isDirectBookingCard ? "Booking accepted" : quoteStatus === "accepted" ? "Quote accepted" : quoteStatus === "cancelled" ? "Quote cancelled" : " Review the offer details before checkout."}
-
-                                   
                                   </p>
                                 </div>
-                                <span
-                                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${
-                                    quoteStatus === "accepted"
-                                      ? "bg-green-100 text-green-700"
-                                      : quoteStatus === "cancelled"
-                                      ? "bg-red-100 text-red-700"
-                                      : "bg-blue-100 text-blue-700"
-                                  }`}
-                                >
-                                  {quoteStatus}
+                                <span className="shrink-0 text-[11px] text-gray-400 font-normal">
+                                  {formatTime(msg.createdAt)}
                                 </span>
                               </div>
 
@@ -1626,7 +1642,7 @@ export default function Chat() {
                                         type="button"
                                         disabled={sendMessageLoading}
                                         onClick={() => handleQuoteStatus(msg, "cancelled")}
-                                        className="rounded-full border border-black bg-white px-3 py-2 text-xs font-medium text-gray-900 shadow-[0_3px_0_#ef4444] transition-transform active:translate-y-[2px] active:shadow-[0_1px_0_#ef4444] disabled:opacity-50"
+                                        className="rounded-full border border-red-500 bg-white px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
                                       >
                                         Cancel
                                       </button>
@@ -1634,7 +1650,7 @@ export default function Chat() {
                                         type="button"
                                         disabled={sendMessageLoading}
                                         onClick={() => handleAcceptQuote(msg)}
-                                        className="rounded-full border border-black bg-white px-3 py-2 text-xs font-medium text-gray-900 shadow-[0_3px_0_#65a30d] transition-transform active:translate-y-[2px] active:shadow-[0_1px_0_#65a30d] disabled:opacity-50"
+                                        className="rounded-full border border-[#65a30d] bg-[#65a30d] hover:bg-[#578d0b] px-3 py-2 text-xs font-medium text-white transition-colors disabled:opacity-50 cursor-pointer"
                                       >
                                         Accept
                                       </button>
@@ -1647,7 +1663,7 @@ export default function Chat() {
                                 <button
                                   type="button"
                                   onClick={() => openEditQuoteModal(msg)}
-                                  className="mt-4 w-full rounded-full border border-black bg-white px-4 py-2 text-xs font-medium text-gray-900 shadow-[0_3px_0_#3b82f6] transition-transform active:translate-y-[2px] active:shadow-[0_1px_0_#3b82f6]"
+                                  className="mt-4 w-full rounded-full border border-primary bg-white px-4 py-2 text-xs font-medium text-primary hover:bg-primary/5 transition-colors cursor-pointer"
                                 >
                                   Edit
                                 </button>
@@ -1736,14 +1752,16 @@ export default function Chat() {
                             </div>
                           )}
 
-                          {msg.message && !["quote_request", "quote"].includes(msg.type) && (
+                          {msg.message && !isQuoteMessage && (
                             <div className="text-sm whitespace-pre-line">
                               {msg.message}
                             </div>
                           )}
-                          <div className="mt-1 text-[11px] opacity-80 text-right">
-                            {formatTime(msg.createdAt)}
-                          </div>
+                          {!isQuoteMessage && (
+                            <div className="mt-1 text-[11px] opacity-80 text-right">
+                              {formatTime(msg.createdAt)}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

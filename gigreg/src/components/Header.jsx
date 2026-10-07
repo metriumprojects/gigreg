@@ -7,6 +7,7 @@ import {
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { becomeTeacher, getUser, LogoutUser } from "../redux/reducers/AuthReducer";
+import { isSellerProfileComplete } from "../utils/proposalRequest";
 import { toast } from "react-toastify";
 import {
   fetchChatConnections,
@@ -120,10 +121,14 @@ const Header = ({
     : 0;
 
   const handleTeacher = (role) => {
+    if (role === "teacher" && !isSellerProfileComplete(userInfo)) {
+      navigate("/create-seller-profile");
+      return;
+    }
+
     dispatch(becomeTeacher(role)).then((res) => {
       if (res.payload?.needsSellerSetup) {
-        toast.info(res.payload.message || "Complete seller details in your profile first");
-        navigate("/edit-profile");
+        navigate("/create-seller-profile");
         return;
       }
       if (res.payload?.status) {
@@ -238,8 +243,8 @@ const Header = ({
                   }}
                   className="rounded-full px-4 py-2 transition-colors hover:text-[#1dbf73]"
                 >
-                  {userInfo?.reverseRole
-                    ? "Seller profile"
+                  {userInfo?.reverseRole || userInfo?.sellerName
+                    ? "Visit your Seller profile"
                     : "Become a Seller"}
                 </button>
               )}
@@ -251,7 +256,7 @@ const Header = ({
                   }}
                   className="rounded-full px-4 py-2 transition-colors hover:text-[#1dbf73]"
                 >
-                  Become a Buyer
+                  Visit your Buyer profile
                 </button>
               )}
               <Link
