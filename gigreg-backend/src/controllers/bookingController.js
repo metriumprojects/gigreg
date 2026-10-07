@@ -1,4 +1,4 @@
-﻿import Curriculum from "../models/Curriculum.js";
+import Curriculum from "../models/Curriculum.js";
 import Booking from "../models/Booking.js";
 import sendEmail from "../utils/sendEmail.js";
 import Message from "../models/Message.js";
@@ -1232,6 +1232,8 @@ export const userListingOrders = async (req, res) => {
       filter.status = "completed";
     } else if (statusFilter === "cancelled" || statusFilter === "canceled") {
       filter.status = "cancelled";
+    } else if (statusFilter === "all") {
+      filter.status = { $ne: "cancelled" };
     } else {
       filter.status = { $nin: ["completed", "cancelled"] };
     }
@@ -2682,6 +2684,36 @@ export const userPastLessons = async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+export const checkUserListingPurchase = async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    if (!req.user?._id) {
+      return res.status(401).json({ status: false, message: "Unauthorized", hasPurchased: false });
+    }
+    if (!listingId) {
+      return res.status(400).json({ status: false, message: "Listing ID required", hasPurchased: false });
+    }
+
+    const hasPurchased = await Booking.exists({
+      user: req.user._id,
+      type: "listing",
+      paymentStatus: "paid",
+      status: { $ne: "cancelled" },
+      $or: [
+        { listing: listingId },
+        { "itemSnapshot.itemId": listingId },
+      ],
+    });
+
+    return res.json({
+      status: true,
+      hasPurchased: Boolean(hasPurchased),
+    });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: error.message, hasPurchased: false });
   }
 };
 

@@ -16,7 +16,11 @@ import {
   getTeacherAvailability,
   getTeacherUnAvailability,
 } from "../../redux/reducers/AvailabilityReducer";
-import { initiateBooking } from "../../redux/reducers/BookingReducer";
+import {
+  initiateBooking,
+  checkListingPurchased,
+  userListingOrders,
+} from "../../redux/reducers/BookingReducer";
 import { useCurrency } from "../../currency/CurrencyContext";
 import { FaCircleCheck } from "react-icons/fa6";
 
@@ -625,6 +629,17 @@ const ListingDetails = () => {
     reviewerName: "",
   });
 
+  const [hasPurchasedListing, setHasPurchasedListing] = useState(false);
+  const [checkingPurchase, setCheckingPurchase] = useState(false);
+
+  const isLoggedIn = Boolean(userInfo?._id);
+  const isOwner = Boolean(
+    listing?.createdBy?._id &&
+    userInfo?._id &&
+    String(listing.createdBy._id) === String(userInfo._id)
+  );
+  const canUserReview = isLoggedIn && !isOwner && hasPurchasedListing;
+
   const handleReviewImagesUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -698,6 +713,10 @@ const ListingDetails = () => {
 
   const handleReviewSubmit = (e) => {
     e.preventDefault();
+    if (!canUserReview) {
+      toast.error("Only verified clients who have booked this service can submit a review.");
+      return;
+    }
     if (!newReviewComment.trim()) {
       toast.error("Please enter your review text.");
       return;
@@ -722,6 +741,7 @@ const ListingDetails = () => {
 
     const newRev = {
       id: `rev-${Date.now()}`,
+      userId: userInfo?._id,
       images: finalImages,
       image: finalImages[0] || "",
       userName: name,
@@ -764,6 +784,68 @@ const ListingDetails = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [slug]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyPurchaseEligibility = async () => {
+      if (!isLoggedIn || isOwner || !listing?._id) {
+        if (isMounted) setHasPurchasedListing(false);
+        return;
+      }
+
+      // Check localStorage test flag if present
+      const localFlag =
+        localStorage.getItem(`has_booked_${listing._id}`) === "true" ||
+        localStorage.getItem(`has_booked_${slug}`) === "true";
+      if (localFlag) {
+        if (isMounted) setHasPurchasedListing(true);
+        return;
+      }
+
+      setCheckingPurchase(true);
+      try {
+        // 1. Direct purchase check endpoint
+        const checkRes = await dispatch(
+          checkListingPurchased({ listingId: listing._id })
+        ).unwrap();
+
+        if (isMounted && checkRes?.hasPurchased) {
+          setHasPurchasedListing(true);
+          setCheckingPurchase(false);
+          return;
+        }
+
+        // 2. Fallback check through user listing orders
+        const ordersRes = await dispatch(
+          userListingOrders({ page: 1, limit: 50, status: "all" })
+        ).unwrap();
+
+        const orders = ordersRes?.orders || [];
+        const isBought = orders.some(
+          (o) =>
+            String(o.listingId) === String(listing._id) ||
+            (o.listingTitle &&
+              listing.title &&
+              o.listingTitle.trim().toLowerCase() === listing.title.trim().toLowerCase())
+        );
+
+        if (isMounted) {
+          setHasPurchasedListing(isBought);
+        }
+      } catch (err) {
+        console.warn("Purchase verification check:", err);
+      } finally {
+        if (isMounted) setCheckingPurchase(false);
+      }
+    };
+
+    verifyPurchaseEligibility();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [dispatch, isLoggedIn, isOwner, listing?._id, listing?.title, slug]);
 
   useEffect(() => {
     const teacherId = listing?.createdBy?._id;
@@ -1092,54 +1174,54 @@ const ListingDetails = () => {
           <>
 
             <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8">
-              {/* Title: 40px gap below search bar */}
-              <h1 className="mt-[40px] w-full text-left text-lg font-semibold leading-none md:text-2xl">
-                {listing?.title}
-              </h1>
-
-              {/* Location & Duration on left, Copy link & Save on right */}
-              <div className="mt-[10px] flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-4 text-sm leading-none text-black md:gap-5">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={18} className="shrink-0" />
-                    <span>{locationText}</span>
-                  </div>
-                  {isHourlyPricing && listing?.duration && (
-                    <div className="flex items-center gap-2">
-                      <Timer size={18} />
-                      <span>{listing.duration}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-[#F5F5F5] px-3.5 text-xs font-medium transition hover:bg-gray-200"
-                  >
-                    <span className="hidden md:inline">Copy link</span>
-                    <Copy size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleFavorite}
-                    className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-[#F5F5F5] px-3.5 text-xs font-medium transition hover:bg-gray-200"
-                  >
-                    <span className="hidden md:inline">{isBookmarked ? "Saved" : "Save"}</span>
-                    <Heart
-                      size={16}
-                      className={isBookmarked ? "fill-primary text-primary" : ""}
-                    />
-                  </button>
-                </div>
-              </div>
-
               {/* Two-column grid: Main content on left, Booking panel on right */}
-              <div className="mt-[10px] grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
-                {/* Column 1: Main Content (Gallery, Description, TeacherCard, Reviews) */}
+              <div className="mt-6 md:mt-8 grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
+                {/* Column 1: Main Content (TeacherCard, Title, Location, Gallery, Description, Reviews) */}
                 <div className="lg:col-span-8 xl:col-span-8">
-                  <div className="max-w-7xl space-y-4">
+                  {/* Title */}
+                  <h1 className="w-full text-left text-lg font-semibold leading-none md:text-2xl">
+                    {listing?.title}
+                  </h1>
+
+                  {/* Location & Duration on left, Copy link & Save on right */}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-4 text-sm leading-none text-black md:gap-5">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={18} className="shrink-0" />
+                        <span>{locationText}</span>
+                      </div>
+                      {isHourlyPricing && listing?.duration && (
+                        <div className="flex items-center gap-2">
+                          <Timer size={18} />
+                          <span>{listing.duration}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-[#F5F5F5] px-3.5 text-xs font-medium transition hover:bg-gray-200"
+                      >
+                        <span className="hidden md:inline">Copy link</span>
+                        <Copy size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFavorite}
+                        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-[#F5F5F5] px-3.5 text-xs font-medium transition hover:bg-gray-200"
+                      >
+                        <span className="hidden md:inline">{isBookmarked ? "Saved" : "Save"}</span>
+                        <Heart
+                          size={16}
+                          className={isBookmarked ? "fill-primary text-primary" : ""}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 max-w-7xl space-y-4">
                     <ImageGallery images={galleryImages} />
 
                     <div className="mt-5 text-sm leading-relaxed text-black">
@@ -1151,23 +1233,8 @@ const ListingDetails = () => {
                     </div>
                   </div>
 
-                  <TeacherCard
-                    teacher={listing?.createdBy}
-                    title="Meet your expert"
-                    roleTitle="Expert"
-                    name={listing?.createdBy?.name}
-                    averageRating={listing?.createdBy?.averageRating}
-                    hideLesson={listing?.createdBy?.hideLesson}
-                    classHosted={listing?.createdBy?.classHosted}
-                    classesAttended={listing?.createdBy?.classesAttended}
-                    classesHosted={listing?.createdBy?.classesHosted}
-                    bio={listing?.createdBy?.bio}
-                    image={listing?.createdBy?.image}
-                    lession={0}
-                  />
-
                   {/* Reviews Section underneath Meet your expert / Teacher Card */}
-                  <div className="mt-8 md:mt-10">
+                  <div id="reviews-section" className="mt-8 md:mt-10 scroll-mt-6">
                     <div className="mb-5 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-2.5">
                         <h2 className="text-lg md:text-xl font-semibold text-black">Reviews</h2>
@@ -1177,19 +1244,21 @@ const ListingDetails = () => {
                           </span>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!newReviewerName && userInfo?.name) {
-                            setNewReviewerName(userInfo.name);
-                          }
-                          setAddReviewOpen(true);
-                        }}
-                        className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
-                      >
-                        <Plus size={14} />
-                        <span>Write a review</span>
-                      </button>
+                      {canUserReview && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!newReviewerName && userInfo?.name) {
+                              setNewReviewerName(userInfo.name);
+                            }
+                            setAddReviewOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
+                        >
+                          <Plus size={14} />
+                          <span>Write a review</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Review Cards: horizontal row, wraps to next line */}
@@ -1320,6 +1389,30 @@ const ListingDetails = () => {
                     {renderRightPanel()}
                   </div>
 
+                  {/* Meet your expert / Teacher Card */}
+                  <TeacherCard
+                    teacher={listing?.createdBy}
+                    title="Meet your expert"
+                    roleTitle="Expert"
+                    name={listing?.createdBy?.name}
+                    averageRating={listing?.createdBy?.averageRating}
+                    hideLesson={listing?.createdBy?.hideLesson}
+                    classHosted={listing?.createdBy?.classHosted}
+                    classesAttended={listing?.createdBy?.classesAttended}
+                    classesHosted={listing?.createdBy?.classesHosted}
+                    bio={listing?.createdBy?.bio}
+                    image={listing?.createdBy?.image}
+                    lession={0}
+                    reviews={reviewsList.length}
+                    onReviewsClick={() => {
+                      const el = document.getElementById("reviews-section");
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }}
+                    className="mt-0"
+                  />
+
                   <div className="rounded-2xl bg-[#F5F5F5] p-5">
                     <h2 className="mb-4 text-lg font-semibold text-black">How does it work?</h2>
                     <div className="space-y-4 text-sm leading-relaxed text-black">
@@ -1351,7 +1444,7 @@ const ListingDetails = () => {
       </div>
 
       {/* Add Review Modal */}
-      {addReviewOpen && (
+      {addReviewOpen && canUserReview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <button

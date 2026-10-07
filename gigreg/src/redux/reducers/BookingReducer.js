@@ -78,12 +78,26 @@ export const teacherListingOrders = createAsyncThunk(
 
 export const userListingOrders = createAsyncThunk(
   "booking/userListingOrders",
-  async ({ page, limit, status = "upcoming" }, { rejectWithValue }) => {
+  async ({ page = 1, limit = 10, status = "upcoming" } = {}, { rejectWithValue }) => {
     try {
       const res = await api.get(
         `/book/user-listing-orders?page=${page}&limit=${limit}&status=${encodeURIComponent(status)}`,
         { withCredentials: true }
       );
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Error");
+    }
+  }
+);
+
+export const checkListingPurchased = createAsyncThunk(
+  "booking/checkListingPurchased",
+  async ({ listingId }, { rejectWithValue }) => {
+    try {
+      const res = await api.get(`/book/check-purchase/${listingId}`, {
+        withCredentials: true,
+      });
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || "Error");
