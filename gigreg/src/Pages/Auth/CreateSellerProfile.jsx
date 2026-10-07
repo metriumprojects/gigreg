@@ -134,8 +134,8 @@ export default function CreateSellerProfile() {
         <div className="w-full max-w-xl mx-auto px-2 mt-[32px] shrink-0">
           <Logo variant="auth" />
 
-          {/* Create your seller account 32px below logo, aligned with the logo icon */}
-          <div className="mt-[32px] flex items-center gap-3">
+          {/* Create your seller account 40px below logo, aligned with the logo icon */}
+          <div className="mt-[40px] flex items-center gap-3">
             <svg
               width="26"
               height="24"
@@ -163,11 +163,11 @@ export default function CreateSellerProfile() {
           </div>
         </div>
 
-        {/* Center: Centered between Seller account bottom and page bottom */}
-        <div className="my-auto flex w-full flex-1 flex-col items-center justify-center py-2">
+        {/* Form container: mt-[30px] */}
+        <div className="flex w-full flex-1 flex-col items-center justify-start mt-[30px] pb-12">
           <form
             onSubmit={handleNext}
-            className="flex w-full max-w-xl flex-col gap-6 px-2 text-left text-sm text-[#000000]"
+            className="flex w-full max-w-xl flex-col gap-5 px-2 text-left text-sm text-[#000000]"
           >
             {step === "name" && (
               <div className="flex items-center justify-between gap-4 rounded-[20px] bg-[#F4F4F4] px-5 py-[16px] h-[68px] w-full">
