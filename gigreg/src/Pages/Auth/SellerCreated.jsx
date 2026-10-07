@@ -93,8 +93,8 @@ export default function SellerCreated() {
               </span>
             </h1>
 
-            {/* Gap 1: 30px between Congratulations! and subtitle */}
-            <p className="mt-[30px] text-[24px] sm:text-[28px] font-normal leading-snug text-black">
+            {/* Gap 1: 20px between Congratulations! and subtitle */}
+            <p className="mt-[20px] text-[24px] sm:text-[28px] font-normal leading-snug text-black">
               Your seller profile is complete, and you’re all set to create your first listing and start offering your services on Gigslide.
             </p>
           </div>
