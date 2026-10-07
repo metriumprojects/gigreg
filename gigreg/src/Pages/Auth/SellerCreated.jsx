@@ -54,8 +54,8 @@ export default function SellerCreated() {
         <div className="w-full max-w-3xl mx-auto px-2 mt-[32px] shrink-0">
           <Logo variant="auth" />
 
-          {/* Heading 40px below logo */}
-          <div className="mt-[40px]">
+          {/* Heading 30px below logo */}
+          <div className="mt-[30px]">
             <h1 className="text-[24px] sm:text-[28px] font-normal leading-snug text-black">
               <span className="inline-flex items-center gap-2.5">
                 <svg
