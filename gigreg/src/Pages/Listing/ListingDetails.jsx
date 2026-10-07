@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Heart, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, GalleryHorizontalEnd, Heart, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -542,20 +542,16 @@ const ListingDetails = () => {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const [reviewsList, setReviewsList] = useState(() => {
-    const saved = localStorage.getItem(`listing_reviews_${slug || "default"}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // ignore
-      }
-    }
-    return [
+    const defaultReviews = [
       {
         id: "rev-1",
+        images: [
+          "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80",
+        ],
         image:
-          "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80",
         userName: "Maya Thompson",
         initials: "MT",
         avatarBg: "#B25A38",
@@ -565,14 +561,140 @@ const ListingDetails = () => {
           "Alex made every step feel approachable. The workshop moved at the perfect pace, and the thoughtful feedback helped me see my work differently.",
         date: "JANUARY 18, 2025",
       },
+      {
+        id: "rev-2",
+        images: [
+          "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80",
+        ],
+        image:
+          "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80",
+        userName: "David Kim",
+        initials: "DK",
+        avatarBg: "#2B6CB0",
+        verifiedBadge: "Verified attendee",
+        rating: 5,
+        comment:
+          "Incredible experience! The craftsmanship and attention to detail exceeded all our expectations. Highly recommended to anyone looking for quality work.",
+        date: "FEBRUARY 02, 2025",
+      },
+      {
+        id: "rev-3",
+        images: [
+          "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1200&q=80",
+        ],
+        image:
+          "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1200&q=80",
+        userName: "Sarah Jenkins",
+        initials: "SJ",
+        avatarBg: "#2C7A7B",
+        verifiedBadge: "Verified attendee",
+        rating: 5,
+        comment:
+          "Super professional, punctual, and friendly. Guided us through every step and made the whole process completely stress-free.",
+        date: "FEBRUARY 14, 2025",
+      },
     ];
+
+    const saved = localStorage.getItem(`listing_reviews_${slug || "default"}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If existing saved reviews don't have multiple images array, supplement with defaultReviews
+          if (!parsed[0]?.images) {
+            return defaultReviews;
+          }
+          return parsed;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return defaultReviews;
   });
-  const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
   const [addReviewOpen, setAddReviewOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newReviewerName, setNewReviewerName] = useState("");
   const [newReviewComment, setNewReviewComment] = useState("");
-  const [newReviewImage, setNewReviewImage] = useState("");
+  const [newReviewImages, setNewReviewImages] = useState([]);
+  const [fullscreenReviewGallery, setFullscreenReviewGallery] = useState({
+    open: false,
+    images: [],
+    index: 0,
+    reviewerName: "",
+  });
+
+  const handleReviewImagesUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    files.forEach((file) => {
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} is not an image file.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setNewReviewImages((prev) => [...prev, event.target.result]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const handleRemoveReviewImage = (indexToRemove) => {
+    setNewReviewImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const openReviewFullscreen = (images, index = 0, reviewerName = "") => {
+    if (!images || images.length === 0) return;
+    setFullscreenReviewGallery({
+      open: true,
+      images,
+      index,
+      reviewerName,
+    });
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeReviewFullscreen = () => {
+    setFullscreenReviewGallery({
+      open: false,
+      images: [],
+      index: 0,
+      reviewerName: "",
+    });
+    document.body.style.overflow = "auto";
+  };
+
+  const nextReviewFullscreen = () => {
+    setFullscreenReviewGallery((prev) => ({
+      ...prev,
+      index: (prev.index + 1) % prev.images.length,
+    }));
+  };
+
+  const prevReviewFullscreen = () => {
+    setFullscreenReviewGallery((prev) => ({
+      ...prev,
+      index: (prev.index - 1 + prev.images.length) % prev.images.length,
+    }));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!fullscreenReviewGallery.open) return;
+      if (e.key === "Escape") closeReviewFullscreen();
+      if (e.key === "ArrowRight") nextReviewFullscreen();
+      if (e.key === "ArrowLeft") prevReviewFullscreen();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [fullscreenReviewGallery.open, fullscreenReviewGallery.images.length]);
 
   const handleReviewSubmit = (e) => {
     e.preventDefault();
@@ -596,12 +718,12 @@ const ListingDetails = () => {
     const now = new Date();
     const formattedDate = `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
 
+    const finalImages = [...newReviewImages];
+
     const newRev = {
       id: `rev-${Date.now()}`,
-      image:
-        newReviewImage ||
-        galleryImages?.[0]?.url ||
-        "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=80",
+      images: finalImages,
+      image: finalImages[0] || "",
       userName: name,
       initials,
       avatarBg: "#B25A38",
@@ -613,7 +735,6 @@ const ListingDetails = () => {
 
     const updated = [newRev, ...reviewsList];
     setReviewsList(updated);
-    setCurrentReviewIndex(0);
     try {
       localStorage.setItem(`listing_reviews_${slug || "default"}`, JSON.stringify(updated));
     } catch {
@@ -624,19 +745,9 @@ const ListingDetails = () => {
     setAddReviewOpen(false);
     setNewReviewComment("");
     setNewReviewerName("");
-    setNewReviewImage("");
+    setNewReviewImages([]);
     setNewRating(5);
   };
-
-  const handlePrevReview = () => {
-    setCurrentReviewIndex((prev) => (prev > 0 ? prev - 1 : reviewsList.length - 1));
-  };
-
-  const handleNextReview = () => {
-    setCurrentReviewIndex((prev) => (prev < reviewsList.length - 1 ? prev + 1 : 0));
-  };
-
-  const activeReview = reviewsList[currentReviewIndex] || reviewsList[0];
 
   useEffect(() => {
     if (slug) dispatch(getListingBySlug(slug));
@@ -1024,10 +1135,10 @@ const ListingDetails = () => {
                 </div>
               </div>
 
-              {/* Three-column grid: Main content on left, Booking panel in middle, Reviews on right */}
+              {/* Two-column grid: Main content on left, Booking panel on right */}
               <div className="mt-[10px] grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
-                {/* Column 1: Main Content (Gallery, Description, TeacherCard) */}
-                <div className="lg:col-span-6 xl:col-span-6">
+                {/* Column 1: Main Content (Gallery, Description, TeacherCard, Reviews) */}
+                <div className="lg:col-span-8 xl:col-span-8">
                   <div className="max-w-7xl space-y-4">
                     <ImageGallery images={galleryImages} />
 
@@ -1054,10 +1165,151 @@ const ListingDetails = () => {
                     image={listing?.createdBy?.image}
                     lession={0}
                   />
+
+                  {/* Reviews Section underneath Meet your expert / Teacher Card */}
+                  <div className="mt-8 md:mt-10">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2.5">
+                        <h2 className="text-lg md:text-xl font-semibold text-black">Reviews</h2>
+                        {reviewsList.length > 0 && (
+                          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+                            {reviewsList.length}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newReviewerName && userInfo?.name) {
+                            setNewReviewerName(userInfo.name);
+                          }
+                          setAddReviewOpen(true);
+                        }}
+                        className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
+                      >
+                        <Plus size={14} />
+                        <span>Write a review</span>
+                      </button>
+                    </div>
+
+                    {/* Review Cards: horizontal row, wraps to next line */}
+                    {reviewsList.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        {reviewsList.map((review) => (
+                          <div
+                            key={review.id}
+                            className="flex flex-col overflow-hidden rounded-2xl bg-[#F5F5F5] transition hover:shadow-sm"
+                          >
+                            {/* Top Cover Image with Multi-image badge & fullscreen trigger */}
+                            {(() => {
+                              const revImages =
+                                Array.isArray(review.images) && review.images.length > 0
+                                  ? review.images
+                                  : review.image
+                                  ? [review.image]
+                                  : [];
+                              const coverImg = revImages[0];
+                              if (!coverImg) return null;
+
+                              return (
+                                <div className="relative h-44 w-full overflow-hidden bg-gray-100 group">
+                                  <img
+                                    src={coverImg}
+                                    alt="Review"
+                                    onClick={() => openReviewFullscreen(revImages, 0, review.userName)}
+                                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105 cursor-pointer"
+                                  />
+                                  {revImages.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openReviewFullscreen(revImages, 0, review.userName);
+                                      }}
+                                      className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur-xs transition hover:bg-black/80 hover:scale-105 cursor-pointer"
+                                      title={`View all ${revImages.length} photos`}
+                                    >
+                                      <GalleryHorizontalEnd size={18} />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            <div className="flex flex-1 flex-col p-5">
+                              {/* Reviewer info with avatar */}
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 overflow-hidden">
+                                  {review.userAvatar ? (
+                                    <img
+                                      src={review.userAvatar}
+                                      alt={review.userName}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <svg
+                                      className="h-4 w-4 shrink-0 text-gray-700"
+                                      viewBox="0 0 22 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C2.5166 22.1338 3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+                                      <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="text-sm font-semibold text-gray-900 leading-snug truncate">
+                                    {review.userName || "Guest"}
+                                  </h4>
+                                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                                    <Check size={12} className="stroke-[2.5]" />
+                                    <span>{review.verifiedBadge || "Verified attendee"}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 5 Stars in primary color */}
+                              <div className="mt-3.5 flex items-center gap-1 text-primary">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    size={14}
+                                    className={
+                                      i < (review.rating || 5)
+                                        ? "fill-primary text-primary"
+                                        : "text-gray-300"
+                                    }
+                                  />
+                                ))}
+                              </div>
+
+                              {/* Review Quote */}
+                              <p className="mt-3.5 text-sm leading-relaxed text-gray-700 flex-1">
+                                &ldquo;{review.comment}&rdquo;
+                              </p>
+
+                              {/* Date */}
+                              {review.date && (
+                                <div className="mt-5 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                  <span>{review.date}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 py-4">No reviews yet. Be the first to write one!</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Column 2: Booking/Quote Panel & How does it work */}
-                <aside className="space-y-4 lg:col-span-3 xl:col-span-3 lg:sticky lg:top-6 lg:h-fit lg:self-start">
+                <aside className="space-y-4 lg:col-span-4 xl:col-span-4 lg:sticky lg:top-6 lg:h-fit lg:self-start">
                   <div
                     className={
                       listing?.pricingType === "hourly_calendar"
@@ -1089,124 +1341,6 @@ const ListingDetails = () => {
                           journey starts the moment you book.
                         </span>
                       </p>
-                    </div>
-                  </div>
-                </aside>
-
-                {/* Column 3: Reviews Column */}
-                <aside className="space-y-4 lg:col-span-3 xl:col-span-3 lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100vh-40px)] lg:overflow-y-auto lg:self-start lg:pr-1">
-                  {/* Reviews Header with Write a Review Button on Top */}
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-lg font-semibold text-black">Reviews</h2>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!newReviewerName && userInfo?.name) {
-                          setNewReviewerName(userInfo.name);
-                        }
-                        setAddReviewOpen(true);
-                      }}
-                      className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
-                    >
-                      <Plus size={14} />
-                      <span>Write a review</span>
-                    </button>
-                  </div>
-
-                  {/* Review Card matching reference design */}
-                  <div className="overflow-hidden rounded-2xl bg-[#F5F5F5]">
-                    {/* Top Cover Image */}
-                    {activeReview?.image && (
-                      <img
-                        src={activeReview.image}
-                        alt="Review"
-                        className="h-44 w-full object-cover"
-                      />
-                    )}
-
-                    <div className="p-5">
-                      {/* Reviewer info with website default filler avatar */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 overflow-hidden">
-                          {activeReview?.userAvatar ? (
-                            <img
-                              src={activeReview.userAvatar}
-                              alt={activeReview.userName}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <svg
-                              className="h-4 w-4 shrink-0 text-gray-700"
-                              viewBox="0 0 22 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-                              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-semibold text-gray-900 leading-snug truncate">
-                            {activeReview?.userName || "Maya Thompson"}
-                          </h4>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Check size={12} className="stroke-[2.5]" />
-                            <span>{activeReview?.verifiedBadge || "Verified attendee"}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 5 Stars in primary color */}
-                      <div className="mt-3.5 flex items-center gap-1 text-primary">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={14}
-                            className={
-                              i < (activeReview?.rating || 5)
-                                ? "fill-primary text-primary"
-                                : "text-gray-300"
-                            }
-                          />
-                        ))}
-                      </div>
-
-                      {/* Review Quote */}
-                      <p className="mt-3.5 text-sm leading-relaxed text-gray-700">
-                        &ldquo;{activeReview?.comment}&rdquo;
-                      </p>
-
-                      {/* Date & Carousel controls if multiple */}
-                      <div className="mt-5 flex items-center justify-between text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        <span>{activeReview?.date}</span>
-                        {reviewsList.length > 1 && (
-                          <div className="flex items-center gap-1 text-gray-700 normal-case">
-                            <button
-                              type="button"
-                              onClick={handlePrevReview}
-                              className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-xs hover:bg-gray-100 transition cursor-pointer"
-                              title="Previous review"
-                            >
-                              <ChevronLeft size={14} />
-                            </button>
-                            <span className="text-[11px] text-gray-400">
-                              {currentReviewIndex + 1}/{reviewsList.length}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleNextReview}
-                              className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-xs hover:bg-gray-100 transition cursor-pointer"
-                              title="Next review"
-                            >
-                              <ChevronRight size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </aside>
@@ -1290,6 +1424,66 @@ const ListingDetails = () => {
                 />
               </div>
 
+              {/* Multi-Photo Upload */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Upload Photos (Optional)
+                  </label>
+                  {newReviewImages.length > 0 && (
+                    <span className="text-xs text-primary font-medium">
+                      {newReviewImages.length} {newReviewImages.length === 1 ? "photo" : "photos"} selected
+                    </span>
+                  )}
+                </div>
+
+                <label className="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/70 p-4 transition hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleReviewImagesUpload}
+                    className="hidden"
+                  />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-xs text-gray-600">
+                    <Upload size={18} />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-xs font-medium text-gray-800">
+                      Click to upload photos
+                    </span>
+                    <span className="block text-[11px] text-gray-400">
+                      Supports PNG, JPG, WebP (multiple files allowed)
+                    </span>
+                  </div>
+                </label>
+
+                {newReviewImages.length > 0 && (
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {newReviewImages.map((imgSrc, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative h-16 w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
+                      >
+                        <img
+                          src={imgSrc}
+                          alt={`Uploaded preview ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReviewImage(idx)}
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white opacity-90 transition hover:bg-black hover:scale-110 cursor-pointer"
+                          title="Remove image"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Buttons */}
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
@@ -1310,6 +1504,124 @@ const ListingDetails = () => {
           </div>
         </div>
       )}
+
+      {/* Fullscreen Review Gallery Lightbox */}
+      {fullscreenReviewGallery.open &&
+        fullscreenReviewGallery.images.length > 0 &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex flex-col justify-between bg-black/95 text-white select-none backdrop-blur-md animate-in fade-in duration-200"
+            onClick={closeReviewFullscreen}
+          >
+            {/* Top Bar */}
+            <div
+              className="relative z-10 flex items-center justify-between px-6 py-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white backdrop-blur-xs">
+                  {fullscreenReviewGallery.index + 1} / {fullscreenReviewGallery.images.length}
+                </span>
+                {fullscreenReviewGallery.reviewerName && (
+                  <span className="text-sm font-medium text-gray-300">
+                    Review by {fullscreenReviewGallery.reviewerName}
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={closeReviewFullscreen}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 hover:scale-105 cursor-pointer"
+                title="Close (Esc)"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* Main Stage with Navigation */}
+            <div
+              className="relative flex flex-1 items-center justify-center px-4 md:px-16"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Prev Button */}
+              {fullscreenReviewGallery.images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={prevReviewFullscreen}
+                  className="absolute left-4 md:left-6 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs transition hover:bg-black/90 hover:scale-110 cursor-pointer"
+                  title="Previous image (←)"
+                >
+                  <ChevronLeft size={28} />
+                </button>
+              )}
+
+              {/* Main Image */}
+              <div className="flex h-full max-h-[75vh] w-full max-w-5xl items-center justify-center p-2">
+                <img
+                  key={fullscreenReviewGallery.index}
+                  src={
+                    fullscreenReviewGallery.images[fullscreenReviewGallery.index]?.url ||
+                    fullscreenReviewGallery.images[fullscreenReviewGallery.index]
+                  }
+                  alt={`Review photo ${fullscreenReviewGallery.index + 1}`}
+                  className="max-h-full max-w-full rounded-xl object-contain shadow-2xl transition duration-200 animate-in fade-in zoom-in-95"
+                />
+              </div>
+
+              {/* Next Button */}
+              {fullscreenReviewGallery.images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={nextReviewFullscreen}
+                  className="absolute right-4 md:right-6 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs transition hover:bg-black/90 hover:scale-110 cursor-pointer"
+                  title="Next image (→)"
+                >
+                  <ChevronRight size={28} />
+                </button>
+              )}
+            </div>
+
+            {/* Bottom Thumbnail Strip */}
+            {fullscreenReviewGallery.images.length > 1 && (
+              <div
+                className="relative z-10 flex justify-center px-4 py-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex max-w-full items-center gap-2 overflow-x-auto rounded-2xl bg-black/40 px-3 py-2 backdrop-blur-xs">
+                  {fullscreenReviewGallery.images.map((img, idx) => {
+                    const imgSrc = img?.url || img;
+                    const isActive = idx === fullscreenReviewGallery.index;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() =>
+                          setFullscreenReviewGallery((prev) => ({
+                            ...prev,
+                            index: idx,
+                          }))
+                        }
+                        className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg transition cursor-pointer ${
+                          isActive
+                            ? "ring-2 ring-white scale-105 opacity-100"
+                            : "opacity-50 hover:opacity-90"
+                        }`}
+                      >
+                        <img
+                          src={imgSrc}
+                          alt={`Thumbnail ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
 
       <QuoteRequestModal
         open={quoteModalOpen}

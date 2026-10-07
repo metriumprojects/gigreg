@@ -23,6 +23,7 @@ const TeacherCard = ({
   reviewCount,
   title,
   roleTitle,
+  className = "",
 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -72,11 +73,11 @@ const TeacherCard = ({
   };
 
   return (
-    <div className="w-full mt-8 bg-primary text-white p-4 rounded-lg max-w-[720px]">
+    <div className={`w-full mt-8 bg-primary text-white p-5 rounded-xl ${className}`}>
       <div className="w-full">
       
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-[10px]">
         <h3 className="text-lg md:text-xl font-semibold text-white">{displayTitle}</h3>
       </div>
 
@@ -148,7 +149,7 @@ const TeacherCard = ({
       </div>
           {/* Bio */}
           {displayBio && (
-            <p className="text-sm text-white/95 mt-4 leading-relaxed">
+            <p className="text-sm text-white/95 mt-[10px] leading-relaxed">
               {displayBio}
             </p>
           )}
