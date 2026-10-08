@@ -117,13 +117,6 @@ export default function UpdateRequest({ open, onClose, id }) {
       return;
     }
 
-    // Check if there are enough images (existing + new)
-    const totalImages = existingImages.length + selectedFiles.length;
-    if (totalImages < 2) {
-      toast.error("Minimum 2 images are required");
-      return;
-    }
-
     setLoading(true);
 
     // Create FormData object

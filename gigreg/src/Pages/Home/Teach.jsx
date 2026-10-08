@@ -4,6 +4,8 @@ import {
   SlidersHorizontal,
   ListFilter,
   Check,
+  Home,
+  ChevronRight,
 } from "lucide-react";
 import MainLayout from "../../components/MainLayout";
 import { useDispatch, useSelector } from "react-redux";
@@ -18,7 +20,7 @@ import { getCategories } from "../../redux/reducers/CategoryReducer";
 import CategoryMobile from "./Components/CategoryMobile";
 import SearchCategoryToolbar from "./Components/SearchCategoryToolbar";
 import { useCurrency } from "../../currency/CurrencyContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createListingProposalUrl, saveProposalRequest } from "../../utils/proposalRequest";
 
 const Teach = () => {
@@ -37,7 +39,7 @@ const Teach = () => {
   const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [min, setMin] = useState(0);
   const [max, setMax] = useState(100);
   const [page, setPage] = useState(1);
@@ -51,18 +53,31 @@ const Teach = () => {
   const [showListingPopup, setShowListingPopup] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
+  const handleCategoryToggle = (categoryName) => {
+    if (!categoryName) {
+      setSelectedCategories([]);
+    } else {
+      setSelectedCategories((prev) =>
+        prev.includes(categoryName)
+          ? prev.filter((c) => c !== categoryName)
+          : [...prev, categoryName]
+      );
+    }
+    setPage(1);
+  };
+
   const clearAll = () => {
     setMin(0);
     setMax(100);
     setSearchInput("");
     setSearchFilter("");
-    setSelectedCategory("");
+    setSelectedCategories([]);
     setLimit(12);
     setPage(1);
   };
 
   const handleTrendingSelect = () => {
-    setSelectedCategory("");
+    setSelectedCategories([]);
     setSearchFilter("");
     setSearchInput("");
     setPage(1);
@@ -164,7 +179,7 @@ const Teach = () => {
         page,
         limit,
         search: debouncedSearch,
-        category: selectedCategory,
+        category: selectedCategories.join(","),
         minPrice: debouncedMin,
         maxPrice: debouncedMax,
         currency,
@@ -179,7 +194,7 @@ const Teach = () => {
     page,
     limit,
     debouncedSearch,
-    selectedCategory,
+    selectedCategories,
     debouncedMin,
     debouncedMax,
     currency,
@@ -203,11 +218,8 @@ const Teach = () => {
     <MainLayout 
       width="1920px"
       categories={categories}
-      selectedCategory={selectedCategory}
-      onSelectCategory={(categoryName) => {
-        setSelectedCategory(categoryName);
-        setPage(1);
-      }}
+      selectedCategory={selectedCategories.join(",")}
+      onSelectCategory={handleCategoryToggle}
       searchInput={searchInput}
       onSearchChange={(value) => {
         setSearchInput(value);
@@ -268,32 +280,66 @@ const Teach = () => {
           onClick={() => setShowCreateRequest(true)}
           className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white"
         >
-          Request
+          Generate Request
         </button>
       </div>
 
+      {/* Breadcrumb Navigation in Grey Bubble Style - Right after search row */}
+      <div className="my-[20px]">
+        <nav
+          aria-label="Breadcrumb"
+          className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+        >
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+          >
+            <Home size={14} className="text-black shrink-0" />
+            <span>Home</span>
+          </Link>
+          <ChevronRight size={13} className="text-gray-400 shrink-0" />
+          {selectedCategories.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategories([]);
+                  setPage(1);
+                }}
+                className="font-medium text-black hover:text-primary transition-colors cursor-pointer"
+              >
+                Open requests
+              </button>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-medium text-black truncate max-w-[180px] sm:max-w-none">
+                {selectedCategories.length === 1
+                  ? selectedCategories[0]
+                  : `${selectedCategories.length} Categories`}
+              </span>
+            </>
+          ) : (
+            <span className="font-medium text-black">Open requests</span>
+          )}
+        </nav>
+      </div>
+
       <SearchCategoryToolbar
+        variant="pills"
         categories={categories}
-        selectedCategory={selectedCategory}
-        onSelectCategory={(categoryName) => {
-          setSelectedCategory(categoryName);
-          setPage(1);
-        }}
+        selectedCategories={selectedCategories}
+        onSelectCategory={handleCategoryToggle}
       />
 
       <div className="hidden">
         <CategoryMobile
           categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={(categoryName) => {
-            setSelectedCategory(categoryName);
-            setPage(1);
-          }}
+          selectedCategory={selectedCategories.join(",")}
+          onSelectCategory={handleCategoryToggle}
           setShowFilter={() => setShowFilter(true)}
         />
       </div>
 
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-[10px] flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900 md:text-2xl">Open requests</h2>
         <div className="relative" ref={sortMenuRef}>
           <button

@@ -77,7 +77,7 @@ const MyProfile = () => {
         <div className="w-full flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-8">
           {/* Profile Image & Upload */}
           <div
-            className="w-72 h-72 sm:w-80 sm:h-80 aspect-square rounded-3xl overflow-hidden bg-white relative cursor-pointer group shrink-0"
+            className="w-72 h-72 sm:w-80 sm:h-80 aspect-square rounded-3xl overflow-hidden bg-gray-200 relative cursor-pointer group shrink-0"
             onClick={handleImageClick}
           >
             {profileImage && profileImage !== "https://i.ibb.co/tpV3m2GW/no-image.png" && !imageError ? (
@@ -88,7 +88,7 @@ const MyProfile = () => {
                 className="w-full h-full object-cover transition-transform duration-300"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-white p-10 sm:p-12">
+              <div className="w-full h-full flex items-center justify-center bg-transparent p-10 sm:p-12">
                 <UserAvatarPlaceholder className="w-full h-full text-[#1A2B49] group-hover:text-[#1A2B49]/80 transition-colors" />
               </div>
             )}

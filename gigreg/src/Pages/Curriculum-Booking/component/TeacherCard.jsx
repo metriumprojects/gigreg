@@ -1,9 +1,10 @@
 import { Package, Star } from 'lucide-react';
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { startChat } from '../../../redux/reducers/ChatReducer';
 import { toast } from 'react-toastify';
+import { getLoginUrl, getSafeRedirectPath } from '../../../utils/authRedirect';
 
 
 const TeacherCard = ({
@@ -24,10 +25,12 @@ const TeacherCard = ({
   title,
   roleTitle,
   className = "mt-8",
+  imageClassName = "w-full aspect-square relative overflow-hidden block shrink-0",
   onReviewsClick,
 }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
    const { userInfo } = useSelector((state) => state.auth);
   
   const displayName = name || teacher?.name || teacher?.email;
@@ -41,7 +44,9 @@ const TeacherCard = ({
   const handleStartChat = async () => {
     if (!userInfo?._id) {
       toast.info("Please log in to send a message.");
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return;
     }
 
@@ -78,7 +83,7 @@ const TeacherCard = ({
       {/* Top: Avatar / Photo full width */}
       <Link
         to={`/user-profile/${teacher?._id}?role=teacher`}
-        className="w-full h-48 sm:h-56 relative overflow-hidden block shrink-0"
+        className={imageClassName}
       >
         <img
           src={displayImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}

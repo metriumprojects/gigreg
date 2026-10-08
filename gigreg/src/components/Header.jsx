@@ -8,6 +8,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { becomeTeacher, getUser, LogoutUser } from "../redux/reducers/AuthReducer";
 import { isSellerProfileComplete } from "../utils/proposalRequest";
+import { getLoginUrl, getRegisterUrl, getSafeRedirectPath } from "../utils/authRedirect";
 import { toast } from "react-toastify";
 import {
   fetchChatConnections,
@@ -47,7 +48,30 @@ const Header = ({
   const [showHeaderSearch, setShowHeaderSearch] = useState(false);
   const [currentSearch, setCurrentSearch] = useState(searchInput);
   const menuRef = useRef(null);
+  const profileTimeoutRef = useRef(null);
   const isHome = location.pathname === "/" || location.pathname === "/listing";
+
+  const handleProfileMouseEnter = () => {
+    if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
+      if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+      setShowProfileMenu(true);
+    }
+  };
+
+  const handleProfileMouseLeave = () => {
+    if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
+      if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+      profileTimeoutRef.current = setTimeout(() => {
+        setShowProfileMenu(false);
+      }, 180);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setCurrentSearch(searchInput);
@@ -87,6 +111,7 @@ const Header = ({
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
+        if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
         setShowProfileMenu(false);
         setShowMobileMenu(false);
       }
@@ -96,7 +121,13 @@ const Header = ({
   }, []);
 
   const handleProfileClick = () => {
-    setShowProfileMenu(!showProfileMenu);
+    if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+    setShowProfileMenu((prev) => !prev);
+  };
+
+  const handleCloseProfileMenu = () => {
+    if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+    setShowProfileMenu(false);
   };
 
   useEffect(() => {
@@ -168,6 +199,9 @@ const Header = ({
           chatUnread={chatUnread}
           handleSearchClick={handleSearchClick}
           handleProfileClick={handleProfileClick}
+          handleCloseProfileMenu={handleCloseProfileMenu}
+          onProfileMouseEnter={handleProfileMouseEnter}
+          onProfileMouseLeave={handleProfileMouseLeave}
           showProfileMenu={showProfileMenu}
           menuRef={menuRef}
           handleLogout={handleLogout}
@@ -286,7 +320,7 @@ const Header = ({
                   setShowMobileMenu(false);
                 }}
               >
-                {userInfo?.role === "teacher" ? "Open requests" : "Post a Request"}
+                {userInfo?.role === "teacher" ? "Open requests" : "Generate Request"}
               </button>
               <Link
                 to="/profile"
@@ -308,14 +342,16 @@ const Header = ({
           ) : (
             <>
               <Link
-                to="/register"
+                to={getRegisterUrl(location)}
+                state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
                 className={mobileMenuLinkClass("/register")}
                 onClick={() => setShowMobileMenu(false)}
               >
                 Create an account
               </Link>
               <Link
-                to="/login"
+                to={getLoginUrl(location)}
+                state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
                 className={mobileMenuLinkClass("/login")}
                 onClick={() => setShowMobileMenu(false)}
               >

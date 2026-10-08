@@ -13,18 +13,14 @@ export const createPropose = async (req, res) => {
       return res.status(400).json({status:false, message: "Title and Category are required" });
     }
 
-    // Minimum 3 images
-    if (!req.files || req.files.length < 2) {
-      if (req.files) req.files.forEach((f) => fs.unlinkSync(f.path));
-      return res.status(400).json({status:false, message: "Minimum 2 images are required" });
-    }
-
-    // Upload images to Cloudinary
+    // Upload images to Cloudinary (optional)
     const uploadedImages = [];
-    for (const file of req.files) {
-      const result = await cloudinary.uploader.upload(file.path, { folder: "Proposes" });
-      uploadedImages.push({ url: result.secure_url, public_id: result.public_id });
-      fs.unlinkSync(file.path);
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const result = await cloudinary.uploader.upload(file.path, { folder: "Proposes" });
+        uploadedImages.push({ url: result.secure_url, public_id: result.public_id });
+        fs.unlinkSync(file.path);
+      }
     }
 
     let lat = null, lng = null, address = location || "", resolvedPlaceId = placeId || null;
@@ -100,8 +96,22 @@ export const getAllProposes = async (req, res) => {
     }
 
     // Handle category filtering
-    if (category?.trim()) {
-      proposeFilter.category = category;
+    if (category) {
+      if (Array.isArray(category)) {
+        const cleanCats = category.map((c) => String(c).trim()).filter(Boolean);
+        if (cleanCats.length > 1) {
+          proposeFilter.category = { $in: cleanCats };
+        } else if (cleanCats.length === 1) {
+          proposeFilter.category = cleanCats[0];
+        }
+      } else if (typeof category === "string" && category.trim()) {
+        const cats = category.split(",").map((c) => c.trim()).filter(Boolean);
+        if (cats.length > 1) {
+          proposeFilter.category = { $in: cats };
+        } else if (cats.length === 1) {
+          proposeFilter.category = cats[0];
+        }
+      }
     }
 
     // Handle location type filtering

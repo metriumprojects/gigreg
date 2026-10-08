@@ -1,7 +1,7 @@
 export default function UserAvatarPlaceholder({
-  className = "w-full h-full text-[#1A2B49]",
-  strokeWidth = 1.5,
-  fill = "white",
+  className = "w-full h-full text-gray-900",
+  strokeWidth = 1.2,
+  fill = "none",
   ...props
 }) {
   return (

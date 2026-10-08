@@ -90,8 +90,8 @@ const CreateListing = () => {
   const [listingCurrency, setListingCurrency] = useState(currency);
   const [allowMessageWithoutPayment, setAllowMessageWithoutPayment] = useState(true);
   const [formData, setFormData] = useState({
-    title: requestPrefill?.title || "",
-    description: requestPrefill?.description || "",
+    title: "",
+    description: "",
     duration: "",
     price: requestPrefill?.price != null ? String(requestPrefill.price) : "",
     location: requestPrefill?.location || "",
@@ -125,8 +125,6 @@ const CreateListing = () => {
     setLocationFilter((prev) => prev || proposalRequest.location || "");
     setFormData((prev) => ({
       ...prev,
-      title: prev.title || proposalRequest.title || "",
-      description: prev.description || proposalRequest.description || "",
       price: prev.price || (proposalRequest.price != null ? String(proposalRequest.price) : ""),
       location: prev.location || proposalRequest.location || "",
     }));
@@ -729,10 +727,11 @@ const CreateListing = () => {
                         src={proposalRequest.images[0].url}
                         alt=""
                         className="h-28 w-28 shrink-0 rounded-2xl bg-gray-200 object-cover md:h-36 md:w-36"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
                       />
-                    ) : (
-                      <div className="h-28 w-28 shrink-0 rounded-2xl bg-gray-300 md:h-36 md:w-36" />
-                    )}
+                    ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-sm text-gray-600">

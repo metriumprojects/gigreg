@@ -11,6 +11,7 @@ import CustomDatePicker from "../../components/CustomDatePicker";
 import ButtonSpinner from "../../components/ButtonSpinner";
 import { loadProposalRequest } from "../../utils/proposalRequest";
 import Logo from "../../components/Logo";
+import { getRegisterUrl, getSafeRedirectPath, AUTH_REDIRECT_STORAGE_KEY } from "../../utils/authRedirect";
 
 const SELLER_SETUP_STEPS = ["name", "dateOfBirth", "country"];
 
@@ -57,6 +58,23 @@ export default function Login() {
     }
   }, [location, navigate, startSellerSetup]);
 
+  const getRedirectDestination = useCallback(() => {
+    const fromParam = searchParams.get("redirect");
+    const fromState = location.state?.from;
+    const fromStorage = sessionStorage.getItem(AUTH_REDIRECT_STORAGE_KEY);
+    const candidate = fromParam || fromState || fromStorage;
+    const safe = getSafeRedirectPath(candidate);
+    return safe || "/";
+  }, [searchParams, location.state]);
+
+  useEffect(() => {
+    const rawTarget = searchParams.get("redirect") || location.state?.from;
+    const safe = getSafeRedirectPath(rawTarget);
+    if (safe) {
+      sessionStorage.setItem(AUTH_REDIRECT_STORAGE_KEY, safe);
+    }
+  }, [searchParams, location.state]);
+
   const finishLogin = (res, pendingGoogleToken) => {
     if (res.payload?.needsSellerSetup) {
       const token =
@@ -77,8 +95,9 @@ export default function Login() {
         navigate("/seller-created", { state: { request: pendingRequest } });
         return;
       }
-      const redirectParam = searchParams.get("redirect");
-      navigate(redirectParam || redirectTo || "/profile");
+      const destination = getRedirectDestination();
+      sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+      navigate(destination);
       return;
     }
     toast.error(res.payload?.message || "Login failed");
@@ -218,9 +237,10 @@ export default function Login() {
       navigate("/create-seller-profile", { state: { request: pendingRequest } });
       return;
     }
-    const redirectParam = searchParams.get("redirect");
-    navigate(redirectParam || redirectTo || "/profile");
-  }, [dispatch, location.state, navigate, searchParams]);
+    const destination = getRedirectDestination();
+    sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+    navigate(destination);
+  }, [dispatch, location.state, navigate, getRedirectDestination]);
 
   const onSubmit = isSellerSetup
     ? handleSellerSetupNext
@@ -450,12 +470,8 @@ export default function Login() {
               <p className="text-[16px] font-normal">
                 New to Gigslide?{" "}
                 <Link
-                  to={`/register${
-                    searchParams.get("redirect")
-                      ? `?redirect=${encodeURIComponent(searchParams.get("redirect"))}${loginAs === "seller" ? "?role=seller" : ""}`
-                      : loginAs === "seller" ? "?role=seller" : ""
-                  }`}
-                  state={location.state}
+                  to={getRegisterUrl(getRedirectDestination(), loginAs === "seller" ? { role: "seller" } : {})}
+                  state={getRedirectDestination() ? { from: getRedirectDestination() } : location.state}
                   className="font-normal text-primary underline underline-offset-2"
                 >
                   Create an account

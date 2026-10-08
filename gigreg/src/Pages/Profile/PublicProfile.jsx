@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Smile, Frown } from "lucide-react";
 import { toast } from "react-toastify";
 import { useLocation } from "react-router-dom";
+import { getLoginUrl, getSafeRedirectPath } from "../../utils/authRedirect";
 
 import MainLayout from "../../components/MainLayout";
+import UserAvatarPlaceholder from "../../components/UserAvatarPlaceholder";
 import { BsSend } from "react-icons/bs";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -66,7 +68,9 @@ export default function PublicProfile() {
   const handleStartChat = async () => {
     if (!userInfo?._id) {
       toast.info("Please log in to send a message.");
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return;
     }
 
@@ -110,12 +114,18 @@ export default function PublicProfile() {
   const ProfileHeader = ({ showPrivateNote = false }) => (
     <div className="flex flex-col items-center text-center">
       <h1 className="mb-4 text-2xl">{userbyid?.name || "Unknown"}</h1>
-      <div className="mb-4 h-48 w-48 overflow-hidden rounded-2xl shadow-md">
-        <img
-          src={userbyid?.image?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
-          alt="Profile"
-          className="h-full w-full object-cover"
-        />
+      <div className="mb-4 h-48 w-48 overflow-hidden rounded-2xl shadow-md bg-gray-200 flex items-center justify-center">
+        {userbyid?.image?.url && userbyid.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
+          <img
+            src={userbyid.image.url}
+            alt="Profile"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full p-8 flex items-center justify-center">
+            <UserAvatarPlaceholder className="w-full h-full text-[#1A2B49]" />
+          </div>
+        )}
       </div>
 
       <div className="mb-4 flex items-center gap-3 text-gray-900">

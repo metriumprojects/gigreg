@@ -17,6 +17,7 @@ import {
   saveProposalRequest,
 } from "../../utils/proposalRequest";
 import Logo from "../../components/Logo";
+import UserAvatarPlaceholder from "../../components/UserAvatarPlaceholder";
 
 export default function SendProposal() {
   const dispatch = useDispatch();
@@ -124,11 +125,11 @@ export default function SendProposal() {
             </h1>
           </div>
         </div>
-        
+
         <p className=" text-[16px] text-gray-500">
-              You&apos;re now on your seller profile, please select or create a new listing to send as a
-              proposal!
-            </p>
+          You&apos;re now on your seller profile, please select or create a new listing to send as a
+          proposal!
+        </p>
 
         {request && (
           <div className=" rounded-2xl bg-[#F7F7F7] p-4 md:p-5">
@@ -138,10 +139,11 @@ export default function SendProposal() {
                   src={request.images[0].url}
                   alt=""
                   className="h-28 w-28 shrink-0 rounded-2xl bg-gray-200 object-cover md:h-36 md:w-36"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
-              ) : (
-                <div className="h-28 w-28 shrink-0 rounded-2xl bg-gray-300 md:h-36 md:w-36" />
-              )}
+              ) : null}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-gray-600">
@@ -151,14 +153,17 @@ export default function SendProposal() {
                     <span className="text-sm font-semibold text-gray-900">
                       {request?.user?.name || "unknown"}
                     </span>
-                    <img
-                      src={
-                        request?.user?.image?.url ||
-                        "https://i.ibb.co/tpV3m2GW/no-image.png"
-                      }
-                      alt=""
-                      className="h-8 w-8 rounded-sm object-cover"
-                    />
+                    {request?.user?.image?.url && request.user.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
+                      <img
+                        src={request.user.image.url}
+                        alt=""
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
+                        <UserAvatarPlaceholder className="h-4 w-4 text-[#1A2B49]" />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-sm">

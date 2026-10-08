@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronRight, Heart, ListFilter, MessageCircle, X, Check } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { motion as Motion } from "framer-motion";
 import { IoIosArrowDown } from "react-icons/io";
@@ -16,6 +16,7 @@ import SearchCategoryToolbar from "./Components/SearchCategoryToolbar";
 import HighlightSlider from "./Components/HighlightSlider";
 import FilterModal from "./Components/FilterModal";
 import { useCurrency } from "../../currency/CurrencyContext";
+import { getLoginUrl, getSafeRedirectPath } from "../../utils/authRedirect";
 
 const RightArrowIcon = ({ className = "h-2.5 w-3.5 shrink-0" }) => (
   <svg
@@ -59,6 +60,7 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
   const cardPriceOptions = { currencyDisplay: "narrowSymbol" };
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { userInfo } = useSelector((state) => state.auth);
   const [messaging, setMessaging] = useState(false);
   const isOwnerCard = variant === "owner";
@@ -95,7 +97,9 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
     event.stopPropagation();
 
     if (!userInfo?._id) {
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return;
     }
     if (favoritePending || !listing?._id) return;
@@ -130,7 +134,9 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
       return;
     }
     if (!userInfo?._id) {
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return;
     }
     if (userInfo._id === teacherId) {
@@ -278,7 +284,16 @@ const Listing = () => {
   const [page, setPage] = useState(1);
   const [showFilter, setShowFilter] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [searchParams] = useSearchParams();
+  const categoryParam = searchParams.get("category") || "";
+  const [selectedCategory, setSelectedCategory] = useState(categoryParam);
+
+  useEffect(() => {
+    if (categoryParam !== selectedCategory) {
+      setSelectedCategory(categoryParam);
+      setPage(1);
+    }
+  }, [categoryParam]);
   const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");

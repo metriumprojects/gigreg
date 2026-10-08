@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, GalleryHorizontalEnd, Heart, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, GalleryHorizontalEnd, Heart, Home, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
+import { Link, useNavigate, useLocation, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { getLoginUrl, getSafeRedirectPath } from "../../utils/authRedirect";
 import MainLayout from "../../components/MainLayout";
 import ImageGallery from "../Curriculum-Booking/component/ImageGallery";
 import TeacherCard from "../Curriculum-Booking/component/TeacherCard";
@@ -201,7 +202,7 @@ const buildQuoteRequestPayload = ({ listing, description, quoteContext }) => ({
 const QuoteRequestModal = ({
   open,
   description,
-  images,
+  images = [],
   quoteContext,
   listing,
   submitting,
@@ -211,20 +212,68 @@ const QuoteRequestModal = ({
   onSubmit,
 }) => {
   const { formatPrice } = useCurrency();
+  const [previews, setPreviews] = useState([]);
+
+  useEffect(() => {
+    if (!Array.isArray(images) || images.length === 0) {
+      setPreviews([]);
+      return;
+    }
+
+    const items = images
+      .map((item) => {
+        let url = "";
+        let name = "";
+        if (typeof item === "string") {
+          url = item;
+        } else if (item instanceof File || item instanceof Blob) {
+          url = URL.createObjectURL(item);
+          name = item.name || "";
+        } else if (item?.url) {
+          url = item.url;
+          name = item.name || "";
+        }
+        return { url, name, isBlob: url.startsWith("blob:") };
+      })
+      .filter((item) => Boolean(item.url));
+
+    setPreviews(items);
+
+    return () => {
+      items.forEach((item) => {
+        if (item.isBlob) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
+    };
+  }, [images]);
+
+  const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    onImagesChange([...(images || []), ...files]);
+    event.target.value = "";
+  };
+
+  const handleRemoveImage = (indexToRemove) => {
+    if (!Array.isArray(images)) return;
+    onImagesChange(images.filter((_, idx) => idx !== indexToRemove));
+  };
+
   if (!open) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-[675px] rounded-[22px] bg-white p-[20px] shadow-2xl"
+        className="w-full max-w-[675px] max-h-[90vh] overflow-y-auto rounded-[22px] bg-white p-[20px] shadow-2xl"
       >
         <div className="mb-[20px] flex items-center justify-between">
           <h2 className="text-base font-medium leading-none">Request a quote</h2>
           <button
             type="submit"
             disabled={submitting}
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50"
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
             aria-label="Submit quote request"
           >
             <ArrowLeft className="rotate-180" size={18} />
@@ -259,22 +308,63 @@ const QuoteRequestModal = ({
         )}
 
         <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
-          <label className="mb-3 block text-sm">Images (optional)</label>
-          <label className="flex min-h-[52px] cursor-pointer items-center justify-center rounded-xl bg-white text-gray-700">
-            <Upload size={20} />
+          <div className="mb-2 flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-800">Images (optional)</label>
+            {images?.length > 0 && (
+              <span className="text-xs text-gray-500 font-medium">
+                {images.length} image{images.length > 1 ? "s" : ""} selected
+              </span>
+            )}
+          </div>
+
+          {/* Selected Image Thumbnails */}
+          {previews.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2.5">
+              {previews.map((preview, index) => (
+                <div
+                  key={`${preview.url}-${index}`}
+                  className="group relative h-20 w-20 sm:h-24 sm:w-24 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xs"
+                >
+                  <img
+                    src={preview.url}
+                    alt={preview.name || `Image preview ${index + 1}`}
+                    className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(index)}
+                    className="absolute right-1.5 top-1.5 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-black/75 text-white shadow-md backdrop-blur-xs transition hover:bg-black hover:scale-110 cursor-pointer"
+                    title="Remove image"
+                    aria-label={`Remove image ${index + 1}`}
+                  >
+                    <X size={13} />
+                  </button>
+                  {preview.name && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1 pointer-events-none">
+                      <p className="truncate text-[10px] text-white">
+                        {preview.name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white text-gray-700 transition hover:border-gray-400 hover:bg-gray-50">
+            <Upload size={18} className="text-gray-500" />
+            <span className="text-xs sm:text-sm font-medium text-gray-600">
+              {images?.length > 0 ? "Add more images" : "Upload images"}
+            </span>
             <input
               type="file"
               accept="image/*"
               multiple
-              onChange={(event) => onImagesChange(Array.from(event.target.files || []))}
+              onChange={handleFileSelect}
               className="hidden"
             />
           </label>
-          {images.length > 0 && (
-            <p className="mt-2 text-xs text-gray-500">
-              {images.length} image{images.length > 1 ? "s" : ""} selected
-            </p>
-          )}
         </div>
 
         <div className="flex items-center justify-end gap-[10px]">
@@ -527,6 +617,7 @@ const ListingDetails = () => {
   const { slug } = useParams();
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { listing, loading, error } = useSelector((state) => state.listing);
   const { favorites } = useSelector((state) => state.favorite);
   const { userInfo } = useSelector((state) => state.auth);
@@ -892,6 +983,12 @@ const ListingDetails = () => {
 
   const handleFavorite = () => {
     if (!listing?._id) return;
+    if (!userInfo?._id) {
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
+      return;
+    }
 
     dispatch(toggleFavorite({ id: listing._id, type: "listing" })).then((res) => {
       if (res?.payload?.status) {
@@ -906,7 +1003,9 @@ const ListingDetails = () => {
   const validateQuoteAccess = () => {
     if (!userInfo?._id) {
       toast.info("Please log in to request a quote.");
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return false;
     }
 
@@ -988,7 +1087,9 @@ const ListingDetails = () => {
   const handleFixedListingCheckout = async () => {
     if (!userInfo?._id) {
       toast.info("Please log in to book this listing.");
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return;
     }
 
@@ -1039,7 +1140,9 @@ const ListingDetails = () => {
 
     if (!userInfo?._id) {
       toast.info("Please log in to book this listing.");
-      navigate("/login");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
       return;
     }
 
@@ -1136,32 +1239,10 @@ const ListingDetails = () => {
   const locationText =
     listing?.address || listing?.location || modeLabel;
 
-  const breadcrumbContent = (
-    <nav className="flex items-center gap-2 text-sm leading-none text-black select-none">
-      <Link to="/" className="hidden items-center gap-2 text-gray-500 hover:text-black md:flex">
-        Home <ChevronRight size={18} />
-      </Link>
-      <Link
-        to={{
-          pathname: "/listing",
-          search: listing?.category
-            ? `?category=${encodeURIComponent(listing.category)}`
-            : "",
-        }}
-        className="flex items-center gap-2 text-black hover:text-primary"
-      >
-        <ArrowLeft className="md:hidden" size={20} />
-        <span className="md:hidden">Listings</span>
-        <span className="hidden md:inline">{listing?.category || "Listings"}</span>
-      </Link>
-    </nav>
-  );
-
   return (
     <MainLayout
       width="4440px"
       contentClassName="lg:overflow-x-visible"
-      breadcrumbs={breadcrumbContent}
     >
       <div className="min-h-screen pb-8">
         {loading ? (
@@ -1175,9 +1256,37 @@ const ListingDetails = () => {
 
             <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8">
               {/* Two-column grid: Main content on left, Booking panel on right */}
-              <div className="mt-6 md:mt-8 grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
+              <div className="mt-[20px] grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
                 {/* Column 1: Main Content (TeacherCard, Title, Location, Gallery, Description, Reviews) */}
                 <div className="lg:col-span-8 xl:col-span-8">
+                  {/* Breadcrumb Navigation in Grey Bubble Style */}
+                  <div className="mb-[20px]">
+                    <nav
+                      aria-label="Breadcrumb"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+                    >
+                      <Link
+                        to="/"
+                        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+                      >
+                        <Home size={14} className="text-black shrink-0" />
+                        <span>Home</span>
+                      </Link>
+                      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+                      <Link
+                        to={{
+                          pathname: "/",
+                          search: listing?.category
+                            ? `?category=${encodeURIComponent(listing.category)}`
+                            : "",
+                        }}
+                        className="font-medium text-black hover:text-primary transition-colors truncate max-w-[180px] sm:max-w-none"
+                      >
+                        {listing?.category || "Listings"}
+                      </Link>
+                    </nav>
+                  </div>
+
                   {/* Title */}
                   <h1 className="w-full text-left text-lg font-semibold leading-none md:text-2xl">
                     {listing?.title}
@@ -1281,7 +1390,7 @@ const ListingDetails = () => {
                               if (!coverImg) return null;
 
                               return (
-                                <div className="relative h-44 w-full overflow-hidden bg-gray-100 group">
+                                <div className="relative w-full aspect-square overflow-hidden bg-gray-100 group">
                                   <img
                                     src={coverImg}
                                     alt="Review"
@@ -1378,7 +1487,7 @@ const ListingDetails = () => {
                 </div>
 
                 {/* Column 2: Booking/Quote Panel & How does it work */}
-                <aside className="space-y-4 lg:col-span-4 xl:col-span-4 lg:sticky lg:top-6 lg:h-fit lg:self-start">
+                <aside className="space-y-4 lg:col-span-4 xl:col-span-4">
                   <div
                     className={
                       listing?.pricingType === "hourly_calendar"

@@ -11,6 +11,8 @@ import { getCategories } from "../../../redux/reducers/CategoryReducer";
 import CurrencySelector from "../../../components/CurrencySelector";
 import LocationAutocomplete from "./LocationAutocomplete";
 import Logo from "../../../components/Logo";
+import UserAvatarPlaceholder from "../../../components/UserAvatarPlaceholder";
+import { getLoginUrl, getRegisterUrl, getSafeRedirectPath } from "../../../utils/authRedirect";
 
 export default function CategoriesBar({
   categories: propCategories = [],
@@ -20,6 +22,9 @@ export default function CategoriesBar({
   chatUnread,
   handleSearchClick,
   handleProfileClick,
+  handleCloseProfileMenu,
+  onProfileMouseEnter,
+  onProfileMouseLeave,
   showProfileMenu,
   menuRef,
   handleLogout,
@@ -114,9 +119,8 @@ export default function CategoriesBar({
 
   const _iconButtonClass = (path) => {
     const isActive = location.pathname === path || location.pathname.startsWith(`${path}/`);
-    return `relative flex h-11 w-11 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100 ${
-      isActive ? "bg-gray-100" : ""
-    }`;
+    return `relative flex h-11 w-11 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100 ${isActive ? "bg-gray-100" : ""
+      }`;
   };
 
   const menuLinkClass = (path, searchTab = "") => {
@@ -129,23 +133,27 @@ export default function CategoriesBar({
     } else {
       isActive = location.pathname === path;
     }
-    return `w-full px-4 py-2.5 text-left flex items-center gap-2 text-sm transition-colors hover:bg-gray-50 ${
-      isActive ? "font-bold text-black" : "font-normal text-black"
-    }`;
+    return `w-full px-4 py-2.5 text-left flex items-center gap-2 text-sm transition-colors hover:bg-gray-50 ${isActive ? "font-bold text-black" : "font-normal text-black"
+      }`;
   };
 
   const ProfileMenu = ({ asPill = false, asCircle = false, useIcon = false } = {}) => (
-    <div className="relative z-50 flex items-center" ref={menuRef}>
+    <div
+      className="relative z-50 flex items-center"
+      ref={menuRef}
+      onMouseEnter={onProfileMouseEnter}
+      onMouseLeave={onProfileMouseLeave}
+    >
       <button
         onClick={handleProfileClick}
         className={
           asCircle
             ? "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 focus:outline-none overflow-hidden"
             : asPill
-            ? "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 focus:outline-none"
-            : useIcon
-            ? "flex h-9 w-9 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100"
-            : "rounded-full"
+              ? "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 focus:outline-none"
+              : useIcon
+                ? "flex h-9 w-9 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100"
+                : "rounded-full"
         }
         aria-label="Open profile menu"
         type="button"
@@ -167,7 +175,7 @@ export default function CategoriesBar({
             <span>Profile</span>
           </>
         ) : asCircle ? (
-          userInfo?.image?.url ? (
+          userInfo?.image?.url && userInfo.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
             <img
               loading="lazy"
               src={userInfo.image.url}
@@ -175,18 +183,9 @@ export default function CategoriesBar({
               alt="profile"
             />
           ) : (
-            <svg
-              className="h-4 w-4 shrink-0 text-black"
-              viewBox="0 0 22 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-            </svg>
+            <div className="flex h-full w-full items-center justify-center">
+              <UserAvatarPlaceholder className="h-[18px] w-[18px] text-[#1A2B49]" />
+            </div>
           )
         ) : useIcon ? (
           <svg
@@ -218,12 +217,17 @@ export default function CategoriesBar({
       </button>
       {showProfileMenu && (
         <div
-          className="absolute left-0 top-10 z-[100] mt-1.5 w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0"
+          className="absolute left-0 top-10 z-[100] mt-1.5 w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0 before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 before:content-['']"
+          onMouseEnter={onProfileMouseEnter}
+          onMouseLeave={onProfileMouseLeave}
         >
           <Link
             to="/profile?tab=My Profile"
             className={menuLinkClass("/profile", "My Profile")}
-            onClick={() => handleProfileClick && handleProfileClick()}
+            onClick={() => {
+              if (handleCloseProfileMenu) handleCloseProfileMenu();
+              else handleProfileClick?.();
+            }}
           >
             View Profile
           </Link>
@@ -231,7 +235,8 @@ export default function CategoriesBar({
             <button
               onClick={() => {
                 handleTeacher("teacher");
-                handleProfileClick && handleProfileClick();
+                if (handleCloseProfileMenu) handleCloseProfileMenu();
+                else handleProfileClick?.();
               }}
               className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
             >
@@ -244,7 +249,8 @@ export default function CategoriesBar({
             <button
               onClick={() => {
                 handleTeacher("user");
-                handleProfileClick && handleProfileClick();
+                if (handleCloseProfileMenu) handleCloseProfileMenu();
+                else handleProfileClick?.();
               }}
               className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
             >
@@ -254,21 +260,28 @@ export default function CategoriesBar({
           <Link
             to="/"
             className={menuLinkClass("/")}
-            onClick={() => handleProfileClick && handleProfileClick()}
+            onClick={() => {
+              if (handleCloseProfileMenu) handleCloseProfileMenu();
+              else handleProfileClick?.();
+            }}
           >
             Build
           </Link>
           <Link
             to="/teach"
             className={menuLinkClass("/teach")}
-            onClick={() => handleProfileClick && handleProfileClick()}
+            onClick={() => {
+              if (handleCloseProfileMenu) handleCloseProfileMenu();
+              else handleProfileClick?.();
+            }}
           >
             {userInfo?.role === "teacher" ? "Buyer Requests" : "Requests"}
           </Link>
           <button
             onClick={() => {
               handleLogout();
-              handleProfileClick && handleProfileClick();
+              if (handleCloseProfileMenu) handleCloseProfileMenu();
+              else handleProfileClick?.();
             }}
             className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
           >
@@ -628,14 +641,16 @@ export default function CategoriesBar({
           ) : (
             <>
               <Link
-                to="/register"
+                to={getRegisterUrl(location)}
+                state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
                 className="inline-flex h-9 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition-colors hover:opacity-90"
               >
                 Sign up
                 <ArrowRight size={16} />
               </Link>
               <Link
-                to="/login"
+                to={getLoginUrl(location)}
+                state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
                 className="inline-flex h-9 items-center rounded-full bg-black px-5 text-sm font-semibold text-white transition-colors hover:bg-black/90"
               >
                 Log in
@@ -668,7 +683,7 @@ export default function CategoriesBar({
               <path d="M5.08823 13.549C2.83036 13.549 1 11.7232 1 9.47096C1 7.21873 2.83036 5.39294 5.08823 5.39294H6.437M5.08823 13.549C5.08823 13.549 6.5 18.4399 7 19.9347C7.5 21.4296 10 21.4296 10 19.4365C10 17.4434 10 16.3492 10 13.8091M5.08823 13.549H6.437M10 13.8091C12.8477 14.4578 15.4867 16.1864 18.0258 17.4528C23.1139 19.9905 22.9998 11.9424 22.9998 9.47096C22.9998 6.99952 23.1139 -1.0486 18.0258 1.48908C14.8411 3.07743 11.4994 5.39294 7.78577 5.39294H6.437M10 13.8091C9.27601 13.6441 8.53853 13.549 7.78577 13.549H6.437M6.437 13.549V5.39294" />
               <path d="M24 7.00027V12.0003" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span>{userInfo?.role === "teacher" ? "Open requests" : "Request"}</span>
+            <span>{userInfo?.role === "teacher" ? "Open requests" : "Generate Request"}</span>
           </button>
         </div>
       </div>
@@ -763,18 +778,16 @@ export default function CategoriesBar({
         <button
           type="button"
           onClick={handleToggleOnline}
-          className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] px-5 text-sm font-semibold transition-all cursor-pointer ${
-            effectiveOnline
+          className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] px-5 text-sm font-semibold transition-all cursor-pointer ${effectiveOnline
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
-          }`}
+            }`}
         >
           <span
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${
-              effectiveOnline
+            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveOnline
                 ? "bg-white text-primary"
                 : "border-[1.5px] border-black bg-transparent text-black"
-            }`}
+              }`}
           >
             <svg
               className="h-2.5 w-2.5 block"
@@ -794,18 +807,16 @@ export default function CategoriesBar({
         <button
           type="button"
           onClick={handleToggleInPerson}
-          className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] px-5 text-sm font-semibold transition-all cursor-pointer ${
-            effectiveInPerson
+          className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] px-5 text-sm font-semibold transition-all cursor-pointer ${effectiveInPerson
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
-          }`}
+            }`}
         >
           <span
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${
-              effectiveInPerson
+            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveInPerson
                 ? "bg-white text-primary"
                 : "border-[1.5px] border-black bg-transparent text-black"
-            }`}
+              }`}
           >
             <svg
               className="h-2.5 w-2.5 block"

@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getUserFavorites, toggleFavorite } from "../../../redux/reducers/FavoriteReducer";
 import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
 import RequestCard from "./RequestCard";
+import { getLoginUrl, getSafeRedirectPath } from "../../../utils/authRedirect";
 
 export default function Request({
   proposes,
@@ -10,6 +12,8 @@ export default function Request({
   openCreateLesson,
 }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { favorites } = useSelector((state) => state.favorite);
   const { userInfo } = useSelector((state) => state.auth);
   const [openPropose, setOpenPropose] = useState(null);
@@ -28,6 +32,14 @@ export default function Request({
   }, [favorites]);
 
   const handleSave = useCallback((proposeId) => {
+    if (!userInfo?._id) {
+      toast.info("Please log in to save to favorites.");
+      navigate(getLoginUrl(location), {
+        state: { from: getSafeRedirectPath(location) },
+      });
+      return;
+    }
+
     setSavingId(proposeId);
     
     dispatch(toggleFavorite({ id: proposeId, type: "propose" })).then((res) => {
@@ -42,10 +54,10 @@ export default function Request({
       setSavingId(null);
       toast.error("Failed to update favorite");
     });
-  }, [dispatch]);
+  }, [dispatch, userInfo?._id, navigate, location]);
 
   return (
-    <div className="w-full space-y-6 pb-4 md:pb-10">
+    <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 3xl:grid-cols-5 gap-4 sm:gap-5 pb-4 md:pb-10">
       {!proposes || proposes.length === 0 ? (
         <p className="text-center text-gray-500 py-10">No requests found</p>
       ) : (

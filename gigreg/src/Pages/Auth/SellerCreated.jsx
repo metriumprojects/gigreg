@@ -111,10 +111,11 @@ export default function SellerCreated() {
                       src={request.images[0].url}
                       alt=""
                       className="h-28 w-28 shrink-0 rounded-2xl bg-gray-200 object-cover md:h-36 md:w-36"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
                     />
-                  ) : (
-                    <div className="h-28 w-28 shrink-0 rounded-2xl bg-gray-300 md:h-36 md:w-36" />
-                  )}
+                  ) : null}
 
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

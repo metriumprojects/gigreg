@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, Calendar, Mail, User } from "lucide-react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import MainLayout from "../../components/MainLayout";
@@ -11,12 +11,30 @@ import CustomDatePicker from "../../components/CustomDatePicker";
 import ButtonSpinner from "../../components/ButtonSpinner";
 import { loadProposalRequest } from "../../utils/proposalRequest";
 import Logo from "../../components/Logo";
+import { getLoginUrl, getSafeRedirectPath, AUTH_REDIRECT_STORAGE_KEY } from "../../utils/authRedirect";
 
 export default function Register() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  const getRedirectDestination = useCallback(() => {
+    const fromParam = searchParams.get("redirect");
+    const fromState = location.state?.from;
+    const fromStorage = sessionStorage.getItem(AUTH_REDIRECT_STORAGE_KEY);
+    const candidate = fromParam || fromState || fromStorage;
+    const safe = getSafeRedirectPath(candidate);
+    return safe || "/";
+  }, [searchParams, location.state]);
+
+  useEffect(() => {
+    const rawTarget = searchParams.get("redirect") || location.state?.from;
+    const safe = getSafeRedirectPath(rawTarget);
+    if (safe) {
+      sessionStorage.setItem(AUTH_REDIRECT_STORAGE_KEY, safe);
+    }
+  }, [searchParams, location.state]);
 
   const initialRole =
     searchParams.get("role") === "seller" || searchParams.get("role") === "teacher"
@@ -120,12 +138,13 @@ export default function Register() {
                 navigate("/seller-created", { state: { request: pendingRequest } });
                 return;
               }
-              const redirectParam = searchParams.get("redirect");
-              navigate(redirectParam || redirectTo || "/profile");
+              const destination = getRedirectDestination();
+              sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+              navigate(destination);
             } else {
-              const redirectParam = searchParams.get("redirect");
-              navigate(`/login${redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : ""}`, {
-                state: location.state,
+              const destination = getRedirectDestination();
+              navigate(getLoginUrl(destination, registerAs === "seller" ? { role: "seller" } : {}), {
+                state: destination ? { from: destination } : location.state,
               });
             }
           });
@@ -224,8 +243,9 @@ export default function Register() {
                   navigate("/create-seller-profile", { state: { request: pendingRequest } });
                   return;
                 }
-                const redirectParam = searchParams.get("redirect");
-                navigate(redirectParam || redirectTo || "/profile");
+                const destination = getRedirectDestination();
+                sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+                navigate(destination);
               }}
             />
 
@@ -367,11 +387,8 @@ export default function Register() {
             <p className="text-[16px] font-normal">
               Already have an account?{" "}
               <Link
-                to={`/login${searchParams.get("redirect")
-                    ? `?redirect=${encodeURIComponent(searchParams.get("redirect"))}${registerAs === "seller" ? "?role=seller" : ""}`
-                    : registerAs === "seller" ? "?role=seller" : ""
-                  }`}
-                state={location.state}
+                to={getLoginUrl(getRedirectDestination(), registerAs === "seller" ? { role: "seller" } : {})}
+                state={getRedirectDestination() ? { from: getRedirectDestination() } : location.state}
                 className="font-normal text-primary underline underline-offset-2"
               >
                 Log in

@@ -129,11 +129,6 @@ export default function CreateRequestPopup({ open, onClose }) {
       return;
     }
 
-    if (selectedFiles.length < 2) {
-      toast.error("Minimum 2 images are required");
-      return;
-    }
-
     setLoading(true);
     const submitData = new FormData();
     submitData.append("title", formData.title);
@@ -231,7 +226,7 @@ export default function CreateRequestPopup({ open, onClose }) {
 
           <div className="min-w-0 w-full">
             <div className="w-full overflow-hidden rounded-lg border border-gray-800 p-3">
-              <p className="mb-2 text-sm text-gray-400">Upload images</p>
+              <p className="mb-2 text-sm text-gray-400">Upload images (optional)</p>
               <label className="flex h-20 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-[#F7F7F7] hover:bg-gray-100">
                 <input
                   name="images"
