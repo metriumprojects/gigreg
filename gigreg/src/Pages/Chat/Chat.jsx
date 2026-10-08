@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { io } from "socket.io-client";
 import MainLayout from "../../components/MainLayout";
@@ -27,6 +27,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  Home,
   Image as ImageIcon,
   MessageCircleMore,
   Upload,
@@ -1385,7 +1386,40 @@ export default function Chat() {
 
   return (
     <MainLayout>
-      <div className="flex md:h-full border-2 border-gray-300 overflow-hidden shadow-lg bg-white h-[88vh] relative my-10">
+      {/* Breadcrumb Navigation in Grey Bubble Style - 20px below search row, 20px above all message card */}
+      <div className="mt-[20px] mb-[20px]">
+        <nav
+          aria-label="Breadcrumb"
+          className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+        >
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+          >
+            <Home size={14} className="text-black shrink-0" />
+            <span>Home</span>
+          </Link>
+          <ChevronRight size={13} className="text-gray-400 shrink-0" />
+          {roomId && activeRoom && activePeerName && activePeerName !== "Conversation" ? (
+            <>
+              <Link
+                to="/chat"
+                className="font-medium text-black hover:text-primary transition-colors cursor-pointer"
+              >
+                Messages
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-medium text-black truncate max-w-[180px] sm:max-w-none">
+                {activePeerName}
+              </span>
+            </>
+          ) : (
+            <span className="font-medium text-black">Messages</span>
+          )}
+        </nav>
+      </div>
+
+      <div className="flex md:h-full border-2 border-gray-300 overflow-hidden shadow-lg bg-white h-[88vh] relative mb-10">
         {/* Mobile Sidebar Overlay */}
         {showMobileSidebar && (
           <div 
@@ -1488,6 +1522,7 @@ export default function Chat() {
                     const quoteStatus = msg?.quote?.status || "open";
                     const isDirectBookingCard = msg.type === "quote" && quoteStatus === "accepted" && !msg.quote?.requestMessageId;
                     const isQuoteMessage = ["quote", "quote_request"].includes(msg.type);
+                    const isCardMessage = isQuoteMessage || Boolean(listingData) || Boolean(lessonData);
 
                     return (
                       <div
@@ -1498,7 +1533,7 @@ export default function Chat() {
                       >
                         <div
                           className={
-                            isQuoteMessage
+                            isCardMessage
                               ? "w-full max-w-[85%] md:max-w-[75%] lg:max-w-[400px]"
                               : `max-w-[85%] md:max-w-[75%] lg:max-w-[65%] rounded-2xl px-3 py-2 md:px-3 md:py-3 shadow-sm ${
                                   isMine
@@ -1672,92 +1707,122 @@ export default function Chat() {
                           )}
 
                           {lessonData && (
-                            <div className="bg-white text-gray-900 rounded-xl p-2 md:p-3 border border-gray-200 mb-2 shadow-sm">
-                              <div className="flex gap-2 md:gap-3">
-                                <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg overflow-hidden bg-gray-100 shrink-0">
-                                  <img
-                                    src={
-                                      lessonData.image ||
-                                      "https://i.ibb.co/JFFpmtfn/user-icon-image-13.png"
-                                    }
-                                    alt={lessonData.title}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <div className="space-y-0.5 md:space-y-1 flex-1 min-w-0">
-                                  <p className="font-semibold text-xs md:text-sm line-clamp-2">
-                                    {lessonData.title}
-                                  </p>
-                                  {lessonData.price !== undefined && (
-                                    <p className="text-xs md:text-sm text-gray-600 font-medium">
-                                      {formatPrice(lessonData.price)}
-                                    </p>
-                                  )}
-                                  {lessonData.duration && (
-                                    <p className="text-[10px] md:text-xs text-gray-500">
-                                      Duration: {lessonData.duration}
-                                    </p>
-                                  )}
-                                </div>
+                            <div className="bg-white text-gray-900 rounded-2xl p-3 md:p-3.5 border border-gray-200 shadow-sm w-full">
+                              <div className="flex items-start justify-between gap-3 mb-2.5">
+                                {msg.message ? (
+                                  <div className="min-w-0 flex-1 text-xs md:text-sm text-gray-900 whitespace-pre-line leading-relaxed">
+                                    {msg.message}
+                                  </div>
+                                ) : (
+                                  <div className="min-w-0 flex-1" />
+                                )}
+                                <span className="shrink-0 text-[11px] text-gray-400 font-normal">
+                                  {formatTime(msg.createdAt)}
+                                </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleLessonNavigate(lessonData.id)}
-                                className="mt-2 md:mt-3 w-full bg-primary text-white text-xs md:text-sm font-medium py-1.5 md:py-2 rounded-md hover:bg-blue-700 transition-colors"
-                              >
-                                Book Lesson
-                              </button>
+
+                              <div className="rounded-xl border border-gray-200 bg-white p-2 md:p-2.5">
+                                <div className="flex gap-2 md:gap-3">
+                                  <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                                    <img
+                                      src={
+                                        lessonData.image ||
+                                        "https://i.ibb.co/JFFpmtfn/user-icon-image-13.png"
+                                      }
+                                      alt={lessonData.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="space-y-0.5 md:space-y-1 flex-1 min-w-0">
+                                    <p className="font-semibold text-xs md:text-sm line-clamp-2">
+                                      {lessonData.title}
+                                    </p>
+                                    {lessonData.price !== undefined && (
+                                      <p className="text-xs md:text-sm text-gray-600 font-medium">
+                                        {formatPrice(lessonData.price)}
+                                      </p>
+                                    )}
+                                    {lessonData.duration && (
+                                      <p className="text-[10px] md:text-xs text-gray-500">
+                                        Duration: {lessonData.duration}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLessonNavigate(lessonData.id)}
+                                  className="mt-2 md:mt-2.5 w-full bg-primary text-white text-xs md:text-sm font-medium py-1.5 md:py-2 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
+                                >
+                                  Book Lesson
+                                </button>
+                              </div>
                             </div>
                           )}
 
                           {listingData && (
-                            <div className="mb-2 rounded-xl border border-gray-200 bg-white p-2 text-gray-900 shadow-sm md:p-3">
-                              <div className="flex gap-2 md:gap-3">
-                                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-100 md:h-16 md:w-16">
-                                  <img
-                                    src={
-                                      listingData.image ||
-                                      "https://i.ibb.co/tpV3m2GW/no-image.png"
-                                    }
-                                    alt={listingData.title}
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
-                                <div className="min-w-0 flex-1 space-y-0.5 md:space-y-1">
-                                  <p className="line-clamp-2 text-xs font-semibold md:text-sm">
-                                    {listingData.title}
-                                  </p>
-                                  {listingData.price !== undefined && (
-                                    <p className="text-xs font-medium text-gray-600 md:text-sm">
-                                      {formatPrice(
-                                        listingData.price,
-                                        listingData.currency || "USD"
-                                      )}
-                                    </p>
-                                  )}
-                                  {listingData.duration && (
-                                    <p className="text-[10px] text-gray-500 md:text-xs">
-                                      Duration: {listingData.duration}
-                                    </p>
-                                  )}
-                                </div>
+                            <div className="bg-white text-gray-900 rounded-2xl p-3 md:p-3.5 border border-gray-200 shadow-sm w-full">
+                              <div className="flex items-start justify-between gap-3 mb-2.5">
+                                {msg.message ? (
+                                  <div className="min-w-0 flex-1 text-xs md:text-sm text-gray-900 whitespace-pre-line leading-relaxed">
+                                    {msg.message}
+                                  </div>
+                                ) : (
+                                  <div className="min-w-0 flex-1" />
+                                )}
+                                <span className="shrink-0 text-[11px] text-gray-400 font-normal">
+                                  {formatTime(msg.createdAt)}
+                                </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleListingNavigate(listingData)}
-                                className="mt-2 w-full rounded-md bg-primary py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 md:mt-3 md:py-2 md:text-sm"
-                              >
-                                View Listing
-                              </button>
+
+                              <div className="rounded-xl border border-gray-200 bg-white p-2 md:p-2.5">
+                                <div className="flex gap-2 md:gap-3">
+                                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-100 md:h-16 md:w-16">
+                                    <img
+                                      src={
+                                        listingData.image ||
+                                        "https://i.ibb.co/tpV3m2GW/no-image.png"
+                                      }
+                                      alt={listingData.title}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1 space-y-0.5 md:space-y-1">
+                                    <p className="line-clamp-2 text-xs font-semibold md:text-sm">
+                                      {listingData.title}
+                                    </p>
+                                    {listingData.price !== undefined && (
+                                      <p className="text-xs font-medium text-gray-600 md:text-sm">
+                                        {formatPrice(
+                                          listingData.price,
+                                          listingData.currency || "USD"
+                                        )}
+                                      </p>
+                                    )}
+                                    {listingData.duration && (
+                                      <p className="text-[10px] text-gray-500 md:text-xs">
+                                        Duration: {listingData.duration}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleListingNavigate(listingData)}
+                                  className="mt-2 w-full rounded-md bg-primary py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 md:mt-2.5 md:py-2 md:text-sm cursor-pointer"
+                                >
+                                  View Listing
+                                </button>
+                              </div>
                             </div>
                           )}
 
-                          {msg.message && !isQuoteMessage && (
+                          {msg.message && !isCardMessage && (
                             <div className="text-sm whitespace-pre-line">
                               {msg.message}
                             </div>
                           )}
-                          {!isQuoteMessage && (
+                          {!isCardMessage && (
                             <div className="mt-1 text-[11px] opacity-80 text-right">
                               {formatTime(msg.createdAt)}
                             </div>

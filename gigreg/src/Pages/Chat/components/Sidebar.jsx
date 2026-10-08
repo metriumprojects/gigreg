@@ -10,7 +10,7 @@ export default function Sidebar({
   if (loading) {
     return (
       <div className="w-full h-full overflow-y-auto bg-white animate-pulse">
-        <h2 className="p-4 text-lg font-semibold border-b border-gray-300 bg-gray-50">All Messages</h2>
+        <h2 className="p-4 text-lg font-semibold border-b-2 border-gray-300 bg-gray-50">All Messages</h2>
         {[...Array(5)].map((_, idx) => (
           <div
             key={idx}
@@ -33,7 +33,7 @@ export default function Sidebar({
 
   return (
     <div className="w-full h-full overflow-y-auto bg-white" id="sidebar">
-      <h2 className="p-4 text-lg font-semibold border-b border-gray-300 bg-gradient-to-r from-gray-50 to-white sticky top-0 z-10 h-[73.6px] flex items-center">
+      <h2 className="p-4 text-lg font-semibold border-b-2 border-gray-300 bg-gradient-to-r from-gray-50 to-white sticky top-0 z-10 h-[73.6px] flex items-center">
         All Messages
       </h2>
 
