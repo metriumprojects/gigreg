@@ -30,6 +30,12 @@ const Header = ({
   isOnDemandSelected = true,
   isFixedPriceSelected = true,
   onModeChange = null,
+  minPrice,
+  maxPrice,
+  onMinPriceChange = null,
+  onMaxPriceChange = null,
+  sortOrder = "best_match",
+  onSortChange = null,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -179,6 +185,12 @@ const Header = ({
         isOnDemandSelected={isOnDemandSelected}
         isFixedPriceSelected={isFixedPriceSelected}
         onModeChange={onModeChange}
+        minPrice={minPrice}
+        maxPrice={maxPrice}
+        onMinPriceChange={onMinPriceChange}
+        onMaxPriceChange={onMaxPriceChange}
+        sortOrder={sortOrder}
+        onSortChange={onSortChange}
       />
 
 

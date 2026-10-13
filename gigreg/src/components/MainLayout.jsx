@@ -26,6 +26,12 @@ const MainLayout = ({
   isOnDemandSelected = true,
   isFixedPriceSelected = true,
   onModeChange = null,
+  minPrice,
+  maxPrice,
+  onMinPriceChange = null,
+  onMaxPriceChange = null,
+  sortOrder = "best_match",
+  onSortChange = null,
 }) => {
   const maxWidth = width || '1400px'
   
@@ -50,6 +56,12 @@ const MainLayout = ({
         isOnDemandSelected={isOnDemandSelected}
         isFixedPriceSelected={isFixedPriceSelected}
         onModeChange={onModeChange}
+        minPrice={minPrice}
+        maxPrice={maxPrice}
+        onMinPriceChange={onMinPriceChange}
+        onMaxPriceChange={onMaxPriceChange}
+        sortOrder={sortOrder}
+        onSortChange={onSortChange}
       />
     )}
       <div className={`relative min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>

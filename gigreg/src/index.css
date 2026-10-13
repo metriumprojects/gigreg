@@ -19,3 +19,16 @@ body {
     font-weight: var(--c-stfwt, 500);
     display: none !important;
 }
+
+.floating-search-card {
+  box-shadow:
+    0 18px 45px rgba(22, 37, 83, 0.13),
+    0 3px 10px rgba(22, 37, 83, 0.06);
+  transition: box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-search-card:hover {
+  box-shadow:
+    0 24px 55px rgba(22, 37, 83, 0.18),
+    0 6px 16px rgba(22, 37, 83, 0.08);
+}

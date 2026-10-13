@@ -529,13 +529,13 @@ const MobileMenu = ({
           </button>
         )}
 
-        <div className="flex justify-between items-center w-full px-2">
+        <div className="flex justify-between items-center w-full px-1">
           {navigationItems.map((item) => (
             <button
               key={item.label}
               ref={item.label === 'My Profile' ? profileButtonRef : null}
               onClick={(e) => handleItemClick(e, item)}
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-1 transition-colors relative flex-1 min-w-0 ${getItemClass(item)}`}
+              className={`flex flex-col items-center justify-center gap-1 px-0.5 py-1 transition-colors relative flex-1 min-w-0 ${getItemClass(item)}`}
               title={item.label}
             >
               {item.label === 'My Profile' ? (
@@ -562,7 +562,7 @@ const MobileMenu = ({
                 </span>
               )}
 
-              <span className="text-xs font-medium leading-tight truncate max-w-full">
+              <span className="text-[10px] min-[360px]:text-[11px] font-medium leading-tight whitespace-nowrap text-center">
                 {item.label}
               </span>
             </button>

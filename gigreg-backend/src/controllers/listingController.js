@@ -302,6 +302,7 @@ export const getActiveListings = async (req, res) => {
       createdBy,
       currency = "USD",
       pricingType,
+      sort = "best_match",
     } = req.query;
 
     const query = { status: "Active" };
@@ -381,9 +382,16 @@ export const getActiveListings = async (req, res) => {
 
     if (andFilters.length) query.$and = andFilters;
 
+    let sortQuery = { createdAt: -1 };
+    if (sort === "newest") {
+      sortQuery = { createdAt: -1 };
+    } else if (sort === "best_match") {
+      sortQuery = { createdAt: -1 };
+    }
+
     const [listings, total] = await Promise.all([
       Listing.find(query)
-        .sort({ createdAt: -1 })
+        .sort(sortQuery)
         .skip(skip)
         .limit(limit)
         .populate("createdBy", "name email image averageRating totalRatings"),

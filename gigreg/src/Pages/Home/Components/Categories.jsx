@@ -3,10 +3,15 @@ import { createPortal } from "react-dom";
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
+  MapPin,
+  Search,
   X,
 } from "lucide-react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
+import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
 import { getCategories } from "../../../redux/reducers/CategoryReducer";
 import CurrencySelector from "../../../components/CurrencySelector";
@@ -45,6 +50,12 @@ export default function CategoriesBar({
   isOnDemandSelected = true,
   isFixedPriceSelected = true,
   onModeChange,
+  minPrice,
+  maxPrice,
+  onMinPriceChange,
+  onMaxPriceChange,
+  sortOrder = "best_match",
+  onSortChange,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,6 +105,95 @@ export default function CategoriesBar({
   const handleToggleFixedPrice = () => {
     if (onModeChange) onModeChange("fixed-price");
     else setInternalFixedPrice((prev) => !prev);
+  };
+
+  const [isSearchCardExpanded, setIsSearchCardExpanded] = useState(true);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [localMinPrice, setLocalMinPrice] = useState(
+    typeof minPrice === "number" && Number.isFinite(minPrice) && minPrice > 0 ? String(minPrice) : ""
+  );
+  const [localMaxPrice, setLocalMaxPrice] = useState(
+    typeof maxPrice === "number" && Number.isFinite(maxPrice) && maxPrice < 100000 ? String(maxPrice) : ""
+  );
+  const [currentSort, setCurrentSort] = useState(sortOrder || "best_match");
+
+  useEffect(() => {
+    if (typeof minPrice === "number" && Number.isFinite(minPrice) && minPrice > 0) {
+      setLocalMinPrice(String(minPrice));
+    } else if (minPrice === 0 || minPrice === "" || minPrice === undefined) {
+      setLocalMinPrice("");
+    }
+  }, [minPrice]);
+
+  useEffect(() => {
+    if (typeof maxPrice === "number" && Number.isFinite(maxPrice) && maxPrice < 100000) {
+      setLocalMaxPrice(String(maxPrice));
+    } else if (maxPrice === 100000 || maxPrice === "" || maxPrice === undefined) {
+      setLocalMaxPrice("");
+    }
+  }, [maxPrice]);
+
+  useEffect(() => {
+    if (sortOrder) setCurrentSort(sortOrder);
+  }, [sortOrder]);
+
+  const handleMinPriceChange = (val) => {
+    setLocalMinPrice(val);
+    const parsed = val === "" ? 0 : Number(val);
+    onMinPriceChange?.(parsed);
+  };
+
+  const handleMaxPriceChange = (val) => {
+    setLocalMaxPrice(val);
+    const parsed = val === "" ? 100000 : Number(val);
+    onMaxPriceChange?.(parsed);
+  };
+
+  const handleSortChange = (val) => {
+    setCurrentSort(val);
+    onSortChange?.(val);
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.info("Geolocation is not supported by your browser");
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          const data = await res.json();
+          const city =
+            data?.address?.city ||
+            data?.address?.town ||
+            data?.address?.village ||
+            data?.address?.county ||
+            data?.address?.state ||
+            "Current Location";
+          setLocalLocation(city);
+          if (onLocationSelect) {
+            onLocationSelect({ description: city, lat: latitude, lng: longitude });
+          } else {
+            onLocationChange?.(city);
+          }
+        } catch {
+          setLocalLocation("Current Location");
+          onLocationChange?.("Current Location");
+        } finally {
+          setGettingLocation(false);
+        }
+      },
+      () => {
+        toast.info("Unable to retrieve your location");
+        setGettingLocation(false);
+      },
+      { timeout: 10000 }
+    );
   };
 
   useEffect(() => {
@@ -929,14 +1029,309 @@ export default function CategoriesBar({
         </div>
       )}
 
-      {/* Search and Filters: On mobile (<lg), each item is full width; on desktop (lg+), inline single row. Hidden on mobile in profile section */}
+      {/* Mobile (<lg): Clean Collapsible 'Search services' Card with Floating Shadow */}
+      {!isProfileSection && (
+        <div className="w-full lg:hidden rounded-2xl border border-gray-100/90 bg-white p-4 floating-search-card sm:p-5">
+          {/* Card Header (Collapsible) */}
+          <div
+            onClick={() => setIsSearchCardExpanded((prev) => !prev)}
+            className="flex w-full items-center justify-between cursor-pointer select-none"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F2F4F7] text-gray-500">
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M11.4785 21.9565C15.6062 21.9565 18.1249 21.2974 19.6533 19.8237C21.1731 18.3582 21.9561 15.8484 21.9561 11.478C21.956 7.10783 21.1731 4.59881 19.6533 3.1333C18.1249 1.6595 15.6064 1.00052 11.4785 1.00049C7.35046 1.00049 4.83116 1.65947 3.30273 3.1333C1.78311 4.59884 1.00003 7.10807 1 11.478C1 15.8484 1.78293 18.3582 3.30273 19.8237C4.83116 21.2976 7.35046 21.9565 11.4785 21.9565Z" />
+                  <path d="M22.9565 22.9565L20.3478 20.3478" />
+                </svg>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <h3 className="text-base font-bold text-gray-900 leading-tight">
+                  Search Gigs
+                </h3>
+                <p className="text-xs text-gray-400 font-normal leading-normal mt-0.5 truncate">
+                  Find exactly what you're looking for.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="p-1 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+              aria-label={isSearchCardExpanded ? "Collapse search" : "Expand search"}
+            >
+              <ChevronUp
+                className={`h-5 w-5 transition-transform duration-200 ${isSearchCardExpanded ? "" : "rotate-180"
+                  }`}
+              />
+            </button>
+          </div>
+
+          {/* Card Body (when expanded) */}
+          {isSearchCardExpanded && (
+            <div className="mt-4 flex flex-col gap-3.5 pt-1">
+              {/* Search & Location Inputs: Seamlessly joined, generous height & padding */}
+              <div className="flex flex-col gap-1">
+                {/* Search Row */}
+                <div className="flex min-h-[46px] items-center gap-3 py-2.5 sm:py-3">
+                  <svg
+                    className="h-5 w-5 shrink-0 text-gray-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M11.4785 21.9565C15.6062 21.9565 18.1249 21.2974 19.6533 19.8237C21.1731 18.3582 21.9561 15.8484 21.9561 11.478C21.956 7.10783 21.1731 4.59881 19.6533 3.1333C18.1249 1.6595 15.6064 1.00052 11.4785 1.00049C7.35046 1.00049 4.83116 1.65947 3.30273 3.1333C1.78311 4.59884 1.00003 7.10807 1 11.478C1 15.8484 1.78293 18.3582 3.30273 19.8237C4.83116 21.2976 7.35046 21.9565 11.4785 21.9565Z" />
+                    <path d="M22.9565 22.9565L20.3478 20.3478" />
+                  </svg>
+                  <input
+                    value={localSearch}
+                    onChange={(event) => {
+                      setLocalSearch(event.target.value);
+                      onSearchChange?.(event.target.value);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") handleSearchSubmit(event.target.value);
+                    }}
+                    placeholder="What service do you need?"
+                    className="min-w-0 flex-1 bg-transparent py-1 text-sm sm:text-[15px] font-medium text-gray-800 placeholder:text-gray-400 outline-none"
+                  />
+                  {localSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLocalSearch("");
+                        onSearchChange?.("");
+                      }}
+                      className="shrink-0 rounded-full p-1.5 text-gray-400 hover:text-gray-600"
+                      aria-label="Clear search"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Location Row */}
+                <div className="flex min-h-[46px] items-center gap-3 py-2.5 sm:py-3">
+                  <svg
+                    className="h-5 w-5 shrink-0 text-gray-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M10.9951 22.4248C11.6339 22.7505 12.3661 22.7505 13.0049 22.4248C14.4088 21.709 16.6199 20.4276 18.6113 18.6152C20.6087 16.7975 22.31 14.5151 22.8438 11.8066C23.285 9.56749 22.8142 6.86911 21.1465 4.74219C19.5025 2.64547 16.6113 1 12 1C7.38874 1 4.49752 2.64547 2.85352 4.74219C1.18584 6.86911 0.714933 9.56749 1.15625 11.8066C1.69007 14.5151 3.39134 16.7975 5.38867 18.6152C7.38012 20.4276 9.59123 21.709 10.9951 22.4248Z" />
+                    <circle cx="4" cy="4" r="3" transform="matrix(-1 0 0 1 16 6)" />
+                  </svg>
+                  <div className="relative min-w-0 flex-1">
+                    <LocationAutocomplete
+                      value={localLocation}
+                      onChange={handleLocationUpdate}
+                      onSelectDetails={(details) => {
+                        const description = details?.description || "";
+                        setLocalLocation(description);
+                        if (onLocationSelect) onLocationSelect(details);
+                        else onLocationChange?.(description);
+                      }}
+                      placeholder="City or postcode"
+                      variant="type"
+                      leadingIcon={null}
+                      positionRelative={false}
+                      placeholderClassName="placeholder:text-gray-400 placeholder:font-normal"
+                      className="w-full bg-transparent p-0 py-1 text-sm sm:text-[15px] font-medium text-gray-800 outline-none"
+                    />
+                  </div>
+                  {localLocation ? (
+                    <button
+                      type="button"
+                      onClick={() => handleLocationUpdate("")}
+                      className="shrink-0 rounded-full p-1.5 text-gray-400 hover:text-gray-600"
+                      aria-label="Clear location"
+                    >
+                      <X size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={gettingLocation}
+                      className="shrink-0 py-1 text-xs font-semibold text-[#4F46E5] hover:text-[#4338CA] whitespace-nowrap cursor-pointer disabled:opacity-50"
+                    >
+                      {gettingLocation ? "Locating..." : "Use current"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 2x2 Grid for Service Types: Online, In-person, On demand, Fixed price */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+                {/* Online */}
+                <label
+                  onClick={handleToggleOnline}
+                  className="flex items-center gap-2.5 cursor-pointer select-none"
+                >
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveOnline
+                      ? "bg-[#4F46E5] text-white"
+                      : "border-[1.5px] border-gray-300 bg-white"
+                      }`}
+                  >
+                    {effectiveOnline && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">Online</span>
+                </label>
+
+                {/* In-person */}
+                <label
+                  onClick={handleToggleInPerson}
+                  className="flex items-center gap-2.5 cursor-pointer select-none"
+                >
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveInPerson
+                      ? "bg-[#4F46E5] text-white"
+                      : "border-[1.5px] border-gray-300 bg-white"
+                      }`}
+                  >
+                    {effectiveInPerson && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">In-person</span>
+                </label>
+
+                {/* On demand */}
+                <label
+                  onClick={handleToggleOnDemand}
+                  className="flex items-center gap-2.5 cursor-pointer select-none"
+                >
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveOnDemand
+                      ? "bg-[#4F46E5] text-white"
+                      : "border-[1.5px] border-gray-300 bg-white"
+                      }`}
+                  >
+                    {effectiveOnDemand && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">On demand</span>
+                </label>
+
+                {/* Fixed price */}
+                <label
+                  onClick={handleToggleFixedPrice}
+                  className="flex items-center gap-2.5 cursor-pointer select-none"
+                >
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveFixedPrice
+                      ? "bg-[#4F46E5] text-white"
+                      : "border-[1.5px] border-gray-300 bg-white"
+                      }`}
+                  >
+                    {effectiveFixedPrice && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">Fixed price</span>
+                </label>
+              </div>
+
+              {/* Budget Section */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-900">Your Budget</span>
+                  <CurrencySelector
+                    buttonClassName="h-7 px-2.5 py-1 rounded-md bg-[#F2F4F7] text-xs font-semibold text-[#1D2939] hover:bg-gray-200 transition-colors border-0 shadow-none gap-1.5"
+                    className="shrink-0"
+                  />
+                </div>
+                <div className="mt-2.5 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-[#F2F4F7] px-3.5 py-2 transition-colors focus-within:bg-gray-100">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      MIN
+                    </span>
+                    <input
+                      type="number"
+                      value={localMinPrice}
+                      onChange={(e) => handleMinPriceChange(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-transparent text-sm font-bold text-gray-900 outline-none"
+                    />
+                  </div>
+                  <div className="rounded-xl bg-[#F2F4F7] px-3.5 py-2 transition-colors focus-within:bg-gray-100">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      MAX
+                    </span>
+                    <input
+                      type="number"
+                      value={localMaxPrice}
+                      onChange={(e) => handleMaxPriceChange(e.target.value)}
+                      placeholder="1000"
+                      className="w-full bg-transparent text-sm font-bold text-gray-900 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sort Results Section */}
+              <div className="pt-2">
+                <span className="block text-sm font-bold text-gray-900 mb-2">Sort results</span>
+                <div className="flex items-center gap-5 text-sm font-medium">
+                  {[
+                    { id: "best_match", label: "Best match" },
+                    { id: "newest", label: "Newest" },
+                    { id: "nearby", label: "Nearby" },
+                  ].map((option) => {
+                    const isSelected = (currentSort || "best_match") === option.id;
+                    return (
+                      <label
+                        key={option.id}
+                        onClick={() => handleSortChange(option.id)}
+                        className="flex items-center gap-2 cursor-pointer select-none"
+                      >
+                        <div
+                          className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border transition-colors ${isSelected
+                            ? "border-[#4F46E5]"
+                            : "border-gray-300 bg-white"
+                            }`}
+                        >
+                          {isSelected && (
+                            <div className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
+                          )}
+                        </div>
+                        <span
+                          className={
+                            isSelected
+                              ? "font-semibold text-[#4F46E5]"
+                              : "text-gray-600 hover:text-gray-900"
+                          }
+                        >
+                          {option.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Desktop (lg+): Inline single row toolbar */}
       <div
-        className={`${
-          isProfileSection ? "hidden lg:flex" : "flex"
-        } w-full flex-col items-start gap-2.5 lg:flex-row lg:items-center lg:gap-3`}
+        className={`${isProfileSection ? "hidden lg:flex" : "hidden lg:flex"
+          } w-full items-center gap-3`}
       >
         {/* Search Input */}
-        <label className="flex h-11 shrink-0 w-full lg:w-auto lg:min-w-0 lg:flex-1 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 transition-colors">
+        <label className="flex h-11 shrink-0 lg:min-w-0 lg:flex-1 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 transition-colors">
           <svg
             className="h-[18px] w-[18px] shrink-0 text-black"
             viewBox="0 0 24 24"
@@ -978,7 +1373,7 @@ export default function CategoriesBar({
         </label>
 
         {/* Location Input */}
-        <div className="relative flex h-11 w-full shrink-0 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 lg:w-[160px] xl:w-[200px] transition-colors">
+        <div className="relative flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 lg:w-[160px] xl:w-[200px] transition-colors">
           <LocationAutocomplete
             value={localLocation}
             onChange={handleLocationUpdate}
@@ -1021,12 +1416,12 @@ export default function CategoriesBar({
           )}
         </div>
 
-        {/* Filter pills: Online, In-person, On demand, Fixed pricing in the same row */}
-        <div className="grid grid-cols-2 gap-2.5 w-full sm:grid-cols-4 lg:flex lg:w-auto lg:items-center">
+        {/* Filter pills: Online, In-person, On demand, Fixed pricing */}
+        <div className="flex shrink-0 items-center gap-2.5">
           <button
             type="button"
             onClick={handleToggleOnline}
-            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveOnline
+            className={`inline-flex h-11 items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer shrink-0 ${effectiveOnline
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
               }`}
@@ -1055,7 +1450,7 @@ export default function CategoriesBar({
           <button
             type="button"
             onClick={handleToggleInPerson}
-            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveInPerson
+            className={`inline-flex h-11 items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer shrink-0 ${effectiveInPerson
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
               }`}
@@ -1084,7 +1479,7 @@ export default function CategoriesBar({
           <button
             type="button"
             onClick={handleToggleOnDemand}
-            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveOnDemand
+            className={`inline-flex h-11 items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer shrink-0 ${effectiveOnDemand
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
               }`}
@@ -1113,7 +1508,7 @@ export default function CategoriesBar({
           <button
             type="button"
             onClick={handleToggleFixedPrice}
-            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveFixedPrice
+            className={`inline-flex h-11 items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer shrink-0 ${effectiveFixedPrice
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
               }`}
@@ -1140,15 +1535,15 @@ export default function CategoriesBar({
           </button>
         </div>
 
-        {/* Price Range and Currency Selector together on one line, equal & full width on mobile */}
-        <div className="grid grid-cols-2 gap-2.5 w-full lg:flex lg:w-auto lg:items-center">
+        {/* Price Range and Currency Selector on desktop */}
+        <div className="flex shrink-0 items-center gap-2.5">
           <button
             type="button"
             onClick={() => {
               if (onFilterClick) onFilterClick();
               else handleSearchClick?.();
             }}
-            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-black bg-white px-3 sm:px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 cursor-pointer lg:h-11 lg:w-auto lg:shrink-0"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border-[1.5px] border-black bg-white px-3 sm:px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 cursor-pointer shrink-0"
             aria-label="Open price range"
           >
             <svg
@@ -1167,8 +1562,8 @@ export default function CategoriesBar({
           </button>
 
           <CurrencySelector
-            buttonClassName="h-9 lg:h-11 w-full lg:w-auto justify-center px-3 sm:px-3.5"
-            className="w-full lg:w-auto lg:shrink-0"
+            buttonClassName="h-11 w-auto justify-center px-3.5"
+            className="w-auto shrink-0"
           />
         </div>
       </div>

@@ -53,6 +53,7 @@ export const getActiveListings = createAsyncThunk(
       createdBy = "",
       currency = "USD",
       pricingType,
+      sort,
     } = {},
     { rejectWithValue }
   ) => {
@@ -73,6 +74,7 @@ export const getActiveListings = createAsyncThunk(
       if (location) params.append("location", location);
       if (createdBy) params.append("createdBy", createdBy);
       if (pricingType) params.append("pricingType", pricingType);
+      if (sort) params.append("sort", sort);
       params.append("currency", currency);
 
       const response = await api.get(`/listings/active?${params.toString()}`);

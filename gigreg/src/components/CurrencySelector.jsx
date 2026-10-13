@@ -141,7 +141,11 @@ export default function CurrencySelector({ className = "", buttonClassName = "",
           updatePosition();
           setOpen((current) => !current);
         }}
-        className={`flex ${buttonClassName || "h-11"} items-center justify-center gap-1.5 rounded-full border-[1.5px] border-black bg-white px-3.5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 disabled:opacity-60 cursor-pointer`}
+        className={`flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60 cursor-pointer ${
+          buttonClassName && (buttonClassName.includes("border") || buttonClassName.includes("bg-"))
+            ? buttonClassName
+            : `${buttonClassName || "h-11"} rounded-full border-[1.5px] border-black bg-white px-3.5 text-sm font-semibold text-black hover:bg-gray-50`
+        }`}
       >
         {getCurrencyIcon(currency, { size: 16, strokeWidth: 1.8 })}
         <span className="font-semibold uppercase">{currency}</span>

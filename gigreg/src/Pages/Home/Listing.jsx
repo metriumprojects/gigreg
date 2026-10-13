@@ -304,6 +304,7 @@ const Listing = () => {
   const [isFixedPriceSelected, setIsFixedPriceSelected] = useState(true);
   const [min, setMin] = useState(0);
   const [max, setMax] = useState(100000);
+  const [sortOrder, setSortOrder] = useState("best_match");
   const [categoryDisplayLimit, setCategoryDisplayLimit] = useState(5);
   const moreMenuRef = useRef(null);
   const limit = 20;
@@ -428,6 +429,7 @@ const Listing = () => {
           supportsInPerson: isFilteringInPerson ? true : undefined,
           location: locationSearch,
           pricingType: pricingTypeFilter,
+          sort: sortOrder,
         })
       );
     }, 350);
@@ -446,6 +448,7 @@ const Listing = () => {
     isOnDemandSelected,
     isFixedPriceSelected,
     locationFilter,
+    sortOrder,
   ]);
 
   return (
@@ -480,6 +483,21 @@ const Listing = () => {
       isOnDemandSelected={isOnDemandSelected}
       isFixedPriceSelected={isFixedPriceSelected}
       onModeChange={handleModeChange}
+      minPrice={min}
+      maxPrice={max}
+      onMinPriceChange={(val) => {
+        setMin(val);
+        setPage(1);
+      }}
+      onMaxPriceChange={(val) => {
+        setMax(val);
+        setPage(1);
+      }}
+      sortOrder={sortOrder}
+      onSortChange={(val) => {
+        setSortOrder(val);
+        setPage(1);
+      }}
     >
       <div className="w-full pb-20 lg:pb-6">
 
