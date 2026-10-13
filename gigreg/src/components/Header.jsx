@@ -36,6 +36,8 @@ const Header = ({
   onMaxPriceChange = null,
   sortOrder = "best_match",
   onSortChange = null,
+  hideSearchCard = false,
+  searchCardTitle = "",
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -154,8 +156,11 @@ const Header = ({
     setShowHeaderSearch(true);
   };
 
+  const hasNoSearchBelowHeader = hideSearchCard || location.pathname !== "/teach";
+  const headerPb = (breadcrumbs && hasNoSearchBelowHeader) ? "pb-[10px]" : "pb-[20px]";
+
   return (
-    <header className="relative z-50 mx-auto w-full px-3 pt-[20px] pb-[20px] md:px-10">
+    <header className={`relative z-50 mx-auto w-full px-3 pt-[20px] ${headerPb} md:px-10`}>
       <CategoriesBar
         categories={categories}
         selectedCategory={selectedCategory}
@@ -191,6 +196,8 @@ const Header = ({
         onMaxPriceChange={onMaxPriceChange}
         sortOrder={sortOrder}
         onSortChange={onSortChange}
+        hideSearchCard={hideSearchCard}
+        searchCardTitle={searchCardTitle}
       />
 
 

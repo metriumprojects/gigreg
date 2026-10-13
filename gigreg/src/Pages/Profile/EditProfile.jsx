@@ -128,34 +128,33 @@ export default function EditProfile() {
     }
   };
 
-  return (
-    <MainLayout width={"900px"} className="mx-auto">
-      <div className="my-6">
-        {/* Breadcrumb Navigation in Grey Bubble Style */}
-        <div className="mb-[20px]">
-          <nav
-            aria-label="Breadcrumb"
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-          >
-            <Link
-              to="/"
-              className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
-            >
-              <Home size={14} className="text-black shrink-0" />
-              <span>Home</span>
-            </Link>
-            <ChevronRight size={13} className="text-gray-400 shrink-0" />
-            <Link
-              to="/profile?tab=My Profile"
-              className="font-medium text-black hover:text-primary transition-colors"
-            >
-              My Profile
-            </Link>
-            <ChevronRight size={13} className="text-gray-400 shrink-0" />
-            <span className="font-semibold text-black">Edit Profile</span>
-          </nav>
-        </div>
+  const editProfileBreadcrumbs = (
+    <nav
+      aria-label="Breadcrumb"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+      >
+        <Home size={14} className="text-black shrink-0" />
+        <span>Home</span>
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <Link
+        to="/profile?tab=My Profile"
+        className="font-medium text-black hover:text-primary transition-colors"
+      >
+        My Profile
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <span className="font-semibold text-black">Edit Profile</span>
+    </nav>
+  );
 
+  return (
+    <MainLayout width={"900px"} className="mx-auto" hideSearchCard={true} breadcrumbs={editProfileBreadcrumbs}>
+      <div className="mt-0 mb-6">
         <h1 className="text-2xl font-semibold mb-6 text-gray-900">Edit Profile</h1>
 
         {successMessage && (

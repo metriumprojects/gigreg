@@ -260,35 +260,34 @@ const UpdateListing = () => {
     ? URL.createObjectURL(coverImage)
     : existingCoverImage?.url || "";
 
-  return (
-    <MainLayout className="mx-auto" width="100%">
-      <div className="min-h-screen bg-white pt-[10px] pb-10">
-        <div className="w-full mx-auto">
-          {/* Breadcrumb Navigation in Grey Bubble Style */}
-          <div className="mb-[20px]">
-            <nav
-              aria-label="Breadcrumb"
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-            >
-              <Link
-                to="/"
-                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
-              >
-                <Home size={14} className="text-black shrink-0" />
-                <span>Home</span>
-              </Link>
-              <ChevronRight size={13} className="text-gray-400 shrink-0" />
-              <Link
-                to="/profile?tab=My Listings"
-                className="font-medium text-black hover:text-primary transition-colors"
-              >
-                My Listings
-              </Link>
-              <ChevronRight size={13} className="text-gray-400 shrink-0" />
-              <span className="font-semibold text-black">Update Listing</span>
-            </nav>
-          </div>
+  const updateListingBreadcrumbs = (
+    <nav
+      aria-label="Breadcrumb"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+      >
+        <Home size={14} className="text-black shrink-0" />
+        <span>Home</span>
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <Link
+        to="/profile?tab=My Listings"
+        className="font-medium text-black hover:text-primary transition-colors"
+      >
+        My Listings
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <span className="font-semibold text-black">Update Listing</span>
+    </nav>
+  );
 
+  return (
+    <MainLayout className="mx-auto" width="100%" hideSearchCard={true} breadcrumbs={updateListingBreadcrumbs}>
+      <div className="min-h-screen bg-white pt-0 pb-10">
+        <div className="w-full mx-auto">
           <div className="flex items-center justify-between mb-[30px]">
             <h1 className="text-3xl font-bold">Update listing</h1>
             <Link to="/profile?tab=My%20Listing" className="text-sm underline">
@@ -395,22 +394,38 @@ const UpdateListing = () => {
                         {selected && (
                           <div className="ml-7 space-y-3">
                             {!onDemandOption && (
-                              <div className="flex items-center gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <input
-                                    type="number"
-                                    name="price"
-                                    value={formData.price}
-                                    onChange={handleChange}
-                                    disabled={loading}
-                                    min="0"
-                                    step="1"
-                                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
-                                  />
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <div className="min-w-0 flex-1">
+                                    <input
+                                      type="number"
+                                      name="price"
+                                      value={formData.price}
+                                      onChange={handleChange}
+                                      disabled={loading}
+                                      min="0"
+                                      step="1"
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                                    />
+                                  </div>
+
+                                  {/* Mobile Currency Dropdown */}
+                                  <div className="w-[95px] shrink-0 sm:hidden">
+                                    <select
+                                      value={listingCurrency}
+                                      onChange={(event) => setListingCurrency(event.target.value)}
+                                      disabled={loading}
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                                    >
+                                      {supportedCurrencies.map((code) => (
+                                        <option key={code} value={code}>{code}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
 
                                 {hourlyOption && (
-                                  <div className="w-[215px] shrink-0">
+                                  <div className="w-full sm:w-[215px] shrink-0">
                                     <select
                                       name="duration"
                                       value={formData.duration}
@@ -428,7 +443,8 @@ const UpdateListing = () => {
                                   </div>
                                 )}
 
-                                <div className="w-[100px] shrink-0">
+                                {/* Desktop Currency Dropdown */}
+                                <div className="hidden sm:block w-[100px] shrink-0">
                                   <select
                                     value={listingCurrency}
                                     onChange={(event) => setListingCurrency(event.target.value)}
@@ -448,19 +464,6 @@ const UpdateListing = () => {
                     );
                   })}
                 </div>
-              </div>
-
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={allowMessageWithoutPayment}
-                    onChange={() => setAllowMessageWithoutPayment((prev) => !prev)}
-                    disabled={loading}
-                    className="w-4 h-4 accent-black"
-                  />
-                  <span className="text-sm text-gray-900">Allow users to message you without paying listing price</span>
-                </label>
               </div>
 
               <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">

@@ -32,6 +32,8 @@ const MainLayout = ({
   onMaxPriceChange = null,
   sortOrder = "best_match",
   onSortChange = null,
+  hideSearchCard = false,
+  searchCardTitle = "",
 }) => {
   const maxWidth = width || '1400px'
   
@@ -62,6 +64,8 @@ const MainLayout = ({
         onMaxPriceChange={onMaxPriceChange}
         sortOrder={sortOrder}
         onSortChange={onSortChange}
+        hideSearchCard={hideSearchCard}
+        searchCardTitle={searchCardTitle}
       />
     )}
       <div className={`relative min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>

@@ -133,7 +133,7 @@ const Card = ({ course, favorites, searchLocation, linkTo }) => {
       </div>
 
       <div className="pt-2">
-        <h3 className="line-clamp-2 text-xs sm:text-base font-semibold leading-tight sm:leading-[1.22] text-black">{course.title}</h3>
+        <h3 className="line-clamp-4 text-xs sm:text-base font-semibold leading-tight sm:leading-[1.22] text-black">{course.title}</h3>
         <p className="mt-0.5 sm:mt-1 text-xs sm:text-base text-[#6A6A6A]">
           {formatPrice(course.price, course.currency || "USD", cardPriceOptions)} for {course?.duration || "1 hour"}
           {shouldShowCurriculum ? " · Part of a curriculum" : ""}

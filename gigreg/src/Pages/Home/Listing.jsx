@@ -209,7 +209,7 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
             </Link>
 
             <Link to={cardLink} className="mt-1 sm:mt-2 block">
-              <h3 className="line-clamp-2 text-xs sm:text-base font-semibold leading-tight sm:leading-snug text-white">
+              <h3 className="line-clamp-4 text-xs sm:text-base font-semibold leading-tight sm:leading-snug text-white">
                 {listing?.title}
               </h3>
             </Link>
@@ -233,7 +233,7 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
                 >
                   <MessageCircle size={14} className="sm:hidden" />
                   <MessageCircle size={16} className="hidden sm:inline" />
-                  <span className="truncate">{messaging ? "..." : "Text me"}</span>
+                  <span className="truncate">{messaging ? "..." : "Message Me"}</span>
                 </button>
                 <Link
                   to={listingPath}
@@ -285,16 +285,22 @@ const Listing = () => {
   const [page, setPage] = useState(1);
   const [showFilter, setShowFilter] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const categoryParam = searchParams.get("category") || "";
-  const [selectedCategory, setSelectedCategory] = useState(categoryParam);
+  const [selectedCategories, setSelectedCategories] = useState(() => {
+    if (!categoryParam) return [];
+    return categoryParam.split(",").map((c) => c.trim()).filter(Boolean);
+  });
 
   useEffect(() => {
-    if (categoryParam !== selectedCategory) {
-      setSelectedCategory(categoryParam);
+    const fromQuery = categoryParam
+      ? categoryParam.split(",").map((c) => c.trim()).filter(Boolean)
+      : [];
+    if (fromQuery.join(",") !== selectedCategories.join(",")) {
+      setSelectedCategories(fromQuery);
       setPage(1);
     }
-  }, [categoryParam]);
+  }, [categoryParam, selectedCategories]);
   const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
@@ -311,8 +317,38 @@ const Listing = () => {
   const visibleCategories = categories?.slice(0, categoryDisplayLimit) || [];
   const hiddenCategories = categories?.slice(categoryDisplayLimit) || [];
 
-  const handleSelectCategory = (categoryName) => {
-    setSelectedCategory(categoryName);
+  const handleSelectCategory = (categoryInput) => {
+    if (!categoryInput) {
+      setSelectedCategories([]);
+      setSearchParams((params) => {
+        const p = new URLSearchParams(params);
+        p.delete("category");
+        return p;
+      });
+      setSearchInput("");
+      setSearchFilter("");
+      setPage(1);
+      return;
+    }
+
+    let next;
+    if (typeof categoryInput === "string" && categoryInput.includes(",")) {
+      next = categoryInput.split(",").map((c) => c.trim()).filter(Boolean);
+    } else if (Array.isArray(categoryInput)) {
+      next = categoryInput.filter(Boolean);
+    } else {
+      next = selectedCategories.includes(categoryInput)
+        ? selectedCategories.filter((c) => c !== categoryInput)
+        : [...selectedCategories, categoryInput];
+    }
+
+    setSelectedCategories(next);
+    setSearchParams((params) => {
+      const p = new URLSearchParams(params);
+      if (next.length) p.set("category", next.join(","));
+      else p.delete("category");
+      return p;
+    });
     setSearchInput("");
     setSearchFilter("");
     setPage(1);
@@ -350,8 +386,11 @@ const Listing = () => {
     setPage(1);
   };
 
+  const selectedCategory = selectedCategories.join(",");
+  const handleSelect = handleSelectCategory;
+
   const clearAll = () => {
-    setSelectedCategory("");
+    handleSelectCategory("");
     setSearchInput("");
     setSearchFilter("");
     setLocationFilter("");
@@ -421,7 +460,7 @@ const Listing = () => {
           page,
           limit,
           search: searchFilter,
-          category: selectedCategory,
+          category: selectedCategories.join(","),
           minPrice: min,
           maxPrice: max,
           currency,
@@ -439,7 +478,7 @@ const Listing = () => {
     dispatch,
     page,
     searchFilter,
-    selectedCategory,
+    selectedCategories,
     min,
     max,
     currency,
@@ -456,7 +495,7 @@ const Listing = () => {
       className="mx-auto"
       width="3080px"
       categories={categories}
-      selectedCategory={selectedCategory}
+      selectedCategory={selectedCategories.join(",")}
       onSelectCategory={handleSelectCategory}
       onSearchToggle={() => setShowFilter(true)}
       searchInput={searchInput}
@@ -466,16 +505,8 @@ const Listing = () => {
         setPage(1);
       }}
       locationFilter={locationFilter}
-      onLocationChange={(value) => {
-        setLocationFilter(value);
-        if (value?.trim()) setIsInPersonSelected(true);
-        setPage(1);
-      }}
-      onLocationSelect={({ description }) => {
-        setLocationFilter(description || "");
-        if (description?.trim()) setIsInPersonSelected(true);
-        setPage(1);
-      }}
+      onLocationChange={handleLocationChange}
+      onLocationSelect={handleLocationSelect}
       onFilterClick={() => setShowFilter(true)}
       searchPlaceholder="Search"
       isOnlineSelected={isOnlineSelected}

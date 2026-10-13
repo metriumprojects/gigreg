@@ -90,7 +90,7 @@ const CreateListing = () => {
     duration: "",
     price: requestPrefill?.price != null ? String(requestPrefill.price) : "",
     location: requestPrefill?.location || "",
-    message: "Hi, your booking is confirmed! Looking forward to working with you. I’ll review your goals ahead of the session so we can make the most of our time. If there’s anything specific you want to focus on or prepare, feel free to send it over in advance.",
+    message: "Your gig is confirmed! You’re all set. You’ll receive the booking details, including the date, time, and location, shortly. Get ready to make it happen!",
   });
   const [proposalNote, setProposalNote] = useState(
     "Hi I'd love to help you with your task!"
@@ -558,8 +558,32 @@ const CreateListing = () => {
     });
   };
 
+  const createListingBreadcrumbs = (
+    <nav
+      aria-label="Breadcrumb"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+      >
+        <Home size={14} className="text-black shrink-0" />
+        <span>Home</span>
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <Link
+        to="/profile?tab=My Listings"
+        className="font-medium text-black hover:text-primary transition-colors"
+      >
+        My Listings
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <span className="font-semibold text-black">Create a listing</span>
+    </nav>
+  );
+
   return (
-    <MainLayout className="mx-auto" width="100%">
+    <MainLayout className="mx-auto" width="100%" hideSearchCard={true} breadcrumbs={createListingBreadcrumbs}>
       {/* Cover Image Crop Modal */}
       {showCoverImageCropModal && tempCoverImagePreview && (
         <Motion.div
@@ -676,32 +700,8 @@ const CreateListing = () => {
         </Motion.div>
       )}
 
-      <div className="min-h-screen bg-white pt-[10px] pb-10">
+      <div className="min-h-screen bg-white pt-0 pb-10">
         <div className="w-full mx-auto">
-          {/* Breadcrumb Navigation in Grey Bubble Style */}
-          <div className="mb-[20px]">
-            <nav
-              aria-label="Breadcrumb"
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-            >
-              <Link
-                to="/"
-                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
-              >
-                <Home size={14} className="text-black shrink-0" />
-                <span>Home</span>
-              </Link>
-              <ChevronRight size={13} className="text-gray-400 shrink-0" />
-              <Link
-                to="/profile?tab=My Listings"
-                className="font-medium text-black hover:text-primary transition-colors"
-              >
-                My Listings
-              </Link>
-              <ChevronRight size={13} className="text-gray-400 shrink-0" />
-              <span className="font-semibold text-black">Create a listing</span>
-            </nav>
-          </div>
           <div className="flex items-center gap-3 mb-[30px]">
             <svg
               width="24"
@@ -973,23 +973,39 @@ const CreateListing = () => {
                         {selected && (
                           <div className="ml-7 space-y-3">
                             {!onDemandOption && (
-                              <div className="flex items-center gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <input
-                                    type="number"
-                                    name="price"
-                                    value={formData.price}
-                                    onChange={handleChange}
-                                    disabled={loading}
-                                    step="1"
-                                    min="0"
-                                    placeholder="50"
-                                    className={`w-full bg-white border ${errors.price ? "border-red-400" : "border-gray-200"} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50`}
-                                  />
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <div className="min-w-0 flex-1">
+                                    <input
+                                      type="number"
+                                      name="price"
+                                      value={formData.price}
+                                      onChange={handleChange}
+                                      disabled={loading}
+                                      step="1"
+                                      min="0"
+                                      placeholder="50"
+                                      className={`w-full bg-white border ${errors.price ? "border-red-400" : "border-gray-200"} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50`}
+                                    />
+                                  </div>
+
+                                  {/* Mobile Currency Dropdown: sits next to price input on mobile */}
+                                  <div className="w-[95px] shrink-0 sm:hidden">
+                                    <select
+                                      value={listingCurrency}
+                                      onChange={(event) => setListingCurrency(event.target.value)}
+                                      disabled={loading}
+                                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
+                                    >
+                                      {availableCurrencies.map((code) => (
+                                        <option key={code} value={code}>{code}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
 
                                 {hourlyOption && (
-                                  <div className="w-[215px] shrink-0">
+                                  <div className="w-full sm:w-[215px] shrink-0">
                                     <select
                                       name="duration"
                                       value={formData.duration}
@@ -1007,7 +1023,8 @@ const CreateListing = () => {
                                   </div>
                                 )}
 
-                                <div className="w-[100px] shrink-0">
+                                {/* Desktop Currency Dropdown: stays at the end of the row on sm+ */}
+                                <div className="hidden sm:block w-[100px] shrink-0">
                                   <select
                                     value={listingCurrency}
                                     onChange={(event) => setListingCurrency(event.target.value)}
@@ -1033,20 +1050,6 @@ const CreateListing = () => {
                 {errors.duration && (
                   <p className="text-xs text-red-500 mt-2">{errors.duration}</p>
                 )}
-              </div>
-
-              {/* Message Without Payment */}
-              <div className="bg-[#F7F7F7] rounded-2xl p-4 md:p-5 border border-gray-100">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={allowMessageWithoutPayment}
-                    onChange={() => setAllowMessageWithoutPayment((prev) => !prev)}
-                    disabled={loading}
-                    className="w-4 h-4 accent-black"
-                  />
-                  <span className="text-sm text-gray-900">Allow users to message you without paying listing price</span>
-                </label>
               </div>
 
               {/* Lesson Location */}

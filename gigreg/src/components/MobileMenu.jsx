@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, User, LogIn, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, User, LogIn, X, ChevronUp, ChevronDown, Check } from 'lucide-react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { toast } from 'react-toastify'
@@ -91,9 +91,27 @@ const MobileMenu = ({
   const isLoggedIn = !!userInfo
 
   const isHome = location.pathname === '/' || location.pathname === '/listing'
+  const isTeach = location.pathname === '/teach'
+  const shouldShowCategoriesButton = isHome || isTeach || Boolean(onSelectCategory)
   const categories = Array.isArray(propCategories) && propCategories.length > 0 ? propCategories : (reduxCategories || [])
   const queryCategory = new URLSearchParams(location.search).get("category") || ""
-  const selectedCategory = propSelectedCategory || queryCategory
+
+  const activeCategoryList = useMemo(() => {
+    if (Array.isArray(propSelectedCategory)) return propSelectedCategory.filter(Boolean)
+    if (typeof propSelectedCategory === 'string' && propSelectedCategory.trim()) {
+      return propSelectedCategory.split(',').map((c) => c.trim()).filter(Boolean)
+    }
+    if (queryCategory) {
+      return queryCategory.split(',').map((c) => c.trim()).filter(Boolean)
+    }
+    return []
+  }, [propSelectedCategory, queryCategory])
+
+  const categoryLabel = useMemo(() => {
+    if (activeCategoryList.length === 0) return "Categories"
+    if (activeCategoryList.length === 1) return activeCategoryList[0]
+    return `${activeCategoryList.length} Categories`
+  }, [activeCategoryList])
 
   const DEFAULT_SHEET_HEIGHT = 240
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -311,9 +329,9 @@ const MobileMenu = ({
             isDragging ? '' : 'transition-[height] duration-200 ease-out'
           }`}
         >
-          {/* Header: Drag Handle & Cross (No grey line below) */}
+          {/* Header: Drag Area & Cross (Grey dash removed) */}
           <div
-            className="relative flex items-center justify-center h-9 px-4 shrink-0 select-none cursor-grab active:cursor-grabbing touch-none"
+            className="relative flex items-center justify-end h-8 px-3 shrink-0 select-none cursor-grab active:cursor-grabbing touch-none"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -323,9 +341,6 @@ const MobileMenu = ({
             onTouchEnd={handleTouchEnd}
             title="Drag to resize height"
           >
-            {/* Centered Grey Drag Handle */}
-            <div className="h-1.5 w-12 rounded-full bg-gray-300 hover:bg-gray-400 transition-colors pointer-events-none" />
-
             {/* Cross Button on Right */}
             <button
               type="button"
@@ -335,7 +350,7 @@ const MobileMenu = ({
               }}
               onPointerDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
-              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-8 w-8 rounded-full text-gray-500 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer"
+              className="flex items-center justify-center h-8 w-8 rounded-full text-gray-500 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer"
               aria-label="Close categories"
             >
               <X size={18} />
@@ -343,29 +358,41 @@ const MobileMenu = ({
           </div>
 
           {/* Vertical Category Grid (No horizontal scrolling) */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-3.5 pt-3 pb-8 overscroll-contain">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3.5 pt-3 pb-3 overscroll-contain">
             <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5">
               {[{ isTrending: true }, ...(Array.isArray(categories) ? categories : [])].map((cat) => {
                 const isTrending = !cat || cat.isTrending
-                const isSelected = isTrending ? !selectedCategory : selectedCategory === cat.name
+                const isSelected = isTrending
+                  ? activeCategoryList.length === 0
+                  : activeCategoryList.includes(cat.name)
                 const title = isTrending ? "Trending" : cat.name
                 const imageUrl = isTrending
                   ? "https://i.ibb.co/tpV3m2GW/no-image.png"
                   : (cat?.image?.url || "https://i.ibb.co/tpV3m2GW/no-image.png")
-                const categoryName = isTrending ? "" : cat.name
 
                 return (
                   <button
                     key={isTrending ? "trending" : (cat._id || cat.name)}
                     type="button"
                     onClick={() => {
-                      if (onSelectCategory) {
-                        onSelectCategory(categoryName)
+                      if (isTrending) {
+                        if (onSelectCategory) {
+                          onSelectCategory("")
+                        } else {
+                          navigate(location.pathname)
+                        }
                       } else {
-                        navigate(`/?category=${encodeURIComponent(categoryName)}`)
+                        const isAlreadySelected = activeCategoryList.includes(cat.name)
+                        const nextList = isAlreadySelected
+                          ? activeCategoryList.filter((c) => c !== cat.name)
+                          : [...activeCategoryList, cat.name]
+                        const nextValue = nextList.join(",")
+                        if (onSelectCategory) {
+                          onSelectCategory(nextValue)
+                        } else {
+                          navigate(nextValue ? `/?category=${encodeURIComponent(nextValue)}` : location.pathname)
+                        }
                       }
-                      setShowCategoriesMenu(false)
-                      setIsExpanded(false)
                     }}
                     className={`group relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-xl p-1 text-center transition-all duration-200 cursor-pointer active:scale-95 ${
                       isSelected
@@ -384,6 +411,11 @@ const MobileMenu = ({
                         isSelected ? "bg-primary/65" : "bg-black/40 group-hover:bg-black/50"
                       }`}
                     />
+                    {isSelected && !isTrending && (
+                      <div className="absolute top-1.5 right-1.5 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white shadow-sm">
+                        <Check size={11} strokeWidth={3} />
+                      </div>
+                    )}
                     <span className="relative z-10 text-[11px] font-bold text-white leading-tight break-words line-clamp-2 px-0.5 drop-shadow-xs">
                       {title}
                     </span>
@@ -391,6 +423,27 @@ const MobileMenu = ({
                 )
               })}
             </div>
+          </div>
+
+          {/* Bottom Sheet Footer: Clear all & Done buttons */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-white shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (onSelectCategory) onSelectCategory("")
+                else navigate(location.pathname)
+              }}
+              className="text-xs font-semibold text-gray-500 hover:text-black transition-colors py-1 px-2 cursor-pointer"
+            >
+              Clear all
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCategoriesMenu(false)}
+              className="bg-black text-white text-xs font-semibold px-4 py-1.5 rounded-full hover:bg-black/90 transition-colors cursor-pointer"
+            >
+              Done {activeCategoryList.length > 0 ? `(${activeCategoryList.length})` : '(All)'}
+            </button>
           </div>
         </div>
       )}
@@ -505,9 +558,9 @@ const MobileMenu = ({
         )}
 
       {/* Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 w-full h-[62px] bg-white border-t border-gray-200 z-50 flex items-center">
+      <div className="lg:hidden fixed bottom-0 left-0 w-full h-[62px] bg-white z-50 flex items-center">
         {/* Center Attached Categories Pill with Arrow */}
-        {isHome && (
+        {shouldShowCategoriesButton && (
           <button
             type="button"
             onClick={() => {
@@ -518,14 +571,14 @@ const MobileMenu = ({
               })
             }}
             className={`absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border shadow-md text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer select-none ${
-              showCategoriesMenu || selectedCategory
+              showCategoriesMenu || activeCategoryList.length > 0
                 ? 'bg-white border-primary text-primary shadow-primary/20'
                 : 'bg-white border-gray-300 text-black hover:bg-gray-50'
             }`}
             aria-label="Toggle categories"
           >
-            <CategoriesIcon size={14} className={selectedCategory ? "text-primary" : "text-black"} />
-            <span className="max-w-[120px] truncate">{selectedCategory || "Categories"}</span>
+            <CategoriesIcon size={14} className={activeCategoryList.length > 0 ? "text-primary" : "text-black"} />
+            <span className="max-w-[130px] truncate">{categoryLabel}</span>
           </button>
         )}
 

@@ -139,41 +139,40 @@ export default function Profile() {
 
   const tabsToShow = userInfo?.role === "user" ? studentStates : teacherStates;
 
-  return (
-    <MainLayout className="mx-auto" width="100%">
-      <div className="min-h-screen w-full flex flex-col pt-[10px] pb-10">
-        {/* Breadcrumb Navigation in Grey Bubble Style - Right below search row */}
-        <div className="mb-[20px]">
-          <nav
-            aria-label="Breadcrumb"
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-          >
-            <Link
-              to="/"
-              className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
-            >
-              <Home size={14} className="text-black shrink-0" />
-              <span>Home</span>
-            </Link>
-            <ChevronRight size={13} className="text-gray-400 shrink-0" />
-            <Link
-              to="/profile"
-              onClick={() => {
-                setSearchParams({ tab: userInfo?.role === "user" ? "My Orders" : "Revenue" });
-              }}
-              className="font-medium text-black hover:text-primary transition-colors"
-            >
-              {userInfo?.role === "teacher" ? "Seller Profile" : "Buyer Profile"}
-            </Link>
-            {tab && (
-              <>
-                <ChevronRight size={13} className="text-gray-400 shrink-0" />
-                <span className="font-semibold text-black">{tab}</span>
-              </>
-            )}
-          </nav>
-        </div>
+  const profileBreadcrumbs = (
+    <nav
+      aria-label="Breadcrumb"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+      >
+        <Home size={14} className="text-black shrink-0" />
+        <span>Home</span>
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      <Link
+        to="/profile"
+        onClick={() => {
+          setSearchParams({ tab: userInfo?.role === "user" ? "My Orders" : "Revenue" });
+        }}
+        className="font-medium text-black hover:text-primary transition-colors"
+      >
+        {userInfo?.role === "teacher" ? "Seller Profile" : "Buyer Profile"}
+      </Link>
+      {tab && (
+        <>
+          <ChevronRight size={13} className="text-gray-400 shrink-0" />
+          <span className="font-semibold text-black">{tab}</span>
+        </>
+      )}
+    </nav>
+  );
 
+  return (
+    <MainLayout className="mx-auto" width="100%" hideSearchCard={true} breadcrumbs={profileBreadcrumbs}>
+      <div className="min-h-screen w-full flex flex-col pt-0 pb-10">
         {/* Bottom Tabs Section */}
         <div className="w-full">
           <div className="mb-[20px] flex flex-wrap items-center justify-between gap-3">

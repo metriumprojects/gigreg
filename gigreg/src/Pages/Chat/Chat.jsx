@@ -1394,41 +1394,40 @@ export default function Chat() {
       window.scrollTo(0, 0);
     }, []);
 
-  return (
-    <MainLayout>
-      {/* Breadcrumb Navigation in Grey Bubble Style - 20px below search row, 20px above all message card */}
-      <div className="mt-[20px] mb-[20px]">
-        <nav
-          aria-label="Breadcrumb"
-          className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-        >
+  const chatBreadcrumbNav = (
+    <nav
+      aria-label="Breadcrumb"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+      >
+        <Home size={14} className="text-black shrink-0" />
+        <span>Home</span>
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      {roomId && activeRoom && activePeerName && activePeerName !== "Conversation" ? (
+        <>
           <Link
-            to="/"
-            className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+            to="/chat"
+            className="font-medium text-black hover:text-primary transition-colors cursor-pointer"
           >
-            <Home size={14} className="text-black shrink-0" />
-            <span>Home</span>
+            Messages
           </Link>
           <ChevronRight size={13} className="text-gray-400 shrink-0" />
-          {roomId && activeRoom && activePeerName && activePeerName !== "Conversation" ? (
-            <>
-              <Link
-                to="/chat"
-                className="font-medium text-black hover:text-primary transition-colors cursor-pointer"
-              >
-                Messages
-              </Link>
-              <ChevronRight size={13} className="text-gray-400 shrink-0" />
-              <span className="font-medium text-black truncate max-w-[180px] sm:max-w-none">
-                {activePeerName}
-              </span>
-            </>
-          ) : (
-            <span className="font-medium text-black">Messages</span>
-          )}
-        </nav>
-      </div>
+          <span className="font-medium text-black truncate max-w-[180px] sm:max-w-none">
+            {activePeerName}
+          </span>
+        </>
+      ) : (
+        <span className="font-medium text-black">Messages</span>
+      )}
+    </nav>
+  );
 
+  return (
+    <MainLayout breadcrumbs={chatBreadcrumbNav} hideSearchCard={true}>
       <div className="flex md:h-full border-2 border-gray-300 overflow-hidden shadow-lg bg-white h-[88vh] relative mb-10">
         {/* Mobile Sidebar Overlay */}
         {showMobileSidebar && (

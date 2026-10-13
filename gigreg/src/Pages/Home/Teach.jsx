@@ -1,9 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   X,
   SlidersHorizontal,
-  ListFilter,
-  Check,
   Home,
   ChevronRight,
 } from "lucide-react";
@@ -29,38 +27,40 @@ const Teach = () => {
   const navigate = useNavigate();
   const { categories } = useSelector((state) => state.category);
   const { proposes } = useSelector((state) => state.propose);
-  const sortMenuRef = useRef(null);
 
   const [isOnlineSelected, setIsOnlineSelected] = useState(true);
-  const [isInPersonSelected, setIsInPersonSelected] = useState(false);
+  const [isInPersonSelected, setIsInPersonSelected] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const [sortOrder, setSortOrder] = useState("newest");
   const [searchInput, setSearchInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [min, setMin] = useState(0);
-  const [max, setMax] = useState(100);
+  const [max, setMax] = useState(100000);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(6);
   const [locationFilter, setLocationFilter] = useState("");
   const [debouncedLocation, setDebouncedLocation] = useState("");
   const [debouncedMin, setDebouncedMin] = useState(min);
-  const [debouncedMax, setDebouncedMax] = useState(max);
+  const [debouncedMax, setDebouncedMax] = useState(100000);
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showListingPopup, setShowListingPopup] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
-  const handleCategoryToggle = (categoryName) => {
-    if (!categoryName) {
+  const handleCategoryToggle = (categoryInput) => {
+    if (!categoryInput) {
       setSelectedCategories([]);
+    } else if (typeof categoryInput === "string" && categoryInput.includes(",")) {
+      setSelectedCategories(categoryInput.split(",").map((c) => c.trim()).filter(Boolean));
+    } else if (Array.isArray(categoryInput)) {
+      setSelectedCategories(categoryInput.filter(Boolean));
     } else {
       setSelectedCategories((prev) =>
-        prev.includes(categoryName)
-          ? prev.filter((c) => c !== categoryName)
-          : [...prev, categoryName]
+        prev.includes(categoryInput)
+          ? prev.filter((c) => c !== categoryInput)
+          : [...prev, categoryInput]
       );
     }
     setPage(1);
@@ -116,36 +116,13 @@ const Teach = () => {
     return () => clearTimeout(handler);
   }, [max]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target)) {
-        setShowSortMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const handleModeChange = (value) => {
     if (value === "online") {
-      // Toggle online checkbox - if becoming true, uncheck in-person; if becoming false, check online
-      if (!isOnlineSelected) {
-        setIsOnlineSelected(true);
-        setIsInPersonSelected(false);
-      } else {
-        setIsOnlineSelected(false);
-      }
+      setIsOnlineSelected((prev) => !prev);
+      setPage(1);
     } else if (value === "in-person") {
-      // Toggle in-person checkbox - if becoming true, uncheck online; if becoming false, check in-person
-      if (!isInPersonSelected) {
-        setIsInPersonSelected(true);
-        setIsOnlineSelected(false);
-        setLocationFilter("");
-      } else {
-        setIsInPersonSelected(false);
-        setLocationFilter("");
-        setDebouncedLocation("");
-      }
+      setIsInPersonSelected((prev) => !prev);
+      setPage(1);
     }
   };
 
@@ -214,9 +191,48 @@ const Teach = () => {
     fetchProposes();
   }, [fetchProposes]);
 
+  const breadcrumbNav = (
+    <nav
+      aria-label="Breadcrumb"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+    >
+      <Link
+        to="/"
+        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+      >
+        <Home size={14} className="text-black shrink-0" />
+        <span>Home</span>
+      </Link>
+      <ChevronRight size={13} className="text-gray-400 shrink-0" />
+      {selectedCategories.length > 0 ? (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategories([]);
+              setPage(1);
+            }}
+            className="font-medium text-black hover:text-primary transition-colors cursor-pointer"
+          >
+            Open requests
+          </button>
+          <ChevronRight size={13} className="text-gray-400 shrink-0" />
+          <span className="font-medium text-black truncate max-w-[180px] sm:max-w-none">
+            {selectedCategories.length === 1
+              ? selectedCategories[0]
+              : `${selectedCategories.length} Categories`}
+          </span>
+        </>
+      ) : (
+        <span className="font-medium text-black">Open requests</span>
+      )}
+    </nav>
+  );
+
   return (
     <MainLayout 
       width="1920px"
+      breadcrumbs={breadcrumbNav}
       categories={categories}
       selectedCategory={selectedCategories.join(",")}
       onSelectCategory={handleCategoryToggle}
@@ -229,151 +245,34 @@ const Teach = () => {
       locationFilter={locationFilter}
       onLocationChange={(value) => {
         setLocationFilter(value);
-        if (value?.trim()) {
-          setIsInPersonSelected(true);
-          setIsOnlineSelected(false);
-        }
         setPage(1);
       }}
       onLocationSelect={({ description }) => {
         setLocationFilter(description || "");
-        if (description?.trim()) {
-          setIsInPersonSelected(true);
-          setIsOnlineSelected(false);
-        }
         setPage(1);
       }}
       onFilterClick={() => setShowFilter(true)}
-      searchPlaceholder="Search"
+      searchPlaceholder="What request are you looking for?"
+      searchCardTitle="Search Users Requests"
+      isOnlineSelected={isOnlineSelected}
+      isInPersonSelected={isInPersonSelected}
+      onModeChange={handleModeChange}
+      minPrice={min}
+      maxPrice={max}
+      onMinPriceChange={(val) => {
+        setMin(val !== "" && val !== undefined ? Number(val) : 0);
+        setPage(1);
+      }}
+      onMaxPriceChange={(val) => {
+        setMax(val !== "" && val !== undefined ? Number(val) : 100000);
+        setPage(1);
+      }}
+      sortOrder={sortOrder}
+      onSortChange={(val) => {
+        setSortOrder(val);
+        setPage(1);
+      }}
     >
-      {/* Mobile controls */}
-      <div className="mb-4 mt-2 flex items-center justify-center gap-4 font-medium md:hidden">
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            checked={isOnlineSelected}
-            onChange={() => handleModeChange("online")}
-            className="accent-primary h-4 w-4"
-          />
-          <span className="text-sm">Online</span>
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 py-2">
-          <input
-            type="checkbox"
-            checked={isInPersonSelected}
-            onChange={() => handleModeChange("in-person")}
-            className="accent-primary h-4 w-4"
-          />
-          <span className="text-sm">In-Person</span>
-        </label>
-        <button
-          onClick={() => setShowFilter(true)}
-          className="flex items-center gap-1 md:hidden"
-        >
-          <SlidersHorizontal size={16} className="rotate-90" /> Filter
-        </button>
-      </div>
-
-      <div className="mb-5 mt-4 flex items-center justify-between md:hidden">
-        <h3 className="text-2xl font-bold">Requests</h3>
-        <button
-          onClick={() => setShowCreateRequest(true)}
-          className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white"
-        >
-          Generate Request
-        </button>
-      </div>
-
-      {/* Breadcrumb Navigation in Grey Bubble Style - Right after search row */}
-      <div className="my-[20px]">
-        <nav
-          aria-label="Breadcrumb"
-          className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-        >
-          <Link
-            to="/"
-            className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
-          >
-            <Home size={14} className="text-black shrink-0" />
-            <span>Home</span>
-          </Link>
-          <ChevronRight size={13} className="text-gray-400 shrink-0" />
-          {selectedCategories.length > 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCategories([]);
-                  setPage(1);
-                }}
-                className="font-medium text-black hover:text-primary transition-colors cursor-pointer"
-              >
-                Open requests
-              </button>
-              <ChevronRight size={13} className="text-gray-400 shrink-0" />
-              <span className="font-medium text-black truncate max-w-[180px] sm:max-w-none">
-                {selectedCategories.length === 1
-                  ? selectedCategories[0]
-                  : `${selectedCategories.length} Categories`}
-              </span>
-            </>
-          ) : (
-            <span className="font-medium text-black">Open requests</span>
-          )}
-        </nav>
-      </div>
-
-      <SearchCategoryToolbar
-        variant="pills"
-        categories={categories}
-        selectedCategories={selectedCategories}
-        onSelectCategory={handleCategoryToggle}
-      />
-
-      <div className="hidden">
-        <CategoryMobile
-          categories={categories}
-          selectedCategory={selectedCategories.join(",")}
-          onSelectCategory={handleCategoryToggle}
-          setShowFilter={() => setShowFilter(true)}
-        />
-      </div>
-
-      <div className="mb-[10px] flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900 md:text-2xl">Open requests</h2>
-        <div className="relative" ref={sortMenuRef}>
-          <button
-            type="button"
-            onClick={() => setShowSortMenu((prev) => !prev)}
-            className="flex h-10 w-10 items-center justify-center rounded-md text-black transition-colors hover:bg-gray-100"
-            aria-label="Sort requests"
-          >
-            <ListFilter size={22} />
-          </button>
-          {showSortMenu && (
-            <div className="absolute right-0 top-11 z-50 min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-              {[
-                { value: "newest", label: "Newest" },
-                { value: "oldest", label: "Oldest" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    setSortOrder(option.value);
-                    setPage(1);
-                    setShowSortMenu(false);
-                  }}
-                  className="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
-                >
-                  <span>{option.label}</span>
-                  {sortOrder === option.value && <Check size={16} className="text-black" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Requests / Propose listings */}
       <Request

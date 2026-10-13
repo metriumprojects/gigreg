@@ -367,8 +367,22 @@ export const getActiveListings = async (req, res) => {
       query.supportsInPerson = true;
     }
 
-    if (category?.trim()) {
-      query.category = { $regex: category, $options: "i" };
+    if (category) {
+      if (Array.isArray(category)) {
+        const cleanCats = category.map((c) => String(c).trim()).filter(Boolean);
+        if (cleanCats.length > 1) {
+          query.category = { $in: cleanCats.map((c) => new RegExp(`^${c}$`, "i")) };
+        } else if (cleanCats.length === 1) {
+          query.category = { $regex: cleanCats[0], $options: "i" };
+        }
+      } else if (typeof category === "string" && category.trim()) {
+        const cats = category.split(",").map((c) => c.trim()).filter(Boolean);
+        if (cats.length > 1) {
+          query.category = { $in: cats.map((c) => new RegExp(`^${c}$`, "i")) };
+        } else if (cats.length === 1) {
+          query.category = { $regex: cats[0], $options: "i" };
+        }
+      }
     }
 
     if (location?.trim()) {

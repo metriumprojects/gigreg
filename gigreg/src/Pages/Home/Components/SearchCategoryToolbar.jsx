@@ -13,16 +13,15 @@ export default function SearchCategoryToolbar({
   variant = "default",
 }) {
   const allItems = [{ isTrending: true }, ...categories];
+  const activeCategories = Array.isArray(selectedCategories)
+    ? selectedCategories
+    : typeof selectedCategory === "string" && selectedCategory
+      ? selectedCategory.split(",").map((s) => s.trim()).filter(Boolean)
+      : Array.isArray(selectedCategory)
+        ? selectedCategory
+        : [];
 
   if (variant === "pills") {
-    const activeCategories = Array.isArray(selectedCategories)
-      ? selectedCategories
-      : typeof selectedCategory === "string" && selectedCategory
-        ? selectedCategory.split(",").map((s) => s.trim()).filter(Boolean)
-        : Array.isArray(selectedCategory)
-          ? selectedCategory
-          : [];
-
     return (
       <section className="relative mb-[20px] min-w-0 w-full">
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full">
@@ -67,7 +66,9 @@ export default function SearchCategoryToolbar({
   const renderCard = (category) => {
     if (!category) return null;
     const isTrending = !category || category.isTrending;
-    const isSelected = isTrending ? !selectedCategory : selectedCategory === category.name;
+    const isSelected = isTrending
+      ? activeCategories.length === 0
+      : activeCategories.includes(category.name);
     const title = isTrending ? "Trending" : category.name;
     const imageUrl = isTrending ? FALLBACK_CATEGORY_IMAGE : (category?.image?.url || FALLBACK_CATEGORY_IMAGE);
     const categoryName = isTrending ? "" : category.name;

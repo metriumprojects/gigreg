@@ -56,6 +56,8 @@ export default function CategoriesBar({
   onMaxPriceChange,
   sortOrder = "best_match",
   onSortChange,
+  hideSearchCard = false,
+  searchCardTitle = "",
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -74,6 +76,13 @@ export default function CategoriesBar({
     location.pathname.startsWith("/profile") ||
     location.pathname === "/edit-profile" ||
     location.pathname.startsWith("/user-profile");
+  const isCreateListingPage =
+    location.pathname === "/create-listing" ||
+    location.pathname.startsWith("/update-listing");
+  const hideMobileSearchCard =
+    hideSearchCard ||
+    isProfileSection ||
+    isCreateListingPage;
 
   const [localSearch, setLocalSearch] = useState(searchInput || "");
   const [localLocation, setLocalLocation] = useState(locationFilter || "");
@@ -836,7 +845,7 @@ export default function CategoriesBar({
   return (
     <div className="relative z-50 flex w-full flex-col gap-[10px] min-w-0">
       {/* Mobile-only Top row: Logo on left, Open requests & Tawk Chat on right */}
-      <div className="flex w-full items-center justify-between pt-0.5 pb-0 mb-[10px] md:hidden">
+      <div className={`flex w-full items-center justify-between pt-0.5 pb-0 ${breadcrumbs ? 'mb-0' : 'mb-[10px]'} md:hidden`}>
         <Logo variant="header" />
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -1018,6 +1027,13 @@ export default function CategoriesBar({
         </div>
       </div>
 
+      {/* Breadcrumb Navigation: Below Logo Row (20px gap above and below) */}
+      {breadcrumbs && (
+        <div className="w-full my-[10px]">
+          {breadcrumbs}
+        </div>
+      )}
+
       {/* Categories Toolbar: Desktop header only (mobile is inside bottom navigation dropdown) */}
       {Boolean(isHome && !breadcrumbs && onSelectCategory) && (
         <div className="hidden lg:block w-full">
@@ -1030,7 +1046,7 @@ export default function CategoriesBar({
       )}
 
       {/* Mobile (<lg): Clean Collapsible 'Search services' Card with Floating Shadow */}
-      {!isProfileSection && (
+      {!hideMobileSearchCard && (
         <div className="w-full lg:hidden rounded-2xl border border-gray-100/90 bg-white p-4 floating-search-card sm:p-5">
           {/* Card Header (Collapsible) */}
           <div
@@ -1055,10 +1071,10 @@ export default function CategoriesBar({
               </div>
               <div className="flex flex-col min-w-0">
                 <h3 className="text-base font-bold text-gray-900 leading-tight">
-                  Search Gigs
+                  {searchCardTitle || (location.pathname === "/teach" ? "Search Users Requests" : "Search Gigs")}
                 </h3>
                 <p className="text-xs text-gray-400 font-normal leading-normal mt-0.5 truncate">
-                  Find exactly what you're looking for.
+                  {location.pathname === "/teach" ? "Find open requests from buyers." : "Find exactly what you're looking for."}
                 </p>
               </div>
             </div>
@@ -1103,8 +1119,14 @@ export default function CategoriesBar({
                     onKeyDown={(event) => {
                       if (event.key === "Enter") handleSearchSubmit(event.target.value);
                     }}
-                    placeholder="What service do you need?"
-                    className="min-w-0 flex-1 bg-transparent py-1 text-sm sm:text-[15px] font-medium text-gray-800 placeholder:text-gray-400 outline-none"
+                    placeholder={
+                      searchPlaceholder && searchPlaceholder !== "Search"
+                        ? searchPlaceholder
+                        : location.pathname === "/teach"
+                        ? "What request are you looking for?"
+                        : "What service do you need?"
+                    }
+                    className="min-w-0 flex-1 bg-transparent py-1 text-sm sm:text-[15px] font-medium text-gray-800 placeholder:text-gray-400 placeholder:font-normal outline-none"
                   />
                   {localSearch && (
                     <button
@@ -1210,37 +1232,41 @@ export default function CategoriesBar({
                   <span className="text-sm font-semibold text-gray-800">In-person</span>
                 </label>
 
-                {/* On demand */}
-                <label
-                  onClick={handleToggleOnDemand}
-                  className="flex items-center gap-2.5 cursor-pointer select-none"
-                >
-                  <div
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveOnDemand
-                      ? "bg-[#4F46E5] text-white"
-                      : "border-[1.5px] border-gray-300 bg-white"
-                      }`}
-                  >
-                    {effectiveOnDemand && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                  </div>
-                  <span className="text-sm font-semibold text-gray-800">On demand</span>
-                </label>
+                {location.pathname !== "/teach" && (
+                  <>
+                    {/* On demand */}
+                    <label
+                      onClick={handleToggleOnDemand}
+                      className="flex items-center gap-2.5 cursor-pointer select-none"
+                    >
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveOnDemand
+                          ? "bg-[#4F46E5] text-white"
+                          : "border-[1.5px] border-gray-300 bg-white"
+                          }`}
+                      >
+                        {effectiveOnDemand && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+                      <span className="text-sm font-semibold text-gray-800">On demand</span>
+                    </label>
 
-                {/* Fixed price */}
-                <label
-                  onClick={handleToggleFixedPrice}
-                  className="flex items-center gap-2.5 cursor-pointer select-none"
-                >
-                  <div
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveFixedPrice
-                      ? "bg-[#4F46E5] text-white"
-                      : "border-[1.5px] border-gray-300 bg-white"
-                      }`}
-                  >
-                    {effectiveFixedPrice && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                  </div>
-                  <span className="text-sm font-semibold text-gray-800">Fixed price</span>
-                </label>
+                    {/* Fixed price */}
+                    <label
+                      onClick={handleToggleFixedPrice}
+                      className="flex items-center gap-2.5 cursor-pointer select-none"
+                    >
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors ${effectiveFixedPrice
+                          ? "bg-[#4F46E5] text-white"
+                          : "border-[1.5px] border-gray-300 bg-white"
+                          }`}
+                      >
+                        {effectiveFixedPrice && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+                      <span className="text-sm font-semibold text-gray-800">Fixed price</span>
+                    </label>
+                  </>
+                )}
               </div>
 
               {/* Budget Section */}
@@ -1284,12 +1310,18 @@ export default function CategoriesBar({
               <div className="pt-2">
                 <span className="block text-sm font-bold text-gray-900 mb-2">Sort results</span>
                 <div className="flex items-center gap-5 text-sm font-medium">
-                  {[
-                    { id: "best_match", label: "Best match" },
-                    { id: "newest", label: "Newest" },
-                    { id: "nearby", label: "Nearby" },
-                  ].map((option) => {
-                    const isSelected = (currentSort || "best_match") === option.id;
+                  {(location.pathname === "/teach"
+                    ? [
+                        { id: "newest", label: "Newest" },
+                        { id: "oldest", label: "Oldest" },
+                      ]
+                    : [
+                        { id: "best_match", label: "Best match" },
+                        { id: "newest", label: "Newest" },
+                        { id: "nearby", label: "Nearby" },
+                      ]
+                  ).map((option) => {
+                    const isSelected = (currentSort || (location.pathname === "/teach" ? "newest" : "best_match")) === option.id;
                     return (
                       <label
                         key={option.id}
