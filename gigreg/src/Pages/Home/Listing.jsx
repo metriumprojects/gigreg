@@ -158,8 +158,8 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
   };
 
   return (
-    <article className="mb-7 min-w-0">
-      <div className="relative aspect-[4/6] w-full overflow-hidden rounded-[24px] bg-gray-200">
+    <article className="mb-0 md:mb-7 min-w-0">
+      <div className="relative aspect-[4/6] w-full overflow-hidden rounded-[16px] sm:rounded-[24px] bg-gray-200">
         <Link to={cardLink} className="absolute inset-0 block">
           <img
             src={listing?.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
@@ -169,7 +169,7 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
           />
         </Link>
 
-        <span className="absolute left-3 top-3 z-10 rounded-full bg-black/50 px-3 py-1 text-sm font-medium text-white backdrop-blur-md">
+        <span className="absolute left-2 top-2 sm:left-3 sm:top-3 z-10 rounded-full bg-black/50 px-2 py-0.5 sm:px-3 sm:py-1 text-xs sm:text-sm font-medium text-white backdrop-blur-md">
           {isOwnerCard ? (listing?.status || "Active") : `${listingRating}%`}
         </span>
 
@@ -178,71 +178,72 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
             type="button"
             onClick={handleFavorite}
             disabled={favoritePending}
-            className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-white transition-colors bg-black/50 disabled:opacity-70"
+            className="absolute right-2 top-2 sm:right-3 sm:top-3 z-10 rounded-full p-1 sm:p-1.5 text-white transition-colors bg-black/50 disabled:opacity-70"
             title={liked ? "Remove from favorites" : "Add to favorites"}
             aria-label={liked ? "Remove from favorites" : "Add to favorites"}
           >
             <Heart
-              className={`h-5 w-5 drop-shadow transition-colors ${
+              className={`h-4 w-4 sm:h-5 sm:w-5 drop-shadow transition-colors ${
                 liked ? "fill-red-500 text-red-500" : "fill-none text-white"
               }`}
             />
           </button>
         )}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/45 to-transparent pt-16">
-          <div className="pointer-events-auto bg-white/10 px-3 py-5 backdrop-blur-md">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/85 via-black/50 to-transparent pt-10 sm:pt-16">
+          <div className="pointer-events-auto bg-white/10 p-2 sm:px-3 sm:py-4 backdrop-blur-md">
             <Link
               to={isOwnerCard ? "/profile" : `/user-profile/${listing?.createdBy?._id}?role=teacher`}
-              className="flex min-w-0 items-center gap-2"
+              className="flex min-w-0 items-center gap-1.5 sm:gap-2"
               onClick={(event) => event.stopPropagation()}
             >
               <img
                 src={listing?.createdBy?.image?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
                 loading="lazy"
                 alt={listing?.createdBy?.name || "Seller"}
-                className="h-9 w-9 shrink-0 rounded-full object-cover"
+                className="h-6 w-6 sm:h-9 sm:w-9 shrink-0 rounded-full object-cover"
               />
-              <span className="truncate text-base font-medium text-white">
+              <span className="truncate text-xs sm:text-base font-medium text-white">
                 {listing?.createdBy?.name || "Unknown"} ({sellerRating}%)
               </span>
             </Link>
 
-            <Link to={cardLink} className="mt-2 block">
-              <h3 className="line-clamp-2 text-base font-semibold leading-snug text-white">
+            <Link to={cardLink} className="mt-1 sm:mt-2 block">
+              <h3 className="line-clamp-2 text-xs sm:text-base font-semibold leading-tight sm:leading-snug text-white">
                 {listing?.title}
               </h3>
             </Link>
 
             {isOwnerCard ? (
-              <div className="mt-3">
+              <div className="mt-2 sm:mt-3">
                 <Link
                   to={editPath}
-                  className="inline-flex h-9 w-full items-center justify-center rounded-full bg-white/85 px-3 text-base font-semibold text-black transition hover:bg-white"
+                  className="inline-flex h-7 sm:h-9 w-full items-center justify-center rounded-full bg-white/85 px-2 sm:px-3 text-xs sm:text-base font-semibold text-black transition hover:bg-white"
                 >
                   Edit
                 </Link>
               </div>
             ) : (
-              <div className="mt-3 flex flex-col gap-2">
+              <div className="mt-2 sm:mt-3 flex flex-col gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={handleTextMe}
                   disabled={messaging}
-                  className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-white/70 bg-white/10 px-3 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60"
+                  className="inline-flex h-7 sm:h-9 w-full items-center justify-center gap-1 sm:gap-1.5 rounded-full border border-white/70 bg-white/10 px-2 sm:px-3 text-xs sm:text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60"
                 >
-                  <MessageCircle size={16} />
-                  <span>{messaging ? "..." : "Text me"}</span>
+                  <MessageCircle size={14} className="sm:hidden" />
+                  <MessageCircle size={16} className="hidden sm:inline" />
+                  <span className="truncate">{messaging ? "..." : "Text me"}</span>
                 </button>
                 <Link
                   to={listingPath}
-                  className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-white/70 bg-white/10 px-3 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60 truncate"
+                  className="inline-flex h-7 sm:h-9 w-full items-center justify-center gap-1 sm:gap-1.5 rounded-full border border-white/70 bg-white/10 px-2 sm:px-3 text-xs sm:text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60 truncate"
                   title={getListingCtaLabel(pricingType, priceAmount, listing?.duration)}
                 >
-                  <span className="truncate">
+                  <span className="truncate text-xs sm:text-base">
                     {getListingCtaLabel(pricingType, priceAmount, listing?.duration)}
                   </span>
-                  <RightArrowIcon className="h-3 w-4 shrink-0" />
+                  <RightArrowIcon className="h-2.5 w-3 sm:h-3 sm:w-4 shrink-0" />
                 </Link>
               </div>
             )}
@@ -255,16 +256,16 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
 
 const ListingCardSkeleton = () => {
   return (
-    <div className="mb-7 min-w-0 animate-pulse">
-      <div className="relative aspect-[4/6] w-full overflow-hidden rounded-[24px] bg-gray-200">
-        <div className="absolute left-3 top-3 h-6 w-14 rounded-full bg-gray-300" />
-        <div className="absolute right-3 top-3 h-7 w-7 rounded-full bg-gray-300" />
-        <div className="absolute inset-x-3 bottom-3 space-y-2 rounded-2xl bg-gray-300/80 p-3">
-          <div className="h-4 w-2/3 rounded bg-gray-200" />
-          <div className="h-5 w-full rounded bg-gray-200" />
-          <div className="space-y-2 pt-1">
-            <div className="h-9 w-full rounded-full bg-gray-200" />
-            <div className="h-9 w-full rounded-full bg-gray-200" />
+    <div className="mb-0 md:mb-7 min-w-0 animate-pulse">
+      <div className="relative aspect-[4/6] w-full overflow-hidden rounded-[16px] sm:rounded-[24px] bg-gray-200">
+        <div className="absolute left-2 top-2 sm:left-3 sm:top-3 h-5 sm:h-6 w-10 sm:w-14 rounded-full bg-gray-300" />
+        <div className="absolute right-2 top-2 sm:right-3 sm:top-3 h-6 sm:h-7 w-6 sm:w-7 rounded-full bg-gray-300" />
+        <div className="absolute inset-x-2 bottom-2 sm:inset-x-3 sm:bottom-3 space-y-1.5 sm:space-y-2 rounded-xl sm:rounded-2xl bg-gray-300/80 p-2 sm:p-3">
+          <div className="h-3 sm:h-4 w-2/3 rounded bg-gray-200" />
+          <div className="h-4 sm:h-5 w-full rounded bg-gray-200" />
+          <div className="space-y-1.5 sm:space-y-2 pt-1">
+            <div className="h-7 sm:h-9 w-full rounded-full bg-gray-200" />
+            <div className="h-7 sm:h-9 w-full rounded-full bg-gray-200" />
           </div>
         </div>
       </div>
@@ -299,6 +300,8 @@ const Listing = () => {
   const [locationFilter, setLocationFilter] = useState("");
   const [isOnlineSelected, setIsOnlineSelected] = useState(true);
   const [isInPersonSelected, setIsInPersonSelected] = useState(true);
+  const [isOnDemandSelected, setIsOnDemandSelected] = useState(true);
+  const [isFixedPriceSelected, setIsFixedPriceSelected] = useState(true);
   const [min, setMin] = useState(0);
   const [max, setMax] = useState(100000);
   const [categoryDisplayLimit, setCategoryDisplayLimit] = useState(5);
@@ -320,6 +323,12 @@ const Listing = () => {
     }
     if (value === "in-person") {
       setIsInPersonSelected((prev) => !prev);
+    }
+    if (value === "on-demand") {
+      setIsOnDemandSelected((prev) => !prev);
+    }
+    if (value === "fixed-price" || value === "fixed-pricing") {
+      setIsFixedPriceSelected((prev) => !prev);
     }
     setPage(1);
   };
@@ -347,6 +356,8 @@ const Listing = () => {
     setLocationFilter("");
     setIsOnlineSelected(true);
     setIsInPersonSelected(true);
+    setIsOnDemandSelected(true);
+    setIsFixedPriceSelected(true);
     setMin(0);
     setMax(100000);
     setPage(1);
@@ -389,10 +400,20 @@ const Listing = () => {
       if (!isOnlineSelected && !isInPersonSelected) {
         return;
       }
+      if (!isOnDemandSelected && !isFixedPriceSelected) {
+        return;
+      }
 
       const locationSearch = isInPersonSelected ? locationFilter.trim() : "";
       const isFilteringOnlineOnly = isOnlineSelected && !isInPersonSelected;
       const isFilteringInPerson = isInPersonSelected && (!isOnlineSelected || Boolean(locationSearch));
+
+      let pricingTypeFilter;
+      if (isOnDemandSelected && !isFixedPriceSelected) {
+        pricingTypeFilter = "fixed_on_demand";
+      } else if (!isOnDemandSelected && isFixedPriceSelected) {
+        pricingTypeFilter = "fixed";
+      }
 
       dispatch(
         getActiveListings({
@@ -406,6 +427,7 @@ const Listing = () => {
           isOnline: isFilteringOnlineOnly ? true : undefined,
           supportsInPerson: isFilteringInPerson ? true : undefined,
           location: locationSearch,
+          pricingType: pricingTypeFilter,
         })
       );
     }, 350);
@@ -421,6 +443,8 @@ const Listing = () => {
     currency,
     isOnlineSelected,
     isInPersonSelected,
+    isOnDemandSelected,
+    isFixedPriceSelected,
     locationFilter,
   ]);
 
@@ -453,15 +477,13 @@ const Listing = () => {
       searchPlaceholder="Search"
       isOnlineSelected={isOnlineSelected}
       isInPersonSelected={isInPersonSelected}
+      isOnDemandSelected={isOnDemandSelected}
+      isFixedPriceSelected={isFixedPriceSelected}
       onModeChange={handleModeChange}
     >
-      <div className="w-full pb-6">
+      <div className="w-full pb-20 lg:pb-6">
 
-      <SearchCategoryToolbar
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSelectCategory={handleSelectCategory}
-      />
+
 
       {!userInfo && <HighlightSlider />}
 
@@ -550,8 +572,13 @@ const Listing = () => {
             <p className="text-base font-semibold text-gray-700">No services selected</p>
             <p className="mt-1 text-sm text-gray-500">Please select Online or In-person to view available listings.</p>
           </div>
+        ) : !isOnDemandSelected && !isFixedPriceSelected ? (
+          <div className="py-20 text-center">
+            <p className="text-base font-semibold text-gray-700">No pricing type selected</p>
+            <p className="mt-1 text-sm text-gray-500">Please select On demand or Fixed pricing to view available listings.</p>
+          </div>
         ) : loading ? (
-          <div className="w-full mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-4">
+          <div className="w-full mx-auto grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-2.5 sm:gap-4 md:gap-4">
             {Array.from({ length: limit }).map((_, index) => (
               <ListingCardSkeleton key={index} />
             ))}
@@ -561,7 +588,7 @@ const Listing = () => {
             {activeListings.length === 0 ? (
               <p className="text-center text-gray-500 py-16">No active listings found.</p>
             ) : (
-              <div className="w-full mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-4">
+              <div className="w-full mx-auto grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-2.5 sm:gap-4 md:gap-4">
                 {activeListings.map((listing) => (
                   <ListingCard key={listing._id} listing={listing} favorites={favorites} />
                 ))}

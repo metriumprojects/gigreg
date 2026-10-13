@@ -1,9 +1,9 @@
-﻿import { useEffect, useState, useRef, useCallback } from "react"
-import { ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Loader, Info, Trash2, Menu, X } from "lucide-react"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { ChevronDown, ChevronUp, ArrowLeft, ArrowRight, Loader, Info, Trash2, Menu, X, Home, ChevronRight } from "lucide-react"
 import { GrUpload } from "react-icons/gr"
 import MainLayout from "../../../components/MainLayout"
 import { useDispatch, useSelector } from "react-redux"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, Link } from "react-router-dom"
 import { getTeacherLessons } from "../../../redux/reducers/LessonReducer"
 import { getSingleCurriculum, updateCurriculum, deleteCurriculum } from "../../../redux/reducers/CurriculumReducer"
 import { getCategories } from "../../../redux/reducers/CategoryReducer"
@@ -670,9 +670,33 @@ export default function EditCurriculum() {
   }
 
   return (
-    <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen bg-white py-10">
+    <MainLayout className="mx-auto" width="100%">
+      <div className="min-h-screen bg-white py-6">
         <div className="w-full mx-auto px-4">
+          {/* Breadcrumb Navigation in Grey Bubble Style */}
+          <div className="mb-[20px]">
+            <nav
+              aria-label="Breadcrumb"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+            >
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+              >
+                <Home size={14} className="text-black shrink-0" />
+                <span>Home</span>
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <Link
+                to="/profile?tab=My Listings"
+                className="font-medium text-black hover:text-primary transition-colors"
+              >
+                My Listings
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-semibold text-black">Edit Curriculum</span>
+            </nav>
+          </div>
 
           {currentStep === 1 && (
             <EditStep1Details

@@ -14,8 +14,8 @@ import LessonCalender from "../models/LessonCalender.js";
 import { requireCurrency, requirePositivePrice, roundMoney, toSmallestUnit } from "../services/currencyService.js";
 import { convertWithStripeFx } from "../services/stripeFxService.js";
 import { getCommissionRate } from "../services/appSettingsService.js";
-import { emitChatMessage, emitChatMessageUpdate } from "../socket/socketHandler.js";
 import { getStripe } from "../services/stripeService.js";
+import { processPendingTeacherPayouts } from "./stripeConnectController.js";
 
 const stripe = getStripe();
 
@@ -400,6 +400,14 @@ export const initiateBooking = async (req, res) => {
       }
     }
 
+    if (teacher && String(teacher) === String(req.user._id)) {
+      return res.status(400).json({ status: false, message: "You cannot book your own listing" });
+    }
+
+    if (req.user?.role === "teacher") {
+      await User.findByIdAndUpdate(req.user._id, { role: "user" });
+    }
+
     // ----------------------------------------------------------------
     // Convert user date to UTC
     // ----------------------------------------------------------------
@@ -496,52 +504,58 @@ export const initiateBooking = async (req, res) => {
     // STRIPE CHECKOUT SESSION (Corrected!)
     // ----------------------------------------------------------------
     const teacherAccount = await User.findById(teacher).select("stripeConnectAccountId stripeConnect");
-    if (!teacherAccount?.stripeConnectAccountId) {
-      await Booking.findByIdAndDelete(booking._id);
-      return res.status(409).json({
-        status: false,
-        message: "This teacher has not completed Stripe payout setup yet",
-      });
-    }
+    let connectAccount = null;
+    let connectReady = false;
 
-    const connectAccount = await stripe.accounts.retrieve(teacherAccount.stripeConnectAccountId, {
-      expand: ["external_accounts"],
-    });
-    const connectReady = connectAccount.payouts_enabled
-      && connectAccount.capabilities?.transfers === "active";
-    if (!connectReady) {
-      await Booking.findByIdAndDelete(booking._id);
-      return res.status(409).json({
-        status: false,
-        message: "This teacher's Stripe verification or payouts setup is incomplete",
-      });
+    if (teacherAccount?.stripeConnectAccountId) {
+      try {
+        connectAccount = await stripe.accounts.retrieve(teacherAccount.stripeConnectAccountId, {
+          expand: ["external_accounts"],
+        });
+        connectReady = Boolean(
+          connectAccount.payouts_enabled && connectAccount.capabilities?.transfers === "active"
+        );
+      } catch (err) {
+        console.warn("Unable to check teacher Stripe Connect readiness:", err.message);
+        connectReady = false;
+      }
     }
 
     const commissionRate = await getCommissionRate();
-    const applicationFeeAmount = Math.min(
-      amountInSmallestUnit,
-      Math.max(0, Math.round(amountInSmallestUnit * commissionRate))
+    const earningCurrency = requireCurrency(
+      type === "lesson"
+        ? booking.lesson_currency || "USD"
+        : booking.itemSnapshot?.currency || booking.currency || item.currency || "USD"
     );
-    booking.stripeApplicationFeeAmount = applicationFeeAmount;
+    const teacherPayoutAmount = roundMoney(booking.amount - booking.amount * commissionRate, earningCurrency);
 
-    const teacherPayoutCurrency = String(connectAccount.default_currency || "").toUpperCase();
-    // Adaptive Pricing is intentionally omitted: we already convert with Stripe FX Quotes
-    // so Checkout matches catalogue prices. Enabling it would re-quote and diverge.
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: req.user?.email || undefined,
-      branding_settings: { display_name: "Skill Slide" },
-      metadata: {
-        bookingId: String(booking._id),
-        teacherId: String(teacher),
-        lessonCurrency: itemCurrency,
-        preferredCustomerCurrency: requestedCurrency,
-        chargedCurrency: paymentCurrency,
-        teacherPayoutCurrency,
-        stripeFxQuoteId: display.quoteId || "",
-        checkoutExchangeRate: String(display.rate ?? 1),
-      },
-      payment_intent_data: {
+    let sessionMetadata = {
+      bookingId: String(booking._id),
+      teacherId: String(teacher),
+      lessonCurrency: itemCurrency,
+      preferredCustomerCurrency: requestedCurrency,
+      chargedCurrency: paymentCurrency,
+      stripeFxQuoteId: display.quoteId || "",
+      checkoutExchangeRate: String(display.rate ?? 1),
+    };
+
+    let paymentIntentData = {};
+
+    if (connectReady && teacherAccount?.stripeConnectAccountId) {
+      const applicationFeeAmount = Math.min(
+        amountInSmallestUnit,
+        Math.max(0, Math.round(amountInSmallestUnit * commissionRate))
+      );
+      booking.stripeApplicationFeeAmount = applicationFeeAmount;
+      booking.payoutStatus = "direct";
+      booking.teacherPayoutAmount = teacherPayoutAmount;
+      booking.teacherPayoutCurrency = earningCurrency;
+
+      const teacherPayoutCurrency = String(connectAccount.default_currency || "").toUpperCase();
+      sessionMetadata.teacherPayoutCurrency = teacherPayoutCurrency;
+      sessionMetadata.payoutMode = "direct";
+
+      paymentIntentData = {
         application_fee_amount: applicationFeeAmount,
         transfer_data: { destination: teacherAccount.stripeConnectAccountId },
         metadata: {
@@ -549,8 +563,39 @@ export const initiateBooking = async (req, res) => {
           chargedCurrency: paymentCurrency,
           lessonCurrency: itemCurrency,
           teacherPayoutCurrency,
+          payoutMode: "direct",
         },
-      },
+      };
+    } else {
+      // Platform escrow mode: teacher hasn't completed Stripe Connect yet.
+      // Funds collected into platform account, and transferred upon Connect setup.
+      booking.stripeApplicationFeeAmount = 0;
+      booking.payoutStatus = "pending_connect";
+      booking.teacherPayoutAmount = teacherPayoutAmount;
+      booking.teacherPayoutCurrency = earningCurrency;
+
+      sessionMetadata.teacherPayoutCurrency = earningCurrency;
+      sessionMetadata.payoutMode = "pending_connect";
+
+      paymentIntentData = {
+        metadata: {
+          bookingId: String(booking._id),
+          chargedCurrency: paymentCurrency,
+          lessonCurrency: itemCurrency,
+          teacherPayoutCurrency: earningCurrency,
+          payoutMode: "pending_connect",
+        },
+      };
+    }
+
+    await booking.save();
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer_email: req.user?.email || undefined,
+      branding_settings: { display_name: "Skill Slide" },
+      metadata: sessionMetadata,
+      payment_intent_data: paymentIntentData,
 
       line_items: [
         {
@@ -1914,6 +1959,12 @@ export const completeLessonByTeacher = async (req, res) => {
           );
         }
 
+        if (booking.teacher?._id) {
+          processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
+            console.warn("Auto transfer on complete listing error:", err.message)
+          );
+        }
+
         return res.json({
           status: true,
           message: "Order completed successfully",
@@ -1950,6 +2001,10 @@ export const completeLessonByTeacher = async (req, res) => {
             },
           },
           { new: true }
+        );
+
+        processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
+          console.warn("Auto transfer on complete lesson error:", err.message)
         );
       }
       return res.json({

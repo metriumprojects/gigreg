@@ -1,4 +1,5 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowRight,
   Check,
@@ -13,6 +14,7 @@ import LocationAutocomplete from "./LocationAutocomplete";
 import Logo from "../../../components/Logo";
 import UserAvatarPlaceholder from "../../../components/UserAvatarPlaceholder";
 import { getLoginUrl, getRegisterUrl, getSafeRedirectPath } from "../../../utils/authRedirect";
+import SearchCategoryToolbar from "./SearchCategoryToolbar";
 
 export default function CategoriesBar({
   categories: propCategories = [],
@@ -40,6 +42,8 @@ export default function CategoriesBar({
   breadcrumbs = null,
   isOnlineSelected = true,
   isInPersonSelected = true,
+  isOnDemandSelected = true,
+  isFixedPriceSelected = true,
   onModeChange,
 }) {
   const navigate = useNavigate();
@@ -55,14 +59,22 @@ export default function CategoriesBar({
     ? reduxCategories
     : propCategories;
   const isHome = location.pathname === "/" || location.pathname === "/listing";
+  const isProfileSection =
+    location.pathname.startsWith("/profile") ||
+    location.pathname === "/edit-profile" ||
+    location.pathname.startsWith("/user-profile");
 
   const [localSearch, setLocalSearch] = useState(searchInput || "");
   const [localLocation, setLocalLocation] = useState(locationFilter || "");
   const [internalOnline, setInternalOnline] = useState(true);
   const [internalInPerson, setInternalInPerson] = useState(true);
+  const [internalOnDemand, setInternalOnDemand] = useState(true);
+  const [internalFixedPrice, setInternalFixedPrice] = useState(true);
 
   const effectiveOnline = onModeChange ? isOnlineSelected : internalOnline;
   const effectiveInPerson = onModeChange ? isInPersonSelected : internalInPerson;
+  const effectiveOnDemand = onModeChange ? isOnDemandSelected : internalOnDemand;
+  const effectiveFixedPrice = onModeChange ? isFixedPriceSelected : internalFixedPrice;
 
   const handleToggleOnline = () => {
     if (onModeChange) onModeChange("online");
@@ -72,6 +84,16 @@ export default function CategoriesBar({
   const handleToggleInPerson = () => {
     if (onModeChange) onModeChange("in-person");
     else setInternalInPerson((prev) => !prev);
+  };
+
+  const handleToggleOnDemand = () => {
+    if (onModeChange) onModeChange("on-demand");
+    else setInternalOnDemand((prev) => !prev);
+  };
+
+  const handleToggleFixedPrice = () => {
+    if (onModeChange) onModeChange("fixed-price");
+    else setInternalFixedPrice((prev) => !prev);
   };
 
   useEffect(() => {
@@ -87,6 +109,36 @@ export default function CategoriesBar({
       dispatch(getCategories());
     }
   }, [dispatch, hasFetched, categoriesLoading]);
+
+  useEffect(() => {
+    const hideTawkOnMobile = () => {
+      if (typeof window !== "undefined" && window.innerWidth < 768 && window.Tawk_API?.hideWidget) {
+        window.Tawk_API.hideWidget();
+      }
+    };
+    hideTawkOnMobile();
+    const t1 = setTimeout(hideTawkOnMobile, 500);
+    const t2 = setTimeout(hideTawkOnMobile, 1500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+
+  const handleOpenTawk = (e) => {
+    e?.preventDefault();
+    if (typeof window === "undefined") return;
+    if (window.Tawk_API) {
+      if (typeof window.Tawk_API.showWidget === "function") {
+        window.Tawk_API.showWidget();
+      }
+      if (typeof window.Tawk_API.maximize === "function") {
+        window.Tawk_API.maximize();
+      } else if (typeof window.Tawk_API.toggle === "function") {
+        window.Tawk_API.toggle();
+      }
+    }
+  };
 
   const _handleSelect = (categoryName) => {
     if (onSelectCategory) {
@@ -137,29 +189,126 @@ export default function CategoriesBar({
       }`;
   };
 
-  const ProfileMenu = ({ asPill = false, asCircle = false, useIcon = false } = {}) => (
-    <div
-      className="relative z-50 flex items-center"
-      ref={menuRef}
-      onMouseEnter={onProfileMouseEnter}
-      onMouseLeave={onProfileMouseLeave}
-    >
-      <button
-        onClick={handleProfileClick}
-        className={
-          asCircle
-            ? "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 focus:outline-none overflow-hidden"
-            : asPill
-              ? "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 focus:outline-none"
-              : useIcon
-                ? "flex h-9 w-9 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100"
-                : "rounded-full"
+  const ProfileMenu = ({ asPill = false, asCircle = false, useIcon = false } = {}) => {
+    const buttonRef = useRef(null);
+    const dropdownRef = useRef(null);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+    const updatePosition = () => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        const menuWidth = 192; // w-48 is 192px
+        let left = rect.right - menuWidth;
+        if (left < 10) left = Math.max(10, rect.left);
+        if (left + menuWidth > window.innerWidth - 10) {
+          left = Math.max(10, window.innerWidth - menuWidth - 10);
         }
-        aria-label="Open profile menu"
-        type="button"
+        setDropdownPos({
+          top: Math.round(rect.bottom + 6),
+          left: Math.round(left),
+        });
+      }
+    };
+
+    useEffect(() => {
+      if (!showProfileMenu) return;
+      updatePosition();
+      window.addEventListener("resize", updatePosition);
+      window.addEventListener("scroll", updatePosition, true);
+      return () => {
+        window.removeEventListener("resize", updatePosition);
+        window.removeEventListener("scroll", updatePosition, true);
+      };
+    }, [showProfileMenu]);
+
+    useEffect(() => {
+      if (!showProfileMenu) return;
+      const handleClickOutside = (event) => {
+        if (
+          buttonRef.current &&
+          !buttonRef.current.contains(event.target) &&
+          dropdownRef.current &&
+          !dropdownRef.current.contains(event.target)
+        ) {
+          if (handleCloseProfileMenu) handleCloseProfileMenu();
+          else handleProfileClick?.();
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
+      };
+    }, [showProfileMenu]);
+
+    return (
+      <div
+        className="relative z-50 flex items-center shrink-0"
+        onMouseEnter={onProfileMouseEnter}
+        onMouseLeave={onProfileMouseLeave}
       >
-        {asPill ? (
-          <>
+        <button
+          ref={buttonRef}
+          onClick={() => {
+            updatePosition();
+            handleProfileClick?.();
+          }}
+          className={
+            asCircle
+              ? "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 focus:outline-none overflow-hidden"
+              : asPill
+                ? "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 focus:outline-none"
+                : useIcon
+                  ? "flex h-9 w-9 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100"
+                  : "rounded-full"
+          }
+          aria-label="Open profile menu"
+          type="button"
+        >
+          {asPill ? (
+            <>
+              <svg
+                className="h-4 w-4 shrink-0"
+                viewBox="0 0 22 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+                <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+              </svg>
+              <span>Profile</span>
+            </>
+          ) : asCircle ? (
+            userInfo?.image?.url && userInfo.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
+              <img
+                loading="lazy"
+                src={userInfo.image.url}
+                className="h-full w-full object-cover"
+                alt="profile"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <UserAvatarPlaceholder className="h-[18px] w-[18px] text-[#1A2B49]" />
+              </div>
+            )
+          ) : useIcon ? (
+            <svg
+              className="h-5 w-5 shrink-0"
+              viewBox="0 0 22 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+            </svg>
+          ) : (
             <svg
               className="h-4 w-4 shrink-0"
               viewBox="0 0 22 24"
@@ -172,125 +321,143 @@ export default function CategoriesBar({
               <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
               <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
             </svg>
-            <span>Profile</span>
-          </>
-        ) : asCircle ? (
-          userInfo?.image?.url && userInfo.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
-            <img
-              loading="lazy"
-              src={userInfo.image.url}
-              className="h-full w-full object-cover"
-              alt="profile"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <UserAvatarPlaceholder className="h-[18px] w-[18px] text-[#1A2B49]" />
-            </div>
-          )
-        ) : useIcon ? (
-          <svg
-            className="h-5 w-5 shrink-0"
-            viewBox="0 0 22 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-            <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-          </svg>
-        ) : (
-          <svg
-            className="h-4 w-4 shrink-0"
-            viewBox="0 0 22 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-            <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-          </svg>
-        )}
-      </button>
-      {showProfileMenu && (
-        <div
-          className="absolute left-0 top-10 z-[100] mt-1.5 w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0 before:absolute before:-top-3 before:left-0 before:right-0 before:h-3 before:content-['']"
-          onMouseEnter={onProfileMouseEnter}
-          onMouseLeave={onProfileMouseLeave}
-        >
-          <Link
-            to="/profile?tab=My Profile"
-            className={menuLinkClass("/profile", "My Profile")}
-            onClick={() => {
-              if (handleCloseProfileMenu) handleCloseProfileMenu();
-              else handleProfileClick?.();
-            }}
-          >
-            View Profile
-          </Link>
-          {userInfo?.role === "user" && (
-            <button
-              onClick={() => {
-                handleTeacher("teacher");
-                if (handleCloseProfileMenu) handleCloseProfileMenu();
-                else handleProfileClick?.();
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
-            >
-              {userInfo?.reverseRole || userInfo?.sellerName
-                ? "Visit your Seller profile"
-                : "Become a Seller"}
-            </button>
           )}
-          {userInfo?.role === "teacher" && (
-            <button
-              onClick={() => {
-                handleTeacher("user");
-                if (handleCloseProfileMenu) handleCloseProfileMenu();
-                else handleProfileClick?.();
+        </button>
+
+        {showProfileMenu &&
+          createPortal(
+            <div
+              ref={dropdownRef}
+              style={{
+                position: "fixed",
+                top: `${dropdownPos.top}px`,
+                left: `${dropdownPos.left}px`,
               }}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+              className="z-[9999] w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0"
+              onMouseEnter={onProfileMouseEnter}
+              onMouseLeave={onProfileMouseLeave}
             >
-              Visit your Buyer profile
-            </button>
+              {userInfo ? (
+                <>
+                  <Link
+                    to="/profile?tab=My Profile"
+                    className={menuLinkClass("/profile", "My Profile")}
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    View Profile
+                  </Link>
+                  {userInfo?.role === "user" && (
+                    <button
+                      onClick={() => {
+                        handleTeacher("teacher");
+                        if (handleCloseProfileMenu) handleCloseProfileMenu();
+                        else handleProfileClick?.();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+                    >
+                      {userInfo?.reverseRole || userInfo?.sellerName
+                        ? "Visit your Seller profile"
+                        : "Become a Seller"}
+                    </button>
+                  )}
+                  {userInfo?.role === "teacher" && (
+                    <button
+                      onClick={() => {
+                        handleTeacher("user");
+                        if (handleCloseProfileMenu) handleCloseProfileMenu();
+                        else handleProfileClick?.();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+                    >
+                      Visit your Buyer profile
+                    </button>
+                  )}
+                  <Link
+                    to="/"
+                    className={menuLinkClass("/")}
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    Build
+                  </Link>
+                  <Link
+                    to="/teach"
+                    className={menuLinkClass("/teach")}
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    {userInfo?.role === "teacher" ? "Buyer Requests" : "Requests"}
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to={getLoginUrl(location)}
+                    state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-black hover:bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to={getRegisterUrl(location)}
+                    state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-primary hover:bg-gray-50 cursor-pointer"
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    Sign up
+                  </Link>
+                  <Link
+                    to="/"
+                    className={menuLinkClass("/")}
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    Build
+                  </Link>
+                  <Link
+                    to="/teach"
+                    className={menuLinkClass("/teach")}
+                    onClick={() => {
+                      if (handleCloseProfileMenu) handleCloseProfileMenu();
+                      else handleProfileClick?.();
+                    }}
+                  >
+                    Requests
+                  </Link>
+                </>
+              )}
+            </div>,
+            document.body
           )}
-          <Link
-            to="/"
-            className={menuLinkClass("/")}
-            onClick={() => {
-              if (handleCloseProfileMenu) handleCloseProfileMenu();
-              else handleProfileClick?.();
-            }}
-          >
-            Build
-          </Link>
-          <Link
-            to="/teach"
-            className={menuLinkClass("/teach")}
-            onClick={() => {
-              if (handleCloseProfileMenu) handleCloseProfileMenu();
-              else handleProfileClick?.();
-            }}
-          >
-            {userInfo?.role === "teacher" ? "Buyer Requests" : "Requests"}
-          </Link>
-          <button
-            onClick={() => {
-              handleLogout();
-              if (handleCloseProfileMenu) handleCloseProfileMenu();
-              else handleProfileClick?.();
-            }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
-          >
-            Logout
-          </button>
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderBreadcrumbs = () => {
     if (breadcrumbs) return breadcrumbs;
@@ -567,20 +734,82 @@ export default function CategoriesBar({
   };
 
   return (
-    <div className="relative z-50 hidden w-full lg:flex lg:flex-col lg:gap-[10px]">
-      {/* Top row: Logo on left, Actions, Request & Profile/Heart/Message on right */}
-      <div className="relative z-50 flex w-full items-center justify-between gap-4">
-        <div className="flex shrink-0 items-center gap-3">
+    <div className="relative z-50 flex w-full flex-col gap-[10px] min-w-0">
+      {/* Mobile-only Top row: Logo on left, Open requests & Tawk Chat on right */}
+      <div className="flex w-full items-center justify-between pt-0.5 pb-0 mb-[10px] md:hidden">
+        <Logo variant="header" />
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (userInfo?.role === "teacher") {
+                navigate("/teach");
+                return;
+              }
+              if (onOpenRequest) {
+                onOpenRequest();
+                return;
+              }
+              navigate("/teach");
+            }}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#0084FF] px-3 text-xs sm:text-sm font-semibold text-white transition-colors hover:opacity-90 cursor-pointer"
+          >
+            <svg
+              className="h-3.5 w-3.5 shrink-0"
+              viewBox="0 0 25 22"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path d="M5.08823 13.549C2.83036 13.549 1 11.7232 1 9.47096C1 7.21873 2.83036 5.39294 5.08823 5.39294H6.437M5.08823 13.549C5.08823 13.549 6.5 18.4399 7 19.9347C7.5 21.4296 10 21.4296 10 19.4365C10 17.4434 10 16.3492 10 13.8091M5.08823 13.549H6.437M10 13.8091C12.8477 14.4578 15.4867 16.1864 18.0258 17.4528C23.1139 19.9905 22.9998 11.9424 22.9998 9.47096C22.9998 6.99952 23.1139 -1.0486 18.0258 1.48908C14.8411 3.07743 11.4994 5.39294 7.78577 5.39294H6.437M10 13.8091C9.27601 13.6441 8.53853 13.549 7.78577 13.549H6.437M6.437 13.549V5.39294" />
+              <path d="M24 7.00027V12.0003" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>{userInfo?.role === "teacher" ? "Open requests" : "Generate Request"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenTawk}
+            className="relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition hover:opacity-90 active:scale-95"
+            aria-label="Support chat"
+            title="Chat with us"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="h-5 w-5 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 3.5C7.305 3.5 3.5 6.97 3.5 11.25C3.5 13.568 4.708 15.632 6.64 16.993C6.398 17.897 5.867 19.123 5.093 20.024C4.945 20.196 5.048 20.457 5.274 20.485C6.938 20.69 8.784 20.146 10.027 19.336C10.663 19.467 11.322 19.537 12 19.537C16.695 19.537 20.5 16.067 20.5 11.787C20.5 7.507 16.695 3.5 12 3.5Z"
+                fill="white"
+              />
+              <path
+                d="M9.6 12.6C10.3 13.6 11.1 14.1 12 14.1C12.9 14.1 13.7 13.6 14.4 12.6"
+                stroke="#0084FF"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Actions row: Desktop only */}
+      <div className="relative z-50 hidden md:flex w-full items-center justify-between gap-4 py-0.5">
+        <div className="hidden shrink-0 items-center gap-3 md:flex">
           <Logo variant="header" />
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5">
           {userInfo ? (
             <>
-              <ProfileMenu asCircle />
+              <div className="hidden md:flex items-center">
+                <ProfileMenu asCircle />
+              </div>
               <Link
                 to="/profile?tab=My Bookmarks"
-                className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-gray-200 px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-300"
+                className="hidden md:inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 md:w-auto md:gap-2 md:px-4 text-sm font-semibold"
                 aria-label="Favorites"
               >
                 <svg
@@ -592,11 +821,11 @@ export default function CategoriesBar({
                 >
                   <path d="M7.6 1C9.29038 1 10.8323 1.84142 12 2.8C13.1677 1.84142 14.7096 1 16.4 1C20.0451 1 23 3.71049 23 7.05386C23 13.795 15.3274 17.721 12.7981 18.8321C12.2886 19.056 11.7114 19.056 11.2019 18.8321C8.67259 17.721 1 13.7948 1 7.0537C1 3.71033 3.95492 1 7.6 1Z" />
                 </svg>
-                <span>Favorites</span>
+                <span className="hidden md:inline">Favorites</span>
               </Link>
               <Link
                 to="/chat"
-                className="relative inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-gray-200 px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-300"
+                className="relative hidden md:inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 md:w-auto md:gap-2 md:px-4 text-sm font-semibold"
                 aria-label="Messages"
               >
                 <div className="relative flex items-center">
@@ -617,11 +846,12 @@ export default function CategoriesBar({
                     </span>
                   )}
                 </div>
-                <span>Messages</span>
+                <span className="hidden md:inline">Messages</span>
               </Link>
               <Link
                 to="/profile"
-                className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-gray-200 px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-300"
+                className="hidden md:inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 md:w-auto md:gap-2 md:px-4 text-sm font-semibold"
+                aria-label="Dashboard"
               >
                 <svg
                   className="h-4 w-4 shrink-0"
@@ -635,7 +865,7 @@ export default function CategoriesBar({
                   <path d="M12 23C14.4477 23 16.3465 22.8672 17.8271 22.5381C19.2964 22.2115 20.2925 21.7056 20.999 20.999C21.7056 20.2925 22.2115 19.2964 22.5381 17.8271C22.8672 16.3465 23 14.4477 23 12C23 9.55232 22.8672 7.65353 22.5381 6.17285C22.2115 4.70364 21.7056 3.70752 20.999 3.00098C20.2925 2.29443 19.2964 1.78846 17.8271 1.46191C16.3465 1.13284 14.4477 1 12 1C9.55232 1 7.65353 1.13284 6.17285 1.46191C4.70364 1.78846 3.70752 2.29443 3.00098 3.00098C2.29443 3.70752 1.78846 4.70364 1.46191 6.17285C1.13284 7.65353 1 9.55232 1 12C1 14.4477 1.13284 16.3465 1.46191 17.8271C1.78846 19.2964 2.29443 20.2925 3.00098 20.999C3.70752 21.7056 4.70364 22.2115 6.17285 22.5381C7.65353 22.8672 9.55232 23 12 23Z" />
                   <path d="M12 7V17M17 11V17M7 13V17" />
                 </svg>
-                <span>Dashboard</span>
+                <span className="hidden md:inline">Dashboard</span>
               </Link>
             </>
           ) : (
@@ -670,7 +900,7 @@ export default function CategoriesBar({
               }
               navigate("/teach");
             }}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition-colors hover:opacity-90 cursor-pointer"
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full bg-[#0084FF] px-5 text-sm font-semibold text-white transition-colors hover:opacity-90 cursor-pointer"
           >
             <svg
               className="h-4 w-4 shrink-0"
@@ -688,9 +918,25 @@ export default function CategoriesBar({
         </div>
       </div>
 
-      {/* Bottom row: Search, Location, Filter, USD, Messages */}
-      <div className="flex w-full items-center gap-3">
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 transition-colors">
+      {/* Categories Toolbar: Desktop header only (mobile is inside bottom navigation dropdown) */}
+      {Boolean(isHome && !breadcrumbs && onSelectCategory) && (
+        <div className="hidden lg:block w-full">
+          <SearchCategoryToolbar
+            categories={_categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={onSelectCategory}
+          />
+        </div>
+      )}
+
+      {/* Search and Filters: On mobile (<lg), each item is full width; on desktop (lg+), inline single row. Hidden on mobile in profile section */}
+      <div
+        className={`${
+          isProfileSection ? "hidden lg:flex" : "flex"
+        } w-full flex-col items-start gap-2.5 lg:flex-row lg:items-center lg:gap-3`}
+      >
+        {/* Search Input */}
+        <label className="flex h-11 shrink-0 w-full lg:w-auto lg:min-w-0 lg:flex-1 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 transition-colors">
           <svg
             className="h-[18px] w-[18px] shrink-0 text-black"
             viewBox="0 0 24 24"
@@ -731,7 +977,8 @@ export default function CategoriesBar({
           )}
         </label>
 
-        <div className="relative flex h-11 w-[160px] shrink-0 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 xl:w-[200px] transition-colors">
+        {/* Location Input */}
+        <div className="relative flex h-11 w-full shrink-0 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 lg:w-[160px] xl:w-[200px] transition-colors">
           <LocationAutocomplete
             value={localLocation}
             onChange={handleLocationUpdate}
@@ -774,90 +1021,156 @@ export default function CategoriesBar({
           )}
         </div>
 
-        {/* Service Type pills: Online & In-person */}
-        <button
-          type="button"
-          onClick={handleToggleOnline}
-          className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] px-5 text-sm font-semibold transition-all cursor-pointer ${effectiveOnline
+        {/* Filter pills: Online, In-person, On demand, Fixed pricing in the same row */}
+        <div className="grid grid-cols-2 gap-2.5 w-full sm:grid-cols-4 lg:flex lg:w-auto lg:items-center">
+          <button
+            type="button"
+            onClick={handleToggleOnline}
+            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveOnline
               ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
               : "border-black bg-white text-black hover:bg-gray-50"
-            }`}
-        >
-          <span
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveOnline
-                ? "bg-white text-primary"
-                : "border-[1.5px] border-black bg-transparent text-black"
               }`}
           >
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveOnline
+                ? "bg-white text-primary"
+                : "border-[1.5px] border-black bg-transparent text-black"
+                }`}
+            >
+              <svg
+                className="h-2.5 w-2.5 block"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2.75 6.25L4.75 8.25L9.25 3.75" />
+              </svg>
+            </span>
+            <span className="whitespace-nowrap">Online</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleInPerson}
+            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveInPerson
+              ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
+              : "border-black bg-white text-black hover:bg-gray-50"
+              }`}
+          >
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveInPerson
+                ? "bg-white text-primary"
+                : "border-[1.5px] border-black bg-transparent text-black"
+                }`}
+            >
+              <svg
+                className="h-2.5 w-2.5 block"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2.75 6.25L4.75 8.25L9.25 3.75" />
+              </svg>
+            </span>
+            <span className="whitespace-nowrap">In-person</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleOnDemand}
+            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveOnDemand
+              ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
+              : "border-black bg-white text-black hover:bg-gray-50"
+              }`}
+          >
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveOnDemand
+                ? "bg-white text-primary"
+                : "border-[1.5px] border-black bg-transparent text-black"
+                }`}
+            >
+              <svg
+                className="h-2.5 w-2.5 block"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2.75 6.25L4.75 8.25L9.25 3.75" />
+              </svg>
+            </span>
+            <span className="whitespace-nowrap">On demand</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleFixedPrice}
+            className={`inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] px-3 sm:px-4 xl:px-5 text-sm font-semibold transition-all cursor-pointer lg:h-11 lg:w-auto lg:shrink-0 ${effectiveFixedPrice
+              ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
+              : "border-black bg-white text-black hover:bg-gray-50"
+              }`}
+          >
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveFixedPrice
+                ? "bg-white text-primary"
+                : "border-[1.5px] border-black bg-transparent text-black"
+                }`}
+            >
+              <svg
+                className="h-2.5 w-2.5 block"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2.75 6.25L4.75 8.25L9.25 3.75" />
+              </svg>
+            </span>
+            <span className="whitespace-nowrap">Fixed pricing</span>
+          </button>
+        </div>
+
+        {/* Price Range and Currency Selector together on one line, equal & full width on mobile */}
+        <div className="grid grid-cols-2 gap-2.5 w-full lg:flex lg:w-auto lg:items-center">
+          <button
+            type="button"
+            onClick={() => {
+              if (onFilterClick) onFilterClick();
+              else handleSearchClick?.();
+            }}
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-black bg-white px-3 sm:px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 cursor-pointer lg:h-11 lg:w-auto lg:shrink-0"
+            aria-label="Open price range"
+          >
             <svg
-              className="h-2.5 w-2.5 block"
-              viewBox="0 0 12 12"
+              className="h-[18px] w-[18px] shrink-0"
+              viewBox="0 0 20 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.2"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M2.75 6.25L4.75 8.25L9.25 3.75" />
+              <path d="M3.33691 1H16.6631C18.5166 1.00037 19.7317 3.28122 18.5156 4.97168L12.9639 12.6895C12.5513 13.2629 12.3311 13.955 12.3311 14.6621V19.751C12.3311 20.1565 12.1576 20.5297 11.876 20.7744L9.65527 22.7041C8.9198 23.3427 7.66906 22.8712 7.66895 21.6807V14.6621C7.66895 13.955 7.44867 13.2629 7.03613 12.6895L1.48438 4.97168C0.268271 3.28122 1.48341 1.00037 3.33691 1Z" />
+              <path d="M7 5H13" />
             </svg>
-          </span>
-          <span>Online</span>
-        </button>
+            <span className="whitespace-nowrap">Price Range</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={handleToggleInPerson}
-          className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] px-5 text-sm font-semibold transition-all cursor-pointer ${effectiveInPerson
-              ? "border-primary bg-primary text-white shadow-xs hover:opacity-95"
-              : "border-black bg-white text-black hover:bg-gray-50"
-            }`}
-        >
-          <span
-            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ${effectiveInPerson
-                ? "bg-white text-primary"
-                : "border-[1.5px] border-black bg-transparent text-black"
-              }`}
-          >
-            <svg
-              className="h-2.5 w-2.5 block"
-              viewBox="0 0 12 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M2.75 6.25L4.75 8.25L9.25 3.75" />
-            </svg>
-          </span>
-          <span>In-person</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (onFilterClick) onFilterClick();
-            else handleSearchClick?.();
-          }}
-          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-50"
-          aria-label="Open price range"
-        >
-          <svg
-            className="h-[18px] w-[18px] shrink-0"
-            viewBox="0 0 20 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3.33691 1H16.6631C18.5166 1.00037 19.7317 3.28122 18.5156 4.97168L12.9639 12.6895C12.5513 13.2629 12.3311 13.955 12.3311 14.6621V19.751C12.3311 20.1565 12.1576 20.5297 11.876 20.7744L9.65527 22.7041C8.9198 23.3427 7.66906 22.8712 7.66895 21.6807V14.6621C7.66895 13.955 7.44867 13.2629 7.03613 12.6895L1.48438 4.97168C0.268271 3.28122 1.48341 1.00037 3.33691 1Z" />
-            <path d="M7 5H13" />
-          </svg>
-          <span>Price Range</span>
-        </button>
-
-        <CurrencySelector buttonClassName="h-11" />
+          <CurrencySelector
+            buttonClassName="h-9 lg:h-11 w-full lg:w-auto justify-center px-3 sm:px-3.5"
+            className="w-full lg:w-auto lg:shrink-0"
+          />
+        </div>
       </div>
     </div>
   );

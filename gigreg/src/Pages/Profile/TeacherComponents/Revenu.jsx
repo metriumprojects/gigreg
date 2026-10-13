@@ -1,26 +1,13 @@
-import React, { useEffect, useState } from 'react'
-import { getUserWithdrawals } from '../../../redux/reducers/WithdrawalReducer';
-import { useDispatch, useSelector } from 'react-redux';
+import React from 'react'
+import { useSelector } from 'react-redux';
 import { FaUser, FaChartLine, FaClock } from "react-icons/fa";
 import { Link } from 'react-router-dom';
 import { IoArrowDownOutline } from 'react-icons/io5';
 import { HiMiniUsers } from "react-icons/hi2";
 import { GiBackwardTime } from "react-icons/gi";
 
-
-
 const Revenu = () => {
-    
-      const { userInfo, loading } = useSelector((state) => state.auth);
-        const { userWithdrawals } = useSelector((state) => state.withdrawal);
-    const dispatch = useDispatch();
-    const [withdrawalPage, setWithdrawalPage] = useState(1);
-    const [withdrawalLimit, setWithdrawalLimit] = useState(10);
-
-        
-  useEffect(() => {
-    dispatch(getUserWithdrawals({page: withdrawalPage, limit: withdrawalLimit}))
-  },[withdrawalPage, withdrawalLimit]);
+  const { userInfo, loading } = useSelector((state) => state.auth);
 
       // ✅ Top Cards Data
       const currencyBalances = (bucket, legacyValue) => {
@@ -91,46 +78,6 @@ const Revenu = () => {
       </div>
 
 
-      
-      {/* ✅ Payout History Section */}
-      <h2 className="text-[28px] font-medium mb-5 mt-7.5">Payout History</h2>
-      <div className="overflow-x-auto rounded-2xl max-w-5xl">
-        <table className="w-full rounded-2xl overflow-hidden">
-          <thead className="bg-[#E9EAEE] text-left text-sm">
-            <tr>
-              <th className="p-4">Date</th>
-              {/* <th className="p-4">Country</th> */}
-              <th className="p-4">Payout Amount</th>
-              <th className="p-4">Payment Method</th>
-              {/* <th className="p-4">Account Number</th> */}
-              {/* <th className="p-4">Bank Name</th> */}
-              {/* <th className="p-4">Swift/BIC</th> */}
-              {/* <th className="p-4">IBAN</th> */}
-              {/* <th className="p-4">routingNumber</th> */}
-              <th className="p-4">Status</th>
-            </tr>
-          </thead>
-
-          <tbody className='bg-[#F5F5F5]'>
-            {userWithdrawals?.map((payout, index) => (
-              <tr key={index} className="">
-                <td className="p-3">
-                  {payout?.createdAt ? new Date(payout.createdAt).toLocaleDateString('en-IN') : 'N/A'}
-                </td>
-                {/* <td className="p-3">{payout?.country}</td> */}
-                <td className="p-3">${payout?.amount}</td>
-                <td className="p-3">Bank Tranfer</td>
-                {/* <td className="p-3">{payout?.accountNo}</td> */}
-                {/* <td className="p-3">{payout?.bank}</td> */}
-                {/* <td className="p-3">{payout?.swiftBic}</td> */}
-                {/* <td className="p-3">{payout?.iban}</td> */}
-                {/* <td className="p-3">{payout?.routingNumber}</td> */}
-                <td className="p-3"> <span className="">{payout?.status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   )
 }

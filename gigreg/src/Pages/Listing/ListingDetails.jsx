@@ -22,6 +22,7 @@ import {
   checkListingPurchased,
   userListingOrders,
 } from "../../redux/reducers/BookingReducer";
+import { becomeTeacher, getUser } from "../../redux/reducers/AuthReducer";
 import { useCurrency } from "../../currency/CurrencyContext";
 import { FaCircleCheck } from "react-icons/fa6";
 
@@ -1099,8 +1100,17 @@ const ListingDetails = () => {
     }
 
     if (userInfo._id === listing.createdBy._id) {
-      toast.info("This is your listing.");
+      toast.info("You cannot book your own listing.");
       return;
+    }
+
+    if (userInfo.role === "teacher") {
+      try {
+        await dispatch(becomeTeacher("user")).unwrap();
+        dispatch(getUser());
+      } catch (err) {
+        console.error("Auto switch to buyer error:", err);
+      }
     }
 
     setCheckoutLoading(true);
@@ -1152,8 +1162,17 @@ const ListingDetails = () => {
     }
 
     if (userInfo._id === listing.createdBy._id) {
-      toast.info("This is your listing.");
+      toast.info("You cannot book your own listing.");
       return;
+    }
+
+    if (userInfo.role === "teacher") {
+      try {
+        await dispatch(becomeTeacher("user")).unwrap();
+        dispatch(getUser());
+      } catch (err) {
+        console.error("Auto switch to buyer error:", err);
+      }
     }
 
     const scheduledAt = formatSelectedSlotForBooking(selectedDate, selectedTimes[0]);
@@ -1255,38 +1274,38 @@ const ListingDetails = () => {
           <>
 
             <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8">
+              {/* Breadcrumb Navigation in Grey Bubble Style */}
+              <div className="mt-[20px] mb-4">
+                <nav
+                  aria-label="Breadcrumb"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+                >
+                  <Link
+                    to="/"
+                    className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+                  >
+                    <Home size={14} className="text-black shrink-0" />
+                    <span>Home</span>
+                  </Link>
+                  <ChevronRight size={13} className="text-gray-400 shrink-0" />
+                  <Link
+                    to={{
+                      pathname: "/",
+                      search: listing?.category
+                        ? `?category=${encodeURIComponent(listing.category)}`
+                        : "",
+                    }}
+                    className="font-medium text-black hover:text-primary transition-colors truncate max-w-[180px] sm:max-w-none"
+                  >
+                    {listing?.category || "Listings"}
+                  </Link>
+                </nav>
+              </div>
+
               {/* Two-column grid: Main content on left, Booking panel on right */}
-              <div className="mt-[20px] grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
+              <div className="grid h-fit grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-8">
                 {/* Column 1: Main Content (TeacherCard, Title, Location, Gallery, Description, Reviews) */}
                 <div className="lg:col-span-8 xl:col-span-8">
-                  {/* Breadcrumb Navigation in Grey Bubble Style */}
-                  <div className="mb-[20px]">
-                    <nav
-                      aria-label="Breadcrumb"
-                      className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
-                    >
-                      <Link
-                        to="/"
-                        className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
-                      >
-                        <Home size={14} className="text-black shrink-0" />
-                        <span>Home</span>
-                      </Link>
-                      <ChevronRight size={13} className="text-gray-400 shrink-0" />
-                      <Link
-                        to={{
-                          pathname: "/",
-                          search: listing?.category
-                            ? `?category=${encodeURIComponent(listing.category)}`
-                            : "",
-                        }}
-                        className="font-medium text-black hover:text-primary transition-colors truncate max-w-[180px] sm:max-w-none"
-                      >
-                        {listing?.category || "Listings"}
-                      </Link>
-                    </nav>
-                  </div>
-
                   {/* Title */}
                   <h1 className="w-full text-left text-lg font-semibold leading-none md:text-2xl">
                     {listing?.title}

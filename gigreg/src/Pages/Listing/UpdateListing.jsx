@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Loader } from "lucide-react";
+import { Loader, Home, ChevronRight } from "lucide-react";
 import { toast } from "react-toastify";
 import MainLayout from "../../components/MainLayout";
 import ImageUploader from "../../components/ImageUploader";
@@ -261,9 +261,34 @@ const UpdateListing = () => {
     : existingCoverImage?.url || "";
 
   return (
-    <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen bg-white pt-[30px] pb-10">
+    <MainLayout className="mx-auto" width="100%">
+      <div className="min-h-screen bg-white pt-[10px] pb-10">
         <div className="w-full mx-auto">
+          {/* Breadcrumb Navigation in Grey Bubble Style */}
+          <div className="mb-[20px]">
+            <nav
+              aria-label="Breadcrumb"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+            >
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+              >
+                <Home size={14} className="text-black shrink-0" />
+                <span>Home</span>
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <Link
+                to="/profile?tab=My Listings"
+                className="font-medium text-black hover:text-primary transition-colors"
+              >
+                My Listings
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-semibold text-black">Update Listing</span>
+            </nav>
+          </div>
+
           <div className="flex items-center justify-between mb-[30px]">
             <h1 className="text-3xl font-bold">Update listing</h1>
             <Link to="/profile?tab=My%20Listing" className="text-sm underline">

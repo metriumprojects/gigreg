@@ -29,5 +29,7 @@ const favoriteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+favoriteSchema.index({ user: 1, listing: 1 });
+favoriteSchema.index({ user: 1, createdAt: -1 });
 
 export default mongoose.model("Favorite", favoriteSchema);

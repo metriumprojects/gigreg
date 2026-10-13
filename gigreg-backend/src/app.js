@@ -26,16 +26,35 @@ connectDB();
 
 const app = express();
 
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log(`  Origin: ${req.headers.origin || "No Origin"}`);
-  console.log(`  User-Agent: ${req.headers["user-agent"]}`);
-  next();
-});
+const allowedOrigins = [
+  "http://localhost:5174",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost",
+  "capacitor://localhost",
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+// Request logger (clean, single-line in non-production)
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res, next) => {
+    if (req.originalUrl !== "/favicon.ico") {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+    }
+    next();
+  });
+}
 
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow mobile apps, curl, server-to-server or listed origins
+      if (!origin || allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -44,8 +63,8 @@ app.use(
 
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
 
-app.use(express.json({ limit: "100mb" }));
-app.use(express.urlencoded({ limit: "100mb", extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.use(cookieParser());
 app.use("/api/users", userRoutes);

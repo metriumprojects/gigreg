@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import LocationAutocomplete from "../../Home/Components/LocationAutocomplete";
 import { useDispatch, useSelector } from "react-redux";
-import { Info, Loader, X, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
+import { Info, Loader, X, ZoomIn, ZoomOut, RotateCw, Home, ChevronRight } from "lucide-react";
 import { FaVideo, FaMapMarkerAlt } from "react-icons/fa";
 import MainLayout from "../../../components/MainLayout";
 import ImageUploader from "../../../components/ImageUploader";
@@ -12,7 +12,7 @@ import { getCategories } from "../../../redux/reducers/CategoryReducer";
 import { getLessonAvailability, getCurriculumAvailability, getTeacherAvailability, updateCalendar, getLessonCalendarById, getLessonCalendarByUser, getAvailability } from "../../../redux/reducers/AvailabilityReducer";
 import MakeAvailability from "../../../components/MakeAvailability";
 import { toast } from "react-toastify";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { GrUpload } from "react-icons/gr";
 import { useCurrency } from "../../../currency/CurrencyContext";
 
@@ -526,7 +526,7 @@ const UpdateLesson = () => {
   };
 
   return (
-    <MainLayout className="mx-auto" width="1800px">
+    <MainLayout className="mx-auto" width="100%">
       {/* Cover Image Crop Modal */}
       {showCoverImageCropModal && tempCoverImagePreview && (
         <motion.div
@@ -589,8 +589,33 @@ const UpdateLesson = () => {
         </motion.div>
       )}
 
-      <div className="min-h-screen bg-white py-10">
+      <div className="min-h-screen bg-white py-6">
         <div className="w-full mx-auto">
+          {/* Breadcrumb Navigation in Grey Bubble Style */}
+          <div className="mb-[20px]">
+            <nav
+              aria-label="Breadcrumb"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+            >
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+              >
+                <Home size={14} className="text-black shrink-0" />
+                <span>Home</span>
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <Link
+                to="/profile?tab=My Listings"
+                className="font-medium text-black hover:text-primary transition-colors"
+              >
+                My Listings
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-semibold text-black">Update Lesson</span>
+            </nav>
+          </div>
+
           <h1 className="text-3xl font-bold mb-8">Update Lesson</h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

@@ -23,6 +23,8 @@ const MainLayout = ({
   breadcrumbs = null,
   isOnlineSelected = true,
   isInPersonSelected = true,
+  isOnDemandSelected = true,
+  isFixedPriceSelected = true,
   onModeChange = null,
 }) => {
   const maxWidth = width || '1400px'
@@ -45,6 +47,8 @@ const MainLayout = ({
         breadcrumbs={breadcrumbs}
         isOnlineSelected={isOnlineSelected}
         isInPersonSelected={isInPersonSelected}
+        isOnDemandSelected={isOnDemandSelected}
+        isFixedPriceSelected={isFixedPriceSelected}
         onModeChange={onModeChange}
       />
     )}
@@ -54,7 +58,13 @@ const MainLayout = ({
       </main>
       </div>
       {!hideFooter && <Footer />}
-      {!hideMobileMenu && <MobileMenu />}
+      {!hideMobileMenu && (
+        <MobileMenu
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={onSelectCategory}
+        />
+      )}
     </div>
   )
 }

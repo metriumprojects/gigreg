@@ -125,8 +125,7 @@ export const createListing = async (req, res) => {
       });
     }
 
-    const listingCurrency = requireCurrency(inputCurrency);
-    await requireTeacherPayoutCurrency(req.user._id, listingCurrency);
+    const listingCurrency = requireCurrency(inputCurrency || "USD");
     const canonicalPrice = isOnDemandPrice(pricingType)
       ? 0
       : requirePositivePrice(price, listingCurrency);
@@ -302,10 +301,21 @@ export const getActiveListings = async (req, res) => {
       category,
       createdBy,
       currency = "USD",
+      pricingType,
     } = req.query;
 
     const query = { status: "Active" };
     const andFilters = [];
+
+    if (pricingType) {
+      if (pricingType === "fixed_on_demand") {
+        query.pricingType = "fixed_on_demand";
+      } else if (pricingType === "fixed" || pricingType === "fixed_pricing") {
+        query.pricingType = { $ne: "fixed_on_demand" };
+      } else {
+        query.pricingType = pricingType;
+      }
+    }
 
     if (createdBy?.trim()) {
       query.createdBy = createdBy.trim();

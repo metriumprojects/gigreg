@@ -3,7 +3,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/free-mode";
-import { Star, Edit3, Loader, Edit, Smile, Frown } from "lucide-react";
+import { Star, Edit3, Loader, Edit, Smile, Frown, Home, ChevronRight } from "lucide-react";
 import { FaInstagram, FaStar, FaYoutube } from "react-icons/fa";
 import { SlSocialYoutube } from "react-icons/sl";
 
@@ -30,6 +30,7 @@ import Request from "./components/Request";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentOrders from "./components/StudentOrders";
 import Revenu from "./TeacherComponents/Revenu";
+import PayoutHistory from "./TeacherComponents/PayoutHistory";
 import MyProfile from "./components/MyProfile";
 import { MyListings } from "./Listings/MyListings";
 
@@ -128,6 +129,7 @@ export default function Profile() {
 
   const teacherStates = [
     "Revenue",
+    "Payout History",
     "My Listings",
     "My Orders",
     "My Availability",
@@ -138,8 +140,40 @@ export default function Profile() {
   const tabsToShow = userInfo?.role === "user" ? studentStates : teacherStates;
 
   return (
-    <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen w-full flex flex-col items-center pt-[10px] pb-10">
+    <MainLayout className="mx-auto" width="100%">
+      <div className="min-h-screen w-full flex flex-col pt-[10px] pb-10">
+        {/* Breadcrumb Navigation in Grey Bubble Style - Right below search row */}
+        <div className="mb-[20px]">
+          <nav
+            aria-label="Breadcrumb"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+          >
+            <Link
+              to="/"
+              className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+            >
+              <Home size={14} className="text-black shrink-0" />
+              <span>Home</span>
+            </Link>
+            <ChevronRight size={13} className="text-gray-400 shrink-0" />
+            <Link
+              to="/profile"
+              onClick={() => {
+                setSearchParams({ tab: userInfo?.role === "user" ? "My Orders" : "Revenue" });
+              }}
+              className="font-medium text-black hover:text-primary transition-colors"
+            >
+              {userInfo?.role === "teacher" ? "Seller Profile" : "Buyer Profile"}
+            </Link>
+            {tab && (
+              <>
+                <ChevronRight size={13} className="text-gray-400 shrink-0" />
+                <span className="font-semibold text-black">{tab}</span>
+              </>
+            )}
+          </nav>
+        </div>
+
         {/* Bottom Tabs Section */}
         <div className="w-full">
           <div className="mb-[20px] flex flex-wrap items-center justify-between gap-3">
@@ -174,7 +208,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => handleTeacher("teacher")}
-                className="inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
+                className="w-full md:w-auto inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
                 {userInfo?.reverseRole || userInfo?.sellerName
                   ? "Visit your Seller profile"
@@ -184,7 +218,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => handleTeacher("user")}
-                className="inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
+                className="w-full md:w-auto inline-flex h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-full border-[1.5px] border-black bg-white px-5 text-sm font-semibold text-black transition hover:bg-gray-50"
               >
                 Visit your Buyer profile
               </button>
@@ -193,13 +227,13 @@ export default function Profile() {
           {/* Mobile Dropdown Tabs */}
           <div className="relative mb-[20px] md:hidden">
             <button
-              className="inline-flex h-9 items-center justify-between rounded-full bg-primary px-5 text-sm font-semibold text-white"
+              className="flex w-full h-[46px] items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white transition"
               onClick={() => setShowDropdown((prev) => !prev)}
               type="button"
             >
-              {tab}
+              <span>{tab}</span>
               <svg
-                className="w-4 h-4 ml-2"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -221,7 +255,7 @@ export default function Profile() {
                       setSearchParams({ tab: s });
                       setShowDropdown(false);
                     }}
-                    className={`w-full rounded-xl px-5 py-2.5 text-left transition-colors ${
+                    className={`w-full rounded-xl px-5 py-2.5 text-center transition-colors ${
                       tab === s
                         ? "bg-primary font-semibold text-white"
                         : "text-gray-700 hover:bg-gray-100"
@@ -235,6 +269,7 @@ export default function Profile() {
           </div>
           {/* {tab === "Booked" && <Booked />} */}
           {tab === "Revenue" && <Revenu />}
+          {tab === "Payout History" && <PayoutHistory />}
           {tab === "Upcoming" && <Upcoming />}
           {tab === "Unscheduled" && <UnShaduled />}
           {tab === "Canceled" && <Canceled />}

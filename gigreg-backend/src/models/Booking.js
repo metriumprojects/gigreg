@@ -42,6 +42,10 @@ const bookingSchema = new mongoose.Schema({
   stripePaymentIntentId: { type: String },
   stripeSessionId: { type: String },
   stripeTransferId: { type: String },
+  payoutStatus: { type: String, enum: ["direct", "pending_connect", "transferred"], default: "direct" },
+  teacherPayoutAmount: { type: Number },
+  teacherPayoutCurrency: { type: String },
+  transferredAt: { type: Date },
   stripeApplicationFeeAmount: { type: Number },
   presentmentAmount: { type: Number },
   presentmentCurrency: { type: String },
@@ -70,5 +74,11 @@ const bookingSchema = new mongoose.Schema({
   payment_status: { type: String, default: "pending" },
   meta: { type: Object }, // optional extra data
 }, { timestamps: true });
+
+bookingSchema.index({ teacher: 1, createdAt: -1 });
+bookingSchema.index({ user: 1, createdAt: -1 });
+bookingSchema.index({ teacher: 1, payoutStatus: 1, paymentStatus: 1 });
+bookingSchema.index({ stripeSessionId: 1 }, { sparse: true });
+bookingSchema.index({ stripePaymentIntentId: 1 }, { sparse: true });
 
 export default mongoose.model("Booking", bookingSchema);

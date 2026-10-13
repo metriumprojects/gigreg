@@ -68,5 +68,8 @@ const listingSchema = new mongoose.Schema(
 );
 
 listingSchema.index({ geoLocation: "2dsphere" });
+listingSchema.index({ createdBy: 1, createdAt: -1 });
+listingSchema.index({ status: 1, category: 1, createdAt: -1 });
+listingSchema.index({ status: 1, createdAt: -1 });
 
 export default mongoose.model("Listing", listingSchema);

@@ -3,7 +3,7 @@ import MainLayout from "../../components/MainLayout";
 import api from "../../redux/api";
 import { toast } from "react-toastify";
 import CustomPayoutOnboarding from "./CustomPayoutOnboarding";
-import { FaBuilding, FaCheckCircle, FaExclamationTriangle, FaPlus, FaTimes } from "react-icons/fa";
+import { FaBuilding, FaCheckCircle, FaExclamationTriangle, FaExternalLinkAlt, FaPlus, FaTimes } from "react-icons/fa";
 
 const formatMinor = (amount, currency) =>
   new Intl.NumberFormat(undefined, {
@@ -20,6 +20,7 @@ export const Withdrawal = () => {
   const [showCustomOnboarding, setShowCustomOnboarding] = useState(false);
   const [showAddBankModal, setShowAddBankModal] = useState(false);
   const [addingBank, setAddingBank] = useState(false);
+  const [redirectingStripe, setRedirectingStripe] = useState(false);
   const [newBankData, setNewBankData] = useState({
     accountHolderName: "",
     routingNumber: "110000000",
@@ -36,9 +37,11 @@ export const Withdrawal = () => {
       ]);
       setConnect(status.account || null);
       setCountries(countryData.countries || []);
-      if (status.account) {
+      try {
         const { data } = await api.get("/stripe-connect/balance", { withCredentials: true });
-        setBalance(data);
+        if (data) setBalance(data);
+      } catch (balErr) {
+        // silent fallback if balance endpoint encounters error
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to load Stripe payout setup");
@@ -48,9 +51,32 @@ export const Withdrawal = () => {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("stripe=return")) {
+      toast.info("Returned from Stripe. Updating verification status...");
+    }
     load();
     window.scrollTo(0, 0);
   }, [load]);
+
+  const handleVerifyOnStripe = async () => {
+    setRedirectingStripe(true);
+    try {
+      const { data } = await api.post(
+        "/stripe-connect/onboarding-link",
+        { country: connect?.country || country || "US" },
+        { withCredentials: true }
+      );
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error("Unable to generate Stripe verification link");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to start Stripe verification");
+    } finally {
+      setRedirectingStripe(false);
+    }
+  };
 
   const handleCustomOnboardingSuccess = async () => {
     setShowCustomOnboarding(false);
@@ -114,22 +140,45 @@ export const Withdrawal = () => {
               onCancel={() => setShowCustomOnboarding(false)}
             />
           ) : (
-            <section className="rounded-2xl bg-white border border-gray-200 p-8 text-center max-w-xl mx-auto shadow-sm">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-800 text-2xl">
-                <FaBuilding />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Set up Payout Account</h2>
-              <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
-                Connect your bank account directly on Gigslide to receive payments from buyers and client orders.
-              </p>
+            <div className="max-w-xl mx-auto space-y-4">
+              {(balance.pending?.length > 0 || balance.available?.length > 0) && (
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 text-left shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Pending Payouts</p>
+                      <div className="text-2xl font-bold text-gray-900 mt-1 flex flex-wrap gap-3">
+                        {[...balance.available, ...balance.pending].map((item, idx) => (
+                          <span key={idx}>{formatMinor(item.amount, item.currency)}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-xs bg-amber-200 text-amber-900 px-3 py-1 rounded-full font-semibold">
+                      Awaiting Bank Setup
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800 mt-3 border-t border-amber-200/60 pt-2.5">
+                    Connect your bank account below and these earnings will be transferred automatically.
+                  </p>
+                </div>
+              )}
 
-              <button
-                onClick={() => setShowCustomOnboarding(true)}
-                className="inline-flex items-center gap-2 bg-black hover:bg-gray-800 text-white font-medium text-sm rounded-xl px-6 py-3 transition shadow-sm"
-              >
-                <FaPlus className="text-xs" /> Set Up Bank Account
-              </button>
-            </section>
+              <section className="rounded-2xl bg-white border border-gray-200 p-8 text-center shadow-sm">
+                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-800 text-2xl">
+                  <FaBuilding />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Set up Payout Account</h2>
+                <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
+                  Connect your bank account directly on Gigslide to receive payments from buyers and client orders.
+                </p>
+
+                <button
+                  onClick={() => setShowCustomOnboarding(true)}
+                  className="inline-flex items-center gap-2 bg-black hover:bg-gray-800 text-white font-medium text-sm rounded-xl px-6 py-3 transition shadow-sm"
+                >
+                  <FaPlus className="text-xs" /> Set Up Bank Account
+                </button>
+              </section>
+            </div>
           )
         ) : (
           <div className="space-y-6">
@@ -154,13 +203,30 @@ export const Withdrawal = () => {
                     <span className="font-semibold text-gray-700">{connect.defaultCurrency}</span>
                   </p>
                   {!connect.payoutsEnabled && (
-                    <p className="text-xs text-amber-700 mt-2 flex items-center gap-1.5">
-                      <span>Identity verification required by Stripe to activate automatic payouts. Click <strong>Edit Info</strong> to update.</span>
-                    </p>
+                    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-xs text-amber-800 font-medium">
+                        Stripe requires additional identity verification (such as photo ID or document proof) before automatic payouts can be released.
+                      </p>
+                    </div>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {!connect.payoutsEnabled && (
+                    <button
+                      onClick={handleVerifyOnStripe}
+                      disabled={redirectingStripe}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl transition shadow-sm disabled:opacity-50"
+                    >
+                      {redirectingStripe ? (
+                        "Opening Stripe..."
+                      ) : (
+                        <>
+                          Verify Identity on Stripe <FaExternalLinkAlt className="text-[10px]" />
+                        </>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowAddBankModal(true)}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold bg-black text-white hover:bg-gray-800 px-4 py-2.5 rounded-xl transition shadow-sm"

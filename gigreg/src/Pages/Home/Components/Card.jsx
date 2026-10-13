@@ -92,7 +92,7 @@ const Card = ({ course, favorites, searchLocation, linkTo }) => {
   };
 
   return (
-    <article className="mb-7 min-w-0 group">
+    <article className="mb-0 md:mb-7 min-w-0 group">
       <div className="relative aspect-square w-full overflow-hidden rounded-[20px] bg-gray-100">
       <Link
         to={linkTo || (
@@ -110,55 +110,55 @@ const Card = ({ course, favorites, searchLocation, linkTo }) => {
           className="h-full w-full object-cover"
         />
       </Link>
-        <span className="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-base leading-none text-white backdrop-blur-sm">
+        <span className="absolute left-2 top-2 sm:left-3 sm:top-3 rounded-full bg-black/55 px-2 py-0.5 sm:px-3 sm:py-1 text-xs sm:text-base leading-none text-white backdrop-blur-sm">
           {course?.averageRating === 0 ? 100 : course?.averageRating ?? 100}%
         </span>
-               <span className="absolute left-3 bottom-3 rounded-full bg-black/55 px-3 py-1 text-base leading-none text-white backdrop-blur-sm">
+        <span className="absolute left-2 bottom-2 sm:left-3 sm:bottom-3 rounded-full bg-black/55 px-2 py-0.5 sm:px-3 sm:py-1 text-xs sm:text-base leading-none text-white backdrop-blur-sm">
           Learn
         </span>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              handleSave(course._id);
-            }}
-            className="absolute right-3 top-3 rounded-full bg-black/45 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/65"
-            aria-label={isBookmarked ? "Remove from favorites" : "Add to favorites"}
-          >
-            <Heart
-              className={`h-4 w-4 ${
-                isBookmarked ? "fill-red-500 text-red-500" : "text-white"
-              }`}
-            />
-          </button>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            handleSave(course._id);
+          }}
+          className="absolute right-2 top-2 sm:right-3 sm:top-3 rounded-full bg-black/45 p-1 sm:p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/65"
+          aria-label={isBookmarked ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Heart
+            className={`h-4 w-4 ${
+              isBookmarked ? "fill-red-500 text-red-500" : "text-white"
+            }`}
+          />
+        </button>
       </div>
 
       <div className="pt-2">
-        <h3 className="line-clamp-3 text-base font-semibold leading-[1.22] text-black">{course.title}</h3>
-        <p className="mt-1 text-base text-[#6A6A6A]">
+        <h3 className="line-clamp-2 text-xs sm:text-base font-semibold leading-tight sm:leading-[1.22] text-black">{course.title}</h3>
+        <p className="mt-0.5 sm:mt-1 text-xs sm:text-base text-[#6A6A6A]">
           {formatPrice(course.price, course.currency || "USD", cardPriceOptions)} for {course?.duration || "1 hour"}
-          {shouldShowCurriculum ? "  ·  Part of a curriculum" : ""}
+          {shouldShowCurriculum ? " · Part of a curriculum" : ""}
         </p>
-      {distanceDisplay !== null && (
-            <div className="mt-1 text-xs text-[#6A6A6A]">
-              {distanceDisplay} from desired location
-            </div>
-          )}
+        {distanceDisplay !== null && (
+          <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-[#6A6A6A]">
+            {distanceDisplay} from desired location
+          </div>
+        )}
         <Link
           to={userInfo?._id === course?.createdBy?._id ? '/profile' : `/user-profile/${course?.createdBy?._id}?role=teacher`}
-          className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-[#f3f3f3] py-1 pl-1 pr-3 text-base text-black"
+          className="mt-1.5 sm:mt-2 inline-flex max-w-full items-center gap-1.5 sm:gap-2 rounded-full bg-[#f3f3f3] py-0.5 sm:py-1 pl-1 pr-2 sm:pr-3 text-xs sm:text-base text-black"
         >
-              <img
-                src={
-                  course?.createdBy?.image?.url ||
-                  "https://i.ibb.co/tpV3m2GW/no-image.png"
-                }
-                loading="lazy"
-                alt={course.createdBy?.name}
-                className="h-6 w-6 rounded-full object-cover"
-              />
+          <img
+            src={
+              course?.createdBy?.image?.url ||
+              "https://i.ibb.co/tpV3m2GW/no-image.png"
+            }
+            loading="lazy"
+            alt={course.createdBy?.name}
+            className="h-5 w-5 sm:h-6 sm:w-6 rounded-full object-cover"
+          />
           <span className="truncate">{course?.createdBy?.name || "Unknown"} ({course?.createdBy?.averageRating === 0 ? 100 : course?.createdBy?.averageRating ?? 100}%)</span>
         </Link>
-    </div>
+      </div>
     </article>
   );
 };

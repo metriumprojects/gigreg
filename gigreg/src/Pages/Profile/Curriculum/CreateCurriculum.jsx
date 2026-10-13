@@ -9,13 +9,15 @@ import {
   ArrowRight,
   Loader,
   Menu,
+  Home,
+  ChevronRight,
 } from "lucide-react";
 import MainLayout from "../../../components/MainLayout";
 import { useDispatch, useSelector } from "react-redux";
 import { getTeacherLessons } from "../../../redux/reducers/LessonReducer";
 import { createCurriculum } from "../../../redux/reducers/CurriculumReducer";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getCategories } from "../../../redux/reducers/CategoryReducer";
 import { getLessonCalendarByUser } from "../../../redux/reducers/AvailabilityReducer";
 import MakeAvailability from "../../../components/MakeAvailability";
@@ -27,13 +29,10 @@ import useTeacherPayoutCurrencies from "../../../hooks/useTeacherPayoutCurrencie
 export default function CurriculumPage() {
   const { currency } = useCurrency();
   const { payoutCurrencies, payoutCurrenciesLoading, stripePayoutReady } = useTeacherPayoutCurrencies();
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (!payoutCurrenciesLoading && !stripePayoutReady) {
-      toast.info("Set up and verify your Stripe payout account before creating a curriculum.");
-      navigate("/withdraw-request", { replace: true });
-    }
-  }, [navigate, payoutCurrenciesLoading, stripePayoutReady]);
+  const availableCurrencies = payoutCurrencies.length
+    ? payoutCurrencies
+    : ["USD", "EUR", "GBP", "CAD", "AUD"];
+  // Removed upfront Stripe payout blocker: sellers can create curriculums freely
   const lessonImageInputRef = useRef(null);
 
   const { Teacherlessons } = useSelector((state) => state.lesson);
@@ -46,10 +45,12 @@ export default function CurriculumPage() {
   // STEP MANAGEMENT
   const [currentStep, setCurrentStep] = useState(1); // 1=Details, 2=Type, 3=Lessons/Units
   const [lessonType, setLessonType] = useState(null); // null, "direct", or "unit"
-  const [curriculumCurrency, setCurriculumCurrency] = useState(currency);
+  const [curriculumCurrency, setCurriculumCurrency] = useState(currency || "USD");
   useEffect(() => {
-    if (payoutCurrencies.length && !payoutCurrencies.includes(curriculumCurrency)) setCurriculumCurrency(payoutCurrencies[0]);
-  }, [payoutCurrencies, curriculumCurrency]);
+    if (availableCurrencies.length && !availableCurrencies.includes(curriculumCurrency)) {
+      setCurriculumCurrency(availableCurrencies[0]);
+    }
+  }, [availableCurrencies, curriculumCurrency]);
 
   const [curriculumData, setCurriculumData] = useState({
     title: "",
@@ -913,15 +914,39 @@ export default function CurriculumPage() {
 
   // RENDER LOGIC
   return (
-    <MainLayout className="mx-auto" width="1800px">
-      <div className="min-h-screen bg-white py-10">
+    <MainLayout className="mx-auto" width="100%">
+      <div className="min-h-screen bg-white py-6">
         <div className="w-full mx-auto px-4">
+          {/* Breadcrumb Navigation in Grey Bubble Style */}
+          <div className="mb-[20px]">
+            <nav
+              aria-label="Breadcrumb"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+            >
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+              >
+                <Home size={14} className="text-black shrink-0" />
+                <span>Home</span>
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <Link
+                to="/profile?tab=My Listings"
+                className="font-medium text-black hover:text-primary transition-colors"
+              >
+                My Listings
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-semibold text-black">Create Curriculum</span>
+            </nav>
+          </div>
           {/* STEP 1: CURRICULUM DETAILS & CALENDAR */}
           {currentStep === 1 && (
             <Step1Details
               curriculumData={curriculumData}
               currency={curriculumCurrency}
-              supportedCurrencies={payoutCurrencies}
+              supportedCurrencies={availableCurrencies}
               onCurrencyChange={setCurriculumCurrency}
               handleCurriculumChange={handleCurriculumChange}
               handleCurriculumImagesChange={handleCurriculumImagesChange}

@@ -24,17 +24,16 @@ const CreateLessonPopup = ({
   const { currency } = useCurrency();
   const { payoutCurrencies, payoutCurrenciesLoading, stripePayoutReady } = useTeacherPayoutCurrencies();
   const navigate = useNavigate();
-  const [lessonCurrency, setLessonCurrency] = useState(currency);
+  const availableCurrencies = payoutCurrencies.length
+    ? payoutCurrencies
+    : ["USD", "EUR", "GBP", "CAD", "AUD"];
+  const [lessonCurrency, setLessonCurrency] = useState(currency || "USD");
   useEffect(() => {
-    if (open && !payoutCurrenciesLoading && !stripePayoutReady) {
-      toast.info("Set up and verify your Stripe payout account before creating a lesson.");
-      onClose();
-      navigate("/withdraw-request");
+    if (availableCurrencies.length && !availableCurrencies.includes(lessonCurrency)) {
+      setLessonCurrency(availableCurrencies[0]);
     }
-  }, [navigate, onClose, open, payoutCurrenciesLoading, stripePayoutReady]);
-  useEffect(() => {
-    if (payoutCurrencies.length && !payoutCurrencies.includes(lessonCurrency)) setLessonCurrency(payoutCurrencies[0]);
-  }, [payoutCurrencies, lessonCurrency]);
+  }, [availableCurrencies, lessonCurrency]);
+  // Removed upfront Stripe payout blocker: sellers can create lessons freely
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
   const { categories, loading } = useSelector((state) => state.category);
@@ -445,7 +444,7 @@ const CreateLessonPopup = ({
             />
             <select value={lessonCurrency} onChange={(event) => setLessonCurrency(event.target.value)} disabled={loading}
               className="border-2 border-gray-900 rounded-md px-2 text-sm">
-              {payoutCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
+              {availableCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
             </select>
           </div>
 

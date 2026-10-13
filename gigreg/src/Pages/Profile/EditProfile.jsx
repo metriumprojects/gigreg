@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader, Trash2 } from "lucide-react";
+import { Loader, Trash2, Home, ChevronRight } from "lucide-react";
 import MainLayout from "../../components/MainLayout";
 import { getUser, updateProfile, LogoutUser } from "../../redux/reducers/AuthReducer";
 import { deleteUser } from "../../redux/reducers/DashboardReducer";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import CountryAutocomplete from "../Home/Components/CountryAutocomplete";
 
@@ -130,7 +130,32 @@ export default function EditProfile() {
 
   return (
     <MainLayout width={"900px"} className="mx-auto">
-      <div className="my-10">
+      <div className="my-6">
+        {/* Breadcrumb Navigation in Grey Bubble Style */}
+        <div className="mb-[20px]">
+          <nav
+            aria-label="Breadcrumb"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+          >
+            <Link
+              to="/"
+              className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+            >
+              <Home size={14} className="text-black shrink-0" />
+              <span>Home</span>
+            </Link>
+            <ChevronRight size={13} className="text-gray-400 shrink-0" />
+            <Link
+              to="/profile?tab=My Profile"
+              className="font-medium text-black hover:text-primary transition-colors"
+            >
+              My Profile
+            </Link>
+            <ChevronRight size={13} className="text-gray-400 shrink-0" />
+            <span className="font-semibold text-black">Edit Profile</span>
+          </nav>
+        </div>
+
         <h1 className="text-2xl font-semibold mb-6 text-gray-900">Edit Profile</h1>
 
         {successMessage && (

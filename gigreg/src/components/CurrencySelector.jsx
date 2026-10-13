@@ -46,13 +46,14 @@ export default function CurrencySelector({ className = "", buttonClassName = "",
     if (wrapperRef.current) {
       const rect = wrapperRef.current.getBoundingClientRect();
       const menuWidth = 144; // w-36 is 144px
-      let left = rect.left;
-      if (left + menuWidth > window.innerWidth - 12) {
-        left = Math.max(12, window.innerWidth - menuWidth - 12);
+      let left = rect.right - menuWidth;
+      if (left < 10) left = Math.max(10, rect.left);
+      if (left + menuWidth > window.innerWidth - 10) {
+        left = Math.max(10, window.innerWidth - menuWidth - 10);
       }
       setDropdownPos({
-        top: rect.bottom + 6,
-        left: Math.max(8, left),
+        top: Math.round(rect.bottom + 6),
+        left: Math.round(left),
       });
     }
   };
@@ -104,11 +105,15 @@ export default function CurrencySelector({ className = "", buttonClassName = "",
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, [open]);
 
   const handleSelect = async (code) => {
-    if (code === currency || saving || rateMeta.loading) return;
+    if (code === currency || saving) return;
     setSaving(true);
     setOpen(false);
     try {
@@ -131,7 +136,7 @@ export default function CurrencySelector({ className = "", buttonClassName = "",
         type="button"
         aria-label="Currency"
         aria-expanded={open}
-        disabled={saving || rateMeta.loading}
+        disabled={saving}
         onClick={() => {
           updatePosition();
           setOpen((current) => !current);
@@ -167,11 +172,10 @@ export default function CurrencySelector({ className = "", buttonClassName = "",
                 <button
                   type="button"
                   onClick={() => handleSelect(code)}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                    currency === code
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${currency === code
                       ? "bg-primary text-white"
                       : "text-black hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   <span className="flex items-center gap-2">
                     {getCurrencyIcon(code, { size: 14, strokeWidth: 1.8 })}

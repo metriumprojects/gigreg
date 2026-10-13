@@ -40,7 +40,7 @@ const CurriculumCard = ({ course, linkTo }) => {
   };
 
   return (
-    <article className="mb-7 min-w-0 group">
+    <article className="mb-0 md:mb-7 min-w-0 group">
       <div className="relative aspect-square w-full overflow-hidden rounded-[20px] bg-gray-100">
         <Link to={linkTo || `/curriculum-booking/${course._id}`}>
           <img

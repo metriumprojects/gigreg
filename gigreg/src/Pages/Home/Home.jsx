@@ -70,6 +70,8 @@ const Home = () => {
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [isOnlineSelected, setIsOnlineSelected] = useState(true);
   const [isInPersonSelected, setIsInPersonSelected] = useState(true);
+  const [isOnDemandSelected, setIsOnDemandSelected] = useState(true);
+  const [isFixedPriceSelected, setIsFixedPriceSelected] = useState(true);
   const [showMore, setShowMore] = useState(false);
   const [selectedType, setSelectedType] = useState("");
   const moreMenuRef = useRef(null);
@@ -239,6 +241,10 @@ const Home = () => {
       setIsOnlineSelected(!isOnlineSelected);
     } else if (value === "in-person") {
       setIsInPersonSelected(!isInPersonSelected);
+    } else if (value === "on-demand") {
+      setIsOnDemandSelected(!isOnDemandSelected);
+    } else if (value === "fixed-price" || value === "fixed-pricing") {
+      setIsFixedPriceSelected(!isFixedPriceSelected);
     }
   };
 
@@ -477,30 +483,13 @@ const Home = () => {
       onFilterClick={() => setShowFilter(true)}
       isOnlineSelected={isOnlineSelected}
       isInPersonSelected={isInPersonSelected}
+      isOnDemandSelected={isOnDemandSelected}
+      isFixedPriceSelected={isFixedPriceSelected}
       onModeChange={handleModeChange}
     >
     
 
-      <SearchCategoryToolbar
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSelectCategory={handleSelect}
-        searchInput={searchInput}
-        onSearchChange={(value) => { setSearchInput(value); setSearchFilter(value); }}
-        locationFilter={locationFilter}
-        onLocationChange={handleLocationChange}
-        onLocationSelect={handleLocationSelect}
-        minPrice={min}
-        maxPrice={max}
-        onMinPriceChange={setMin}
-        onMaxPriceChange={setMax}
-        showTypeFilter={isDiscoverSection}
-        selectedType={selectedType}
-        onTypeChange={(value) => {
-          setSelectedType(value);
-          setPage(1);
-        }}
-      />
+
 
       {!userInfo && <HighlightSlider />}
 
@@ -624,14 +613,14 @@ const Home = () => {
 
 
       {/* Lessons Grid */}
-      <div className="md:pb-4 w-full m-auto">
+      <div className="w-full m-auto pb-20 md:pb-4">
         {!isOnlineSelected && !isInPersonSelected ? (
           <div className="py-20 text-center">
             <p className="text-base font-semibold text-gray-700">No services selected</p>
             <p className="mt-1 text-sm text-gray-500">Please select Online or In-person to view available services.</p>
           </div>
         ) : isInitialLoading && page === 1 ? (
-          <div className="w-full mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-4">
+          <div className="w-full mx-auto grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-2.5 sm:gap-4 md:gap-4">
             {/* Show 8 skeleton cards while loading */}
             {[...Array(21)].map((_, index) =>
               index % 3 === 0 ? (
@@ -648,7 +637,7 @@ const Home = () => {
                 {/* No courses found matching your criteria. */}
               </p>
             )}
-            <div className="w-full mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-4">
+            <div className="w-full mx-auto grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 3xl:grid-cols-5 4xl:grid-cols-7 gap-2.5 sm:gap-4 md:gap-4">
               {combinedCourses?.map((course) =>
                 course.type === "listing" ? (
                   <ListingCard
@@ -689,8 +678,6 @@ const Home = () => {
           </>
         )}
       </div>
-
-      {/* <Ads /> */}
 
       {/* Filter Modal */}
       <FilterModal

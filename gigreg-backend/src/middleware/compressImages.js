@@ -17,7 +17,7 @@ export const compressImages = async (req, res, next) => {
         path.dirname(file.path),
         `compressed-${Date.now()}-${path.parse(file.filename).name}.webp`
       );
-console.log(file.path, 'pathaaaaa')
+
       await sharp(file.path)
         .resize({
           width: 1200,            // Reduce dimensions for smaller size

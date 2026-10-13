@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Booking from "../models/Booking.js";
 import { SUPPORTED_CURRENCIES } from "../services/currencyService.js";
 import { getFrontendUrl, getStripe } from "../services/stripeService.js";
 
@@ -143,7 +144,7 @@ export const createConnectOnboardingLink = async (req, res) => {
       refresh_url: `${frontendUrl}/withdraw-request?stripe=refresh`,
       return_url: `${frontendUrl}/withdraw-request?stripe=return`,
       type: "account_onboarding",
-      collection_options: { fields: "eventually_due" },
+      collection_options: { fields: "currently_due" },
     });
     res.json({ status: true, url: link.url });
   } catch (error) {
@@ -206,7 +207,28 @@ export const getConnectBalance = async (req, res) => {
   try {
     requireTeacher(req.user);
     const user = await User.findById(req.user._id);
-    if (!user.stripeConnectAccountId) return res.json({ status: true, available: [], pending: [], payouts: [] });
+    if (!user.stripeConnectAccountId) {
+      const availableEntries = Object.entries(user.balances?.available || {})
+        .filter(([, amt]) => Number(amt) > 0)
+        .map(([currency, amount]) => ({
+          currency: currency.toLowerCase(),
+          amount: Math.round(Number(amount) * 100),
+        }));
+      const pendingEntries = Object.entries(user.balances?.pending || {})
+        .filter(([, amt]) => Number(amt) > 0)
+        .map(([currency, amount]) => ({
+          currency: currency.toLowerCase(),
+          amount: Math.round(Number(amount) * 100),
+        }));
+      return res.json({ status: true, available: availableEntries, pending: pendingEntries, payouts: [] });
+    }
+
+    try {
+      await processPendingTeacherPayouts(user._id);
+    } catch (payoutErr) {
+      console.warn("Auto process pending payouts check:", payoutErr.message);
+    }
+
     const stripe = getStripe();
     const [balance, payouts] = await Promise.all([
       stripe.balance.retrieve({}, { stripeAccount: user.stripeConnectAccountId }),
@@ -405,6 +427,11 @@ export const createOrUpdateCustomAccount = async (req, res) => {
     }
 
     const summary = await syncAccount(user);
+    try {
+      await processPendingTeacherPayouts(user._id);
+    } catch (payoutErr) {
+      console.warn("Auto process pending payouts check:", payoutErr.message);
+    }
     res.json({
       status: true,
       message: "Custom payout account configured successfully",
@@ -453,6 +480,11 @@ export const addCustomBankAccount = async (req, res) => {
     });
 
     const summary = await syncAccount(user);
+    try {
+      await processPendingTeacherPayouts(user._id);
+    } catch (payoutErr) {
+      console.warn("Auto process pending payouts check:", payoutErr.message);
+    }
     res.json({
       status: true,
       message: "Bank account attached successfully",
@@ -469,5 +501,88 @@ export const handleConnectAccountUpdate = async (account) => {
   const user = userId
     ? await User.findById(userId)
     : await User.findOne({ stripeConnectAccountId: account.id });
-  if (user) await syncAccount(user);
+  if (user) {
+    await syncAccount(user);
+    try {
+      await processPendingTeacherPayouts(user._id);
+    } catch (payoutErr) {
+      console.warn("Auto process pending payouts check on webhook:", payoutErr.message);
+    }
+  }
+};
+
+export const processPendingTeacherPayouts = async (teacherId) => {
+  try {
+    const stripe = getStripe();
+    const teacher = await User.findById(teacherId);
+    if (!teacher?.stripeConnectAccountId) {
+      return { processed: 0, totalTransferred: 0, reason: "No Stripe Connect account" };
+    }
+
+    const account = await stripe.accounts.retrieve(teacher.stripeConnectAccountId);
+    const isReady = Boolean(account.payouts_enabled && account.capabilities?.transfers === "active");
+    if (!isReady) {
+      return { processed: 0, totalTransferred: 0, reason: "Account not ready for payouts/transfers" };
+    }
+
+    // Find all paid & completed bookings held on platform awaiting transfer for this teacher
+    const pendingBookings = await Booking.find({
+      teacher: teacher._id,
+      paymentStatus: "paid",
+      status: "completed",
+      payoutStatus: "pending_connect",
+    });
+
+    if (!pendingBookings.length) {
+      return { processed: 0, totalTransferred: 0 };
+    }
+
+    let processedCount = 0;
+    let totalTransferred = 0;
+
+    for (const booking of pendingBookings) {
+      try {
+        const currency = String(booking.teacherPayoutCurrency || booking.currency || "USD").toLowerCase();
+        const payoutAmount = booking.teacherPayoutAmount != null ? booking.teacherPayoutAmount : booking.amount;
+        const zeroDecimalCurrencies = ["JPY", "KRW", "VND", "CLP"];
+        const isZeroDecimal = zeroDecimalCurrencies.includes(currency.toUpperCase());
+        const amountInMinor = isZeroDecimal ? Math.round(payoutAmount) : Math.round(payoutAmount * 100);
+
+        if (amountInMinor <= 0) continue;
+
+        const transfer = await stripe.transfers.create({
+          amount: amountInMinor,
+          currency,
+          destination: teacher.stripeConnectAccountId,
+          description: `Payout for order #${booking._id}`,
+          metadata: {
+            bookingId: String(booking._id),
+            teacherId: String(teacher._id),
+          },
+        });
+
+        booking.payoutStatus = "transferred";
+        booking.stripeTransferId = transfer.id;
+        booking.transferredAt = new Date();
+        await booking.save();
+
+        const earningCurrUpper = currency.toUpperCase();
+        await User.findByIdAndUpdate(teacher._id, {
+          $inc: {
+            [`balances.available.${earningCurrUpper}`]: -payoutAmount,
+          },
+        });
+
+        processedCount++;
+        totalTransferred += payoutAmount;
+      } catch (transferErr) {
+        console.error(`Failed to transfer payout for booking ${booking._id}:`, transferErr.message);
+      }
+    }
+
+    return { processed: processedCount, totalTransferred };
+  } catch (error) {
+    console.error("Error in processPendingTeacherPayouts:", error.message);
+    return { processed: 0, totalTransferred: 0, error: error.message };
+  }
 };

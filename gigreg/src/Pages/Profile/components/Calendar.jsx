@@ -75,6 +75,8 @@ export default function Home() {
   // Pending slot state
   const [pendingWeeklySlot, setPendingWeeklySlot] = useState(null); // { dayIndex, start, end }
   const [pendingSlotError, setPendingSlotError] = useState("");
+  const [pendingDateSlot, setPendingDateSlot] = useState(null); // { date, start, end }
+  const [pendingDateSlotError, setPendingDateSlotError] = useState("");
 
   useEffect(() => {
     dispatch(getAvailability());
@@ -124,24 +126,87 @@ export default function Home() {
   };
 
   // ---- Weekly availability handlers ----
-  const findFirstNonOverlappingSlot = (slots, duration = 60) => {
-    for (let startMin = 0; startMin <= (24 * 60) - duration; startMin += 30) {
-      const endMin = startMin + duration;
-      const overlaps = slots.some(slot =>
-        startMin < convertTimeToMinutes(slot.end) && endMin > convertTimeToMinutes(slot.start)
+  const getNextAvailableSlot = (slots, gapMinutes = 120, durationMinutes = 60) => {
+    if (!slots || slots.length === 0) {
+      return { start: "09:00", end: "10:00" };
+    }
+
+    const checkOverlap = (sMin, eMin) => {
+      return slots.some(slot =>
+        sMin < convertTimeToMinutes(slot.end) && eMin > convertTimeToMinutes(slot.start)
       );
-      if (!overlaps) {
-        const startHour = Math.floor(startMin / 60);
-        const startMinute = startMin % 60;
-        const endHour = Math.floor(endMin / 60);
-        const endMinute = endMin % 60;
+    };
+
+    // Find the latest end time among existing slots
+    let latestEndMin = 0;
+    for (const slot of slots) {
+      const endMin = convertTimeToMinutes(slot.end);
+      if (endMin > latestEndMin) {
+        latestEndMin = endMin;
+      }
+    }
+
+    // Attempt 1: Start 2 hours after latest slot end time
+    const candidateStartMin = latestEndMin + gapMinutes;
+    const candidateEndMin = candidateStartMin + durationMinutes;
+
+    if (candidateEndMin <= 24 * 60 && !checkOverlap(candidateStartMin, candidateEndMin)) {
+      const startHour = Math.floor(candidateStartMin / 60);
+      const startMinute = candidateStartMin % 60;
+      const endHour = Math.floor(candidateEndMin / 60);
+      const endMinute = candidateEndMin % 60;
+      return {
+        start: `${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")}`,
+        end: `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`
+      };
+    }
+
+    // Attempt 2: Search forward from candidateStartMin
+    for (let sMin = candidateStartMin; sMin <= (24 * 60) - durationMinutes; sMin += 30) {
+      const eMin = sMin + durationMinutes;
+      if (!checkOverlap(sMin, eMin)) {
+        const startHour = Math.floor(sMin / 60);
+        const startMinute = sMin % 60;
+        const endHour = Math.floor(eMin / 60);
+        const endMinute = eMin % 60;
         return {
           start: `${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")}`,
           end: `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`
         };
       }
     }
-    return null;
+
+    // Attempt 3: Search daytime starting from 09:00 AM (540 min)
+    for (let sMin = 9 * 60; sMin <= (24 * 60) - durationMinutes; sMin += 30) {
+      const eMin = sMin + durationMinutes;
+      if (!checkOverlap(sMin, eMin)) {
+        const startHour = Math.floor(sMin / 60);
+        const startMinute = sMin % 60;
+        const endHour = Math.floor(eMin / 60);
+        const endMinute = eMin % 60;
+        return {
+          start: `${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")}`,
+          end: `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`
+        };
+      }
+    }
+
+    // Attempt 4: Search anywhere from 00:00
+    for (let sMin = 0; sMin <= (24 * 60) - durationMinutes; sMin += 30) {
+      const eMin = sMin + durationMinutes;
+      if (!checkOverlap(sMin, eMin)) {
+        const startHour = Math.floor(sMin / 60);
+        const startMinute = sMin % 60;
+        const endHour = Math.floor(eMin / 60);
+        const endMinute = eMin % 60;
+        return {
+          start: `${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")}`,
+          end: `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`
+        };
+      }
+    }
+
+    return { start: "09:00", end: "10:00" };
   };
 
   const handleAddWeeklySlot = (dayIndex) => {
@@ -150,7 +215,9 @@ export default function Home() {
       return;
     }
     setPendingSlotError("");
-    setPendingWeeklySlot({ dayIndex, start: "09:00", end: "10:00" });
+    const existingSlots = weeklyAvailability[dayIndex]?.slots || [];
+    const nextSlot = getNextAvailableSlot(existingSlots, 120, 60);
+    setPendingWeeklySlot({ dayIndex, start: nextSlot.start, end: nextSlot.end });
   };
 
   const handleSaveWeeklySlot = (dayIndex) => {
@@ -320,11 +387,76 @@ export default function Home() {
   };
 
   const handleToggleDateUnavailable = (dateStr) => {
+    if (pendingDateSlot?.date === dateStr) {
+      setPendingDateSlot(null);
+      setPendingDateSlotError("");
+    }
     setDateAvailability(prev =>
       prev.map(d =>
         d.date === dateStr ? { ...d, unavailable: !d.unavailable, slots: !d.unavailable ? d.slots : [] } : d
       )
     );
+  };
+
+  const handleAddDateSlot = (dateStr) => {
+    const dateItem = dateAvailability.find(d => d.date === dateStr);
+    if (dateItem?.unavailable) {
+      toast.error("Cannot add time slot when marked as unavailable!");
+      return;
+    }
+    if (pendingDateSlot && pendingDateSlot.date === dateStr) {
+      setPendingDateSlotError("Please save your current availability before adding a new one.");
+      return;
+    }
+    setPendingDateSlotError("");
+    const existingSlots = dateItem?.slots || [];
+    const nextSlot = getNextAvailableSlot(existingSlots, 120, 60);
+    setPendingDateSlot({
+      date: dateStr,
+      start: nextSlot.start,
+      end: nextSlot.end
+    });
+  };
+
+  const handlePendingDateSlotChange = (field, value) => {
+    setPendingDateSlot(prev => ({ ...prev, [field]: displayTimeTo24Hour(value) }));
+  };
+
+  const handleSaveDateSlot = (dateStr) => {
+    if (!pendingDateSlot || pendingDateSlot.date !== dateStr) return;
+    const { start, end } = pendingDateSlot;
+    const startMin = convertTimeToMinutes(start);
+    const endMin = convertTimeToMinutes(end);
+    if (endMin <= startMin) {
+      toast.error("End time must be after start time!");
+      return;
+    }
+    const dateItem = dateAvailability.find(d => d.date === dateStr);
+    const slots = dateItem?.slots || [];
+    const hasOverlap = slots.some(slot =>
+      startMin < convertTimeToMinutes(slot.end) && endMin > convertTimeToMinutes(slot.start)
+    );
+    if (hasOverlap) {
+      toast.error("Time slot overlaps with existing slot!");
+      return;
+    }
+    setDateAvailability(prev =>
+      prev.map(d =>
+        d.date === dateStr
+          ? {
+              ...d,
+              slots: [...(d.slots || []), { start, end }],
+            }
+          : d
+      )
+    );
+    setPendingDateSlot(null);
+    setPendingDateSlotError("");
+  };
+
+  const handleCancelPendingDateSlot = () => {
+    setPendingDateSlot(null);
+    setPendingDateSlotError("");
   };
 
   const handleRemoveTempSlot = (index) => {
@@ -394,7 +526,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white">
-      <div className="max-w-[1800px] mx-auto">
+      <div className="w-full">
         <div className="text-sm text-gray-500 mb-[16px]">Time Zone: {timeZone || "UTC"}</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
@@ -524,6 +656,15 @@ export default function Home() {
                             >
                               Save
                             </button>
+                            <button
+                              onClick={() => {
+                                setPendingWeeklySlot(null);
+                                setPendingSlotError("");
+                              }}
+                              className="text-[11px] text-gray-400 hover:text-red-500 shrink-0"
+                            >
+                              Cancel
+                            </button>
                           </div>
                           {pendingSlotError && <p className="text-xs text-red-500 mt-2">{pendingSlotError}</p>}
                         </div>
@@ -617,11 +758,85 @@ export default function Home() {
                               </button>
                             </div>
                           ))}
-                          <div className="flex justify-end">
-                            <button onClick={() => setDateAvailability(prev => prev.filter(d => d.date !== dateItem.date))} className="text-sm text-gray-400 hover:text-red-500">
+
+                          {/* Pending date slot */}
+                          {pendingDateSlot?.date === dateItem.date && (
+                            <div className="mt-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg text-sm text-yellow-800">
+                              <div className="flex items-center gap-2 mt-2">
+                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                  <select
+                                    value={renderTimeSlot(pendingDateSlot.start)}
+                                    onChange={e => handlePendingDateSlotChange("start", e.target.value)}
+                                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  >
+                                    {TIME_OPTIONS.map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    value={renderTimeSlot(pendingDateSlot.end)}
+                                    onChange={e => handlePendingDateSlotChange("end", e.target.value)}
+                                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black/10"
+                                  >
+                                    {TIME_OPTIONS.map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <button
+                                  onClick={() => handleSaveDateSlot(dateItem.date)}
+                                  className="px-3 py-2.5 bg-black text-white rounded-lg hover:bg-black/90 transition-colors text-sm font-medium"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={handleCancelPendingDateSlot}
+                                  className="text-[11px] text-gray-400 hover:text-red-500 shrink-0"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              {pendingDateSlotError && <p className="text-xs text-red-500 mt-2">{pendingDateSlotError}</p>}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between pt-1">
+                            <button
+                              onClick={() => handleAddDateSlot(dateItem.date)}
+                              className="mt-1 text-sm text-gray-500 hover:text-gray-900 font-medium"
+                            >
+                              + Add availability
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (pendingDateSlot?.date === dateItem.date) {
+                                  setPendingDateSlot(null);
+                                  setPendingDateSlotError("");
+                                }
+                                setDateAvailability(prev => prev.filter(d => d.date !== dateItem.date));
+                              }}
+                              className="text-sm text-gray-400 hover:text-red-500"
+                            >
                               Remove date
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {dateItem.unavailable && (
+                        <div className="flex justify-end pt-2">
+                          <button
+                            onClick={() => {
+                              if (pendingDateSlot?.date === dateItem.date) {
+                                setPendingDateSlot(null);
+                                setPendingDateSlotError("");
+                              }
+                              setDateAvailability(prev => prev.filter(d => d.date !== dateItem.date));
+                            }}
+                            className="text-sm text-gray-400 hover:text-red-500"
+                          >
+                            Remove date
+                          </button>
                         </div>
                       )}
                     </div>

@@ -85,4 +85,7 @@ userSchema.methods.getResetPasswordToken = function () {
 };
 
 
+userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
+userSchema.index({ verifyEmailToken: 1 }, { sparse: true });
+
 export default mongoose.model("User", userSchema);

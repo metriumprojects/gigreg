@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import LocationAutocomplete from "../Home/Components/LocationAutocomplete";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader, X, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
+import { Loader, X, ZoomIn, ZoomOut, RotateCw, Home, ChevronRight } from "lucide-react";
 import { FaVideo, FaMapMarkerAlt } from "react-icons/fa";
 import MainLayout from "../../components/MainLayout";
 import ImageUploader from "../../components/ImageUploader";
@@ -14,7 +14,7 @@ import { useCurrency } from "../../currency/CurrencyContext";
 import { toast } from "react-toastify";
 import { getCategories } from "../../redux/reducers/CategoryReducer";
 import MakeAvailability from "../../components/MakeAvailability";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { GrUpload } from "react-icons/gr";
 import useTeacherPayoutCurrencies from "../../hooks/useTeacherPayoutCurrencies";
 import { getProposeById } from "../../redux/reducers/ProposeReducer";
@@ -62,12 +62,7 @@ const CreateListing = () => {
       }
     });
   }, [dispatch, isProposalFlow, requestId]);
-  useEffect(() => {
-    if (!payoutCurrenciesLoading && !stripePayoutReady) {
-      toast.info("Set up and verify your Stripe payout account before creating a listing.");
-      navigate("/withdraw-request", { replace: true });
-    }
-  }, [navigate, payoutCurrenciesLoading, stripePayoutReady]);
+  // Removed upfront Stripe payout setup blocker: sellers can create listings freely.
   const { categories,  } = useSelector(
     (state) => state.category
   );
@@ -110,8 +105,12 @@ const CreateListing = () => {
   const [isLargeScreen, setIsLargeScreen] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
   );
+  const availableCurrencies = payoutCurrencies.length
+    ? payoutCurrencies
+    : ["USD", "EUR", "GBP", "CAD", "AUD"];
+
   useEffect(() => {
-    const next = payoutCurrencies.includes(currency) ? currency : payoutCurrencies[0];
+    const next = availableCurrencies.includes(currency) ? currency : availableCurrencies[0] || "USD";
     if (next) setListingCurrency(next);
   }, [currency, payoutCurrencies]);
   // For LocationAutocomplete
@@ -560,7 +559,7 @@ const CreateListing = () => {
   };
 
   return (
-    <MainLayout className="mx-auto" width="1800px">
+    <MainLayout className="mx-auto" width="100%">
       {/* Cover Image Crop Modal */}
       {showCoverImageCropModal && tempCoverImagePreview && (
         <Motion.div
@@ -677,8 +676,32 @@ const CreateListing = () => {
         </Motion.div>
       )}
 
-      <div className="min-h-screen bg-white pt-[30px] pb-10">
+      <div className="min-h-screen bg-white pt-[10px] pb-10">
         <div className="w-full mx-auto">
+          {/* Breadcrumb Navigation in Grey Bubble Style */}
+          <div className="mb-[20px]">
+            <nav
+              aria-label="Breadcrumb"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+            >
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+              >
+                <Home size={14} className="text-black shrink-0" />
+                <span>Home</span>
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <Link
+                to="/profile?tab=My Listings"
+                className="font-medium text-black hover:text-primary transition-colors"
+              >
+                My Listings
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-semibold text-black">Create a listing</span>
+            </nav>
+          </div>
           <div className="flex items-center gap-3 mb-[30px]">
             <svg
               width="24"
@@ -991,7 +1014,7 @@ const CreateListing = () => {
                                     disabled={loading}
                                     className="w-full bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-0 focus:border-black disabled:bg-gray-100 disabled:opacity-50"
                                   >
-                                    {payoutCurrencies.map((code) => (
+                                    {availableCurrencies.map((code) => (
                                       <option key={code} value={code}>{code}</option>
                                     ))}
                                   </select>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import LocationAutocomplete from "../../Home/Components/LocationAutocomplete";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader, X, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
+import { Loader, X, ZoomIn, ZoomOut, RotateCw, Home, ChevronRight } from "lucide-react";
 import { FaVideo, FaMapMarkerAlt } from "react-icons/fa";
 import MainLayout from "../../../components/MainLayout";
 import ImageUploader from "../../../components/ImageUploader";
@@ -14,26 +14,25 @@ import { getAvailability } from "../../../redux/reducers/AvailabilityReducer";
 import { toast } from "react-toastify";
 import { getCategories } from "../../../redux/reducers/CategoryReducer";
 import MakeAvailability from "../../../components/MakeAvailability";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { GrUpload } from "react-icons/gr";
 import { useCurrency } from "../../../currency/CurrencyContext";
 import useTeacherPayoutCurrencies from "../../../hooks/useTeacherPayoutCurrencies";
 
 const CreateLesson = () => {
   const { currency } = useCurrency();
-  const { payoutCurrencies, payoutCurrenciesLoading, stripePayoutReady } = useTeacherPayoutCurrencies();
-  const [lessonCurrency, setLessonCurrency] = useState(currency);
+  const availableCurrencies = payoutCurrencies.length
+    ? payoutCurrencies
+    : ["USD", "EUR", "GBP", "CAD", "AUD"];
+  const [lessonCurrency, setLessonCurrency] = useState(currency || "USD");
   useEffect(() => {
-    if (payoutCurrencies.length && !payoutCurrencies.includes(lessonCurrency)) setLessonCurrency(payoutCurrencies[0]);
-  }, [payoutCurrencies, lessonCurrency]);
+    if (availableCurrencies.length && !availableCurrencies.includes(lessonCurrency)) {
+      setLessonCurrency(availableCurrencies[0]);
+    }
+  }, [availableCurrencies, lessonCurrency]);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  useEffect(() => {
-    if (!payoutCurrenciesLoading && !stripePayoutReady) {
-      toast.info("Set up and verify your Stripe payout account before creating a lesson.");
-      navigate("/withdraw-request", { replace: true });
-    }
-  }, [navigate, payoutCurrenciesLoading, stripePayoutReady]);
+  // Removed upfront Stripe payout blocker: sellers can create lessons freely
   const { categories,  } = useSelector(
     (state) => state.category
   );
@@ -445,7 +444,7 @@ const CreateLesson = () => {
   };
 
   return (
-    <MainLayout className="mx-auto" width="1800px">
+    <MainLayout className="mx-auto" width="100%">
       {/* Cover Image Crop Modal */}
       {showCoverImageCropModal && tempCoverImagePreview && (
         <motion.div
@@ -562,8 +561,33 @@ const CreateLesson = () => {
         </motion.div>
       )}
 
-      <div className="min-h-screen bg-white py-10">
+      <div className="min-h-screen bg-white py-6">
         <div className="w-full mx-auto">
+          {/* Breadcrumb Navigation in Grey Bubble Style */}
+          <div className="mb-[20px]">
+            <nav
+              aria-label="Breadcrumb"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F5F5] px-3.5 py-1.5 text-xs sm:text-sm text-black select-none"
+            >
+              <Link
+                to="/"
+                className="flex items-center gap-1.5 font-medium text-black hover:text-primary transition-colors"
+              >
+                <Home size={14} className="text-black shrink-0" />
+                <span>Home</span>
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <Link
+                to="/profile?tab=My Listings"
+                className="font-medium text-black hover:text-primary transition-colors"
+              >
+                My Listings
+              </Link>
+              <ChevronRight size={13} className="text-gray-400 shrink-0" />
+              <span className="font-semibold text-black">Create A Lesson</span>
+            </nav>
+          </div>
+
           <h1 className="text-3xl font-bold mb-8">Create A Lesson</h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -633,7 +657,7 @@ const CreateLesson = () => {
                     className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-black" />
                   <select value={lessonCurrency} onChange={(event) => setLessonCurrency(event.target.value)} disabled={loading}
                     className="bg-white border border-gray-200 rounded-xl px-3 py-3 text-sm">
-                    {payoutCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
+                    {availableCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
                   </select>
                 </div>
               </div>

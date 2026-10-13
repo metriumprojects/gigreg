@@ -2,7 +2,7 @@ import React from "react";
 
 const CurriculumCardSkeleton = () => {
   return (
-    <div className="mb-7 min-w-0 animate-pulse">
+    <div className="mb-0 md:mb-7 min-w-0 animate-pulse">
       {/* Title Skeleton */}
       {/* <div className="space-y-2">
         <div className="h-4 bg-gray-200 rounded w-3/4"></div>

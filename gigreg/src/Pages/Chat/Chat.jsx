@@ -23,6 +23,7 @@ import {
   getTeacherUnAvailability,
 } from "../../redux/reducers/AvailabilityReducer";
 import { useCurrency } from "../../currency/CurrencyContext";
+import { becomeTeacher, getUser } from "../../redux/reducers/AuthReducer";
 import {
   ArrowRight,
   ChevronLeft,
@@ -1245,6 +1246,15 @@ export default function Chat() {
       toast.info("Please log in to accept this quote.");
       navigate("/login");
       return;
+    }
+
+    if (userInfo.role === "teacher") {
+      try {
+        await dispatch(becomeTeacher("user")).unwrap();
+        dispatch(getUser());
+      } catch (err) {
+        console.error("Auto switch to buyer error in chat:", err);
+      }
     }
 
     try {

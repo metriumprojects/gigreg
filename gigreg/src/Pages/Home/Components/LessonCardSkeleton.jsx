@@ -2,7 +2,7 @@ import React from "react";
 
 const LessonCardSkeleton = () => {
   return (
-    <div className="mb-7 min-w-0 animate-pulse">
+    <div className="mb-0 md:mb-7 min-w-0 animate-pulse">
       <div className="relative aspect-square w-full rounded-[20px] bg-gray-200">
         <div className="absolute left-3 top-3 h-6 w-14 rounded-full bg-gray-300" />
         <div className="absolute right-3 top-3 h-7 w-7 rounded-full bg-gray-300" />
