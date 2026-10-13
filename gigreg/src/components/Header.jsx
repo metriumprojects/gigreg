@@ -149,11 +149,7 @@ const Header = ({
   };
 
   return (
-    <header
-      className={`relative z-50 mx-auto w-full px-3 pt-[20px] md:px-10 ${
-        isHome ? "pb-[10px]" : "pb-[20px]"
-      }`}
-    >
+    <header className="relative z-50 mx-auto w-full px-3 pt-[20px] pb-[20px] md:px-10">
       <CategoriesBar
         categories={categories}
         selectedCategory={selectedCategory}
