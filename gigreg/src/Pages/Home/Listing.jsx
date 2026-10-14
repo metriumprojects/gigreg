@@ -530,7 +530,7 @@ const Listing = () => {
         setPage(1);
       }}
     >
-      <div className="w-full pb-20 lg:pb-6">
+      <div className="w-full pb-[20px] lg:pb-6">
 
 
 

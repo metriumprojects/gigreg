@@ -4,7 +4,7 @@ import { FaDiscord } from "react-icons/fa6";
 
 export default function Footer() {
   return (
-    <div className='bg-[#F5F5F5] w-full px-[20px] sm:px-[60px] pt-[20px] pb-[40px] md:py-[40px] flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-[20px] md:gap-0 md:h-[122px] mb-20 md:mb-0'>
+    <div className='bg-[#F5F5F5] w-full px-[20px] sm:px-[60px] pt-[20px] pb-[20px] md:py-[40px] flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-[20px] md:gap-0 md:h-[122px] mb-0'>
         <div className="">
             <a href="mailto:help@gigslide.com" className='text-black text-decoration-none text-[14px] font-normal leading-none font-400'>help@gigslide.com</a>
         </div>

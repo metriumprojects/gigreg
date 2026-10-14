@@ -69,8 +69,8 @@ const MainLayout = ({
         searchCardTitle={searchCardTitle}
       />
     )}
-      <div className={`relative min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>
-      <main className={`mx-auto px-3 lg:px-10 py-0 pb-[32px] ${mainClassName}`} style={{ maxWidth: maxWidth }}>
+      <div className={`relative min-h-0 lg:min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>
+      <main className={`mx-auto px-3 lg:px-10 py-0 pb-0 lg:pb-[32px] ${mainClassName}`} style={{ maxWidth: maxWidth }}>
         {children}
       </main>
       </div>
