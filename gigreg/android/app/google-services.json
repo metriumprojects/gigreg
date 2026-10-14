@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "192141687455",
+    "project_id": "gigslide-24d4e",
+    "storage_bucket": "gigslide-24d4e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:192141687455:android:a0cf20a92471d9d3c500aa",
+        "android_client_info": {
+          "package_name": "com.gigmake.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "192141687455-hg0udlcpo4s0akkhrnobhkmut80pg6lk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWfMbg1mPC01e7I5kWhQDfAM6j10-87y0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "192141687455-hg0udlcpo4s0akkhrnobhkmut80pg6lk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -4,4 +4,5 @@
     <string name="title_activity_main">GigMake</string>
     <string name="package_name">com.gigmake.app</string>
     <string name="custom_url_scheme">com.gigmake.app</string>
+    <string name="server_client_id">192141687455-hg0udlcpo4s0akkhrnobhkmut80pg6lk.apps.googleusercontent.com</string>
 </resources>
