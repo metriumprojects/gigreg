@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Courses App",
-    "slug": "courses-website",
+    "name": "GigMake",
+    "slug": "gigmake",
     "ios": {
-      "bundleIdentifier": "com.nicolasmartinlemaire.coursesapp2026"
+      "bundleIdentifier": "com.gigmake.app"
     },
     "extra": {
       "eas": {

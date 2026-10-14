@@ -1,11 +1,12 @@
 {
-  "appId": "com.courses.app",
-  "appName": "CoursesApp",
+  "appId": "com.gigmake.app",
+  "appName": "GigMake",
   "webDir": "dist",
   "server": {
     "allowNavigation": [
-      "skillslide.com",
-      "*.skillslide.com"
+      "gigmake.com",
+      "*.gigmake.com",
+      "*.onrender.com"
     ]
   },
   "android": {
