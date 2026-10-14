@@ -14,10 +14,8 @@
   },
   "plugins": {
     "GoogleAuth": {
-      "clientId": "230492259677-v5rfmpjdop76oqaqhnkorbpvjjmqbsfd.apps.googleusercontent.com",
-      "androidClientId": "230492259677-v5rfmpjdop76oqaqhnkorbpvjjmqbsfd.apps.googleusercontent.com",
       "scopes": ["profile", "email"],
-      "serverClientId": "230492259677-v5rfmpjdop76oqaqhnkorbpvjjmqbsfd.apps.googleusercontent.com",
+      "serverClientId": "192141687455-hg0udlcpo4s0akkhrnobhkmut80pg6lk.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
     }
   }
