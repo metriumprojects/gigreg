@@ -6,6 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import PrivateRoute from "./redux/PrivateRoute";
 import api from "./redux/api";
 import { initPushNotifications } from "./utils/pushNotifications";
+import NetworkStatusListener from "./components/NetworkStatusListener";
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -80,6 +81,7 @@ const App = () => {
     <>
       <Router>
         <PushNotificationManager />
+        <NetworkStatusListener />
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/" element={<Listing />} />
