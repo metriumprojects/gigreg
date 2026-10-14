@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../api";
+import { unregisterPushToken } from "../../utils/pushNotifications";
 
 const clearClientSession = () => {
   if (typeof window !== "undefined") {
@@ -136,6 +137,8 @@ export const ResetPassword = createAsyncThunk(
 export const LogoutUser = createAsyncThunk(
   "user/logout-user",
   async (_, { rejectWithValue }) => {
+    // Unregister FCM push token from backend
+    unregisterPushToken().catch(() => {});
     clearClientSession();
 
     try {

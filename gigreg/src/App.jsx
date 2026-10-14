@@ -1,13 +1,50 @@
-import React, { lazy, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import React, { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ToastContainer, Slide } from "react-toastify";
+import { useSelector } from "react-redux";
+import { Capacitor } from "@capacitor/core";
 import PrivateRoute from "./redux/PrivateRoute";
+import api from "./redux/api";
+import { initPushNotifications } from "./utils/pushNotifications";
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-screen">
     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
   </div>
 );
+
+// Native push notifications listener and deep-linking router
+const PushNotificationManager = () => {
+  const navigate = useNavigate();
+  const { userInfo } = useSelector((state) => state.auth);
+
+  useEffect(() => {
+    initPushNotifications(navigate);
+  }, [navigate]);
+
+  useEffect(() => {
+    const syncToken = async () => {
+      const fcmToken = localStorage.getItem("fcm_token");
+      const authToken = localStorage.getItem("token");
+      if (fcmToken && authToken && Capacitor.isNativePlatform()) {
+        try {
+          await api.post("/users/save-push-token", {
+            token: fcmToken,
+            platform: Capacitor.getPlatform(),
+          });
+        } catch (e) {
+          console.warn("Could not sync push token:", e.message);
+        }
+      }
+    };
+
+    if (userInfo?._id) {
+      syncToken();
+    }
+  }, [userInfo]);
+
+  return null;
+};
 
 // Build-only site: listings (gigs), no lessons or curriculum
 const Login = lazy(() => import("./Pages/Auth/Login"));
@@ -42,6 +79,7 @@ const App = () => {
   return (
     <>
       <Router>
+        <PushNotificationManager />
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/" element={<Listing />} />
