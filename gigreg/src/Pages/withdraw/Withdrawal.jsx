@@ -168,7 +168,7 @@ export const Withdrawal = () => {
                 </div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">Set up Payout Account</h2>
                 <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
-                  Connect your bank account directly on Gigslide to receive payments from buyers and client orders.
+                  Connect your bank account directly on GigMake to receive payments from buyers and client orders.
                 </p>
 
                 <button

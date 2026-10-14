@@ -95,7 +95,7 @@ export default function SellerCreated() {
 
             {/* Gap 1: 20px between Congratulations! and subtitle */}
             <p className="mt-[20px] text-[24px] sm:text-[28px] font-normal leading-snug text-black">
-              Your seller profile is complete, and you’re all set to create your first listing and start offering your services on Gigslide.
+              Your seller profile is complete, and you’re all set to create your first listing and start offering your services on GigMake.
             </p>
           </div>
         </div>

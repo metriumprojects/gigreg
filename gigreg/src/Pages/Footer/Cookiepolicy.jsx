@@ -12,9 +12,9 @@ export default function Cookiepolicy() {
 
           {/* Header */}
           <h1 className="text-3xl font-bold leading-tight">Cookie Policy</h1>
-          <p className="text-black">Website: Gigslide.com</p>
+          <p className="text-black">Website: GigMake.com</p>
           <p className="mt-2">
-            This Cookie Policy explains how we use cookies and similar tracking technologies when you use the Gigslide platform (the “Platform”).
+            This Cookie Policy explains how we use cookies and similar tracking technologies when you use the GigMake platform (the “Platform”).
           </p>
 
           {/* Sections */}
@@ -119,7 +119,7 @@ export default function Cookiepolicy() {
               <h2 className="text-2xl font-semibold mb-2">8. Contact</h2>
               <p>For questions regarding cookies or data protection:</p>
               <p>Address: 95 3rd St, San Francisco, CA 94103, United States</p>
-              <p>Email: contact@gigslide.com</p>
+              <p>Email: contact@gigmake.com</p>
             </section>
 
           </div>

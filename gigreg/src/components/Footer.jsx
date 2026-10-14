@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <div className='bg-[#F5F5F5] w-full px-[20px] sm:px-[60px] pt-[20px] pb-[125px] md:py-[40px] flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-[20px] md:gap-0 md:h-[122px] mb-0'>
         <div className="">
-            <a href="mailto:help@gigslide.com" className='text-black text-decoration-none text-[14px] font-normal leading-none font-400'>help@gigslide.com</a>
+            <a href="mailto:help@gigmake.com" className='text-black text-decoration-none text-[14px] font-normal leading-none font-400'>help@gigmake.com</a>
         </div>
         <div className="flex gap-[20px] md:gap-[30px] h-auto md:h-[42px] items-center flex-col md:flex-row">
             <Link className='text-black text-[14px] font-normal leading-none font-400' to="/privacy-policy">Privacy Policy</Link>

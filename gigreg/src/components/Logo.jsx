@@ -29,7 +29,7 @@ const Logo = ({
     <Link
       to="/"
       className={`inline-flex shrink-0 items-center gap-2.5 ${className}`}
-      aria-label="Gigslide home"
+      aria-label="GigMake home"
     >
       <div
         className={`shrink-0 overflow-hidden ${
@@ -49,7 +49,7 @@ const Logo = ({
           }`}
         >
           <span className="italic">Gig</span>
-          <span className="not-italic">Slide</span>
+          <span className="not-italic">Make</span>
         </span>
       )}
     </Link>

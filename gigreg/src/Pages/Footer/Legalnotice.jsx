@@ -14,7 +14,7 @@ export default function Legalnotice() {
           <h1 className="text-3xl font-bold leading-tight">Legal Notice</h1>
           <p className="text-black">Last updated: 15 February 2026, 09:10 CET</p>
           <p className="mt-2">
-            In accordance with Articles 6-III and 19 of French Law No. 2004-575 of 21 June 2004 for Confidence in the Digital Economy (LCEN), the following information is provided to users of the Gigslide platform.
+            In accordance with Articles 6-III and 19 of French Law No. 2004-575 of 21 June 2004 for Confidence in the Digital Economy (LCEN), the following information is provided to users of the GigMake platform.
           </p>
 
           {/* Sections */}
@@ -22,10 +22,10 @@ export default function Legalnotice() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-2">1. Website Publisher</h2>
-              <p>Company name: Gigslide</p>
+              <p>Company name: GigMake</p>
               <p>Legal form: [e.g., SAS / SARL / Sole Proprietorship]</p>
               <p>Registered office: 95 3rd St, San Francisco, CA 94103, United States</p>
-              <p>Email: contact@gigslide.com</p>
+              <p>Email: contact@gigmake.com</p>
             </section>
 
             <section>
@@ -37,7 +37,7 @@ export default function Legalnotice() {
             <section>
               <h2 className="text-2xl font-semibold mb-2">3. Platform Description</h2>
               <p>
-                Gigslide is an online marketplace allowing independent teachers to publish lessons and students to book classes. The company operates solely as an intermediary platform and is not the provider of the lessons listed by teachers.
+                GigMake is an online marketplace allowing independent teachers to publish lessons and students to book classes. The company operates solely as an intermediary platform and is not the provider of the lessons listed by teachers.
               </p>
             </section>
 

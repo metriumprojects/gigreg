@@ -468,7 +468,7 @@ export default function Login() {
               </p>
             ) : (
               <p className="text-[16px] font-normal">
-                New to Gigslide?{" "}
+                New to GigMake?{" "}
                 <Link
                   to={getRegisterUrl(getRedirectDestination(), loginAs === "seller" ? { role: "seller" } : {})}
                   state={getRedirectDestination() ? { from: getRedirectDestination() } : location.state}
