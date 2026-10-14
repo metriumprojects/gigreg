@@ -34,6 +34,7 @@ const MainLayout = ({
   onSortChange = null,
   hideSearchCard = false,
   searchCardTitle = "",
+  mainClassName = "",
 }) => {
   const maxWidth = width || '1400px'
   
@@ -69,7 +70,7 @@ const MainLayout = ({
       />
     )}
       <div className={`relative min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>
-      <main className='mx-auto px-3 lg:px-10  py-0 pb-[32px]' style={{ maxWidth: maxWidth }}>
+      <main className={`mx-auto px-3 lg:px-10 py-0 pb-[32px] ${mainClassName}`} style={{ maxWidth: maxWidth }}>
         {children}
       </main>
       </div>

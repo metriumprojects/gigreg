@@ -30,10 +30,13 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://localhost:5173",
   "http://localhost:3000",
+  "http://localhost:5180",
   "http://localhost",
   "capacitor://localhost",
   process.env.FRONTEND_URL,
   process.env.CLIENT_URL,
+  process.env.ADMIN_URL,
+  process.env.DASHBOARD_URL,
 ].filter(Boolean);
 
 // Request logger (clean, single-line in non-production)

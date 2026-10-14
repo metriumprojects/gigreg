@@ -558,7 +558,7 @@ const MobileMenu = ({
         )}
 
       {/* Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 w-full h-[62px] bg-white z-50 flex items-center">
+      <div className="lg:hidden fixed bottom-0 left-0 w-full h-[62px] bg-white border-t border-gray-200 z-50 flex items-center">
         {/* Center Attached Categories Pill with Arrow */}
         {shouldShowCategoriesButton && (
           <button

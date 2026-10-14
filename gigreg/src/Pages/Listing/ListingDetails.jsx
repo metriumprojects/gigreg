@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, GalleryHorizontalEnd, Heart, Home, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
+import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Copy, GalleryHorizontalEnd, Heart, Home, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
 import { Link, useNavigate, useLocation, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
@@ -263,62 +263,108 @@ const QuoteRequestModal = ({
 
   if (!open) return null;
 
+  const coverImage =
+    listing?.images?.[0]?.url ||
+    (typeof listing?.images?.[0] === "string" ? listing?.images?.[0] : "");
+
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-[675px] max-h-[90vh] overflow-y-auto rounded-[22px] bg-white p-[20px] shadow-2xl"
+        className="w-full sm:max-w-[580px] max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white p-5 sm:p-6 shadow-2xl animate-in slide-in-from-bottom sm:zoom-in-95 duration-200"
       >
-        <div className="mb-[20px] flex items-center justify-between">
-          <h2 className="text-base font-medium leading-none">Request a quote</h2>
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-gray-100">
           <button
-            type="submit"
-            disabled={submitting}
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
-            aria-label="Submit quote request"
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-500 hover:text-black cursor-pointer"
+            aria-label="Close"
           >
-            <ArrowLeft className="rotate-180" size={18} />
+            <X size={20} />
           </button>
+          <h2 className="text-base sm:text-lg font-bold text-gray-900">Request a Quote</h2>
+          <div className="w-9" />
         </div>
 
-        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
-          <label className="mb-2 block text-sm">Description (optional)</label>
+        {/* Listing Snippet Card (Airbnb style) */}
+        <div className="my-4 flex items-center gap-3.5 rounded-2xl border border-gray-200/80 bg-gray-50/80 p-3">
+          {coverImage ? (
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-200">
+              <img
+                src={coverImage}
+                alt={listing?.title || "Listing"}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
+              {listing?.category || "Service"}
+            </p>
+            <h3 className="text-sm font-bold text-gray-900 truncate">
+              {listing?.title}
+            </h3>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
+              <span>{listing?.createdBy?.name ? `with ${listing.createdBy.name}` : "Expert service"}</span>
+              {listing?.price ? (
+                <>
+                  <span>·</span>
+                  <span className="font-semibold text-gray-800">
+                    {formatPrice(listing.price, listing.currency || "USD")}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* Selected Booking Details Card */}
+        {(quoteContext?.selectedDate || quoteContext?.selectedTimes?.length || quoteContext?.totalPrice !== undefined) && (
+          <div className="mb-4 rounded-2xl border border-primary/20 bg-primary/5 p-3.5 text-xs sm:text-sm">
+            <p className="mb-1.5 font-semibold text-primary">Selected Booking Context</p>
+            <div className="space-y-1 text-gray-700">
+              {quoteContext?.selectedDate && (
+                <p><strong>Date:</strong> {quoteContext.selectedDate}</p>
+              )}
+              {quoteContext?.selectedTimes?.length > 0 && (
+                <p><strong>Time slots:</strong> {quoteContext.selectedTimes.join(", ")}</p>
+              )}
+              {quoteContext?.totalPrice !== undefined && (
+                <p><strong>Estimated Price:</strong> {formatPrice(quoteContext.totalPrice, listing?.currency || "USD")}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Message / Description */}
+        <div className="mb-4">
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-700">
+            Message to expert <span className="font-normal text-gray-400 lowercase">(optional)</span>
+          </label>
           <textarea
             value={description}
             onChange={(event) => onDescriptionChange(event.target.value)}
             rows={4}
-            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none"
+            placeholder="Tell the expert what you need help with, any specific goals or requirements..."
+            className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50/50 p-3.5 text-sm transition focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
 
-        {(quoteContext?.selectedDate || quoteContext?.selectedTimes?.length || quoteContext?.totalPrice !== undefined) && (
-          <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3 text-sm">
-            <p className="mb-2 font-medium">Selected booking details</p>
-            {quoteContext?.selectedDate && (
-              <p className="text-gray-700">Date: {quoteContext.selectedDate}</p>
-            )}
-            {quoteContext?.selectedTimes?.length > 0 && (
-              <p className="text-gray-700">Time slots: {quoteContext.selectedTimes.join(", ")}</p>
-            )}
-            {quoteContext?.totalPrice !== undefined && (
-              <p className="text-gray-700">
-                Estimated price: {formatPrice(quoteContext.totalPrice, listing?.currency || "USD")}
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="mb-[20px] rounded-xl bg-[#F7F7F7] p-3">
+        {/* Images Upload */}
+        <div className="mb-5">
           <div className="mb-2 flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-800">Images (optional)</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              Photos or reference <span className="font-normal text-gray-400 lowercase">(optional)</span>
+            </label>
             {images?.length > 0 && (
-              <span className="text-xs text-gray-500 font-medium">
-                {images.length} image{images.length > 1 ? "s" : ""} selected
+              <span className="text-xs font-medium text-gray-500">
+                {images.length} selected
               </span>
             )}
           </div>
 
-          {/* Selected Image Thumbnails */}
+          {/* Thumbnails */}
           {previews.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2.5">
               {previews.map((preview, index) => (
@@ -352,11 +398,11 @@ const QuoteRequestModal = ({
             </div>
           )}
 
-          {/* Upload Button */}
-          <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white text-gray-700 transition hover:border-gray-400 hover:bg-gray-50">
+          {/* Upload Drop Area */}
+          <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 text-gray-700 transition hover:border-primary hover:bg-primary/5">
             <Upload size={18} className="text-gray-500" />
             <span className="text-xs sm:text-sm font-medium text-gray-600">
-              {images?.length > 0 ? "Add more images" : "Upload images"}
+              {images?.length > 0 ? "Add more images" : "Upload photos or reference files"}
             </span>
             <input
               type="file"
@@ -368,21 +414,29 @@ const QuoteRequestModal = ({
           </label>
         </div>
 
-        <div className="flex items-center justify-end gap-[10px]">
+        {/* Bottom Actions */}
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-transparent bg-gray-200 px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-300 disabled:opacity-50 cursor-pointer"
+            className="h-11 px-5 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition cursor-pointer disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex h-9 items-center justify-center rounded-full border-[1.5px] border-primary bg-primary px-5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 cursor-pointer"
+            className="h-11 px-7 rounded-full bg-primary text-sm font-semibold text-white shadow-md hover:opacity-95 active:scale-95 transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
           >
-            {submitting ? "Sending..." : "Submit"}
+            {submitting ? (
+              <>
+                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Sending...</span>
+              </>
+            ) : (
+              <span>Send Request</span>
+            )}
           </button>
         </div>
       </form>
@@ -399,6 +453,8 @@ const ListingAvailabilityPanel = ({
   weeklyAvailability,
   dateAvailability,
   dateUnAvailability,
+  isModal = false,
+  onCloseModal,
 }) => {
   const { formatPrice } = useCurrency();
   const today = useMemo(() => {
@@ -479,12 +535,16 @@ const ListingAvailabilityPanel = ({
   };
 
   return (
-    <div className="w-full rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.1)]">
-      <p className="text-sm text-gray-500 mb-1">Hourly calendar</p>
-      <p className="text-xl font-semibold mb-4">
-        {formatPrice(listing?.price ?? 0, listing?.currency || "USD")}
-        {listing?.duration ? <span className="text-sm font-normal">/{formatDurationForPrice(listing.duration)}</span> : null}
-      </p>
+    <div className={isModal ? "w-full" : "w-full rounded-2xl p-5 shadow-[0_4px_16px_rgba(0,0,0,0.1)]"}>
+      {!isModal && (
+        <>
+          <p className="text-sm text-gray-500 mb-1">Hourly calendar</p>
+          <p className="text-xl font-semibold mb-4">
+            {formatPrice(listing?.price ?? 0, listing?.currency || "USD")}
+            {listing?.duration ? <span className="text-sm font-normal">/{formatDurationForPrice(listing.duration)}</span> : null}
+          </p>
+        </>
+      )}
 
       <div className="flex justify-between items-center mb-3">
         <p className="font-semibold text-xl">{monthName} {year}</p>
@@ -578,18 +638,19 @@ const ListingAvailabilityPanel = ({
 
       <button
         type="button"
-        onClick={() =>
+        onClick={() => {
+          onCloseModal?.();
           onBookListing({
             selectedDate: selectedDate ? formatDateKey(selectedDate) : null,
             selectedTimes,
             totalPrice,
-          })
-        }
+          });
+        }}
         disabled={selectedTimes.length === 0 || booking}
-        className={`w-full mt-6 rounded-full px-5 py-3 text-sm font-medium ${
+        className={`w-full mt-6 rounded-full px-5 py-3 text-sm font-medium transition-all ${
           selectedTimes.length === 0 || booking
             ? "bg-gray-400 cursor-not-allowed text-white"
-            : "bg-primary text-white cursor-pointer"
+            : "bg-primary text-white cursor-pointer shadow-md active:scale-95"
         }`}
       >
         {booking ? "Opening checkout..." : selectedTimes.length > 0 ? `Book for ${formatPrice(totalPrice, listing?.currency || "USD")}` : "Select time slots"}
@@ -597,15 +658,16 @@ const ListingAvailabilityPanel = ({
 
       <button
         type="button"
-        onClick={() =>
+        onClick={() => {
+          onCloseModal?.();
           onAskQuote({
             selectedDate: selectedDate ? formatDateKey(selectedDate) : null,
             selectedTimes,
             totalPrice,
-          })
-        }
+          });
+        }}
         disabled={selectedTimes.length === 0 || booking}
-        className="mt-3 w-full rounded-full border border-black bg-white px-5 py-3 text-sm font-medium text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-3 w-full rounded-full border border-black bg-white px-5 py-3 text-sm font-medium text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-gray-50 transition-all cursor-pointer"
       >
         Request a quote
       </button>
@@ -636,6 +698,7 @@ const ListingDetails = () => {
   const [quoteContext, setQuoteContext] = useState(null);
   const [quoteSubmitting, setQuoteSubmitting] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
 
   const [reviewsList, setReviewsList] = useState(() => {
     const defaultReviews = [
@@ -1026,6 +1089,7 @@ const ListingDetails = () => {
   const handleAskForQuote = (context = null) => {
     if (!validateQuoteAccess()) return;
     setQuoteContext(context);
+    setMobileCalendarOpen(false);
     setQuoteModalOpen(true);
   };
 
@@ -1214,17 +1278,25 @@ const ListingDetails = () => {
     }
   };
 
-  const renderRightPanel = () => {
+  const renderRightPanel = (isModal = false) => {
     if (listing?.pricingType === "hourly_calendar") {
       return (
-          <ListingAvailabilityPanel
-            listing={listing}
-          onBookListing={handleCalendarListingCheckout}
-          onAskQuote={handleAskForQuote}
+        <ListingAvailabilityPanel
+          listing={listing}
+          onBookListing={(data) => {
+            if (isModal) setMobileCalendarOpen(false);
+            handleCalendarListingCheckout(data);
+          }}
+          onAskQuote={(context) => {
+            if (isModal) setMobileCalendarOpen(false);
+            handleAskForQuote(context);
+          }}
           booking={checkoutLoading}
           weeklyAvailability={listing?.calenderId ? lessonWeeklyAvailability : weeklyAvailability}
           dateAvailability={listing?.calenderId ? lessonDateAvailability : dateAvailability}
           dateUnAvailability={dateUnAvailability}
+          isModal={isModal}
+          onCloseModal={() => isModal && setMobileCalendarOpen(false)}
         />
       );
     }
@@ -1235,7 +1307,7 @@ const ListingDetails = () => {
           type="button"
           onClick={handleFixedListingCheckout}
           disabled={checkoutLoading}
-          className="w-full rounded-full bg-primary px-5 py-3.5 text-base font-semibold text-white cursor-pointer disabled:opacity-60"
+          className="w-full rounded-full bg-primary px-5 py-3.5 text-base font-semibold text-white cursor-pointer disabled:opacity-60 shadow-md active:scale-95 transition-all"
         >
           {checkoutLoading
             ? "Opening checkout..."
@@ -1248,7 +1320,7 @@ const ListingDetails = () => {
       <button
         type="button"
         onClick={() => handleAskForQuote()}
-        className="w-full rounded-full bg-primary px-5 py-3.5 text-base font-semibold text-white cursor-pointer"
+        className="w-full rounded-full bg-primary px-5 py-3.5 text-base font-semibold text-white cursor-pointer shadow-md active:scale-95 transition-all"
       >
         Request a quote
       </button>
@@ -1285,14 +1357,299 @@ const ListingDetails = () => {
     </nav>
   );
 
+  const renderTeacherCardContent = () => (
+    <TeacherCard
+      teacher={listing?.createdBy}
+      title="Meet your expert"
+      roleTitle="Expert"
+      name={listing?.createdBy?.name}
+      averageRating={listing?.createdBy?.averageRating}
+      hideLesson={listing?.createdBy?.hideLesson}
+      classHosted={listing?.createdBy?.classHosted}
+      classesAttended={listing?.createdBy?.classesAttended}
+      classesHosted={listing?.createdBy?.classesHosted}
+      bio={listing?.createdBy?.bio}
+      image={listing?.createdBy?.image}
+      lession={0}
+      reviews={reviewsList.length}
+      onReviewsClick={() => {
+        const el = document.getElementById("reviews-section");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+      }}
+      className="mt-0"
+    />
+  );
+
+  const renderHowDoesItWorkContent = () => (
+    <div className="rounded-2xl bg-[#F5F5F5] p-5">
+      <h2 className="mb-4 text-lg font-semibold text-black">How does it work?</h2>
+      <div className="space-y-4 text-sm leading-relaxed text-black">
+        <p className="flex items-start gap-2">
+          <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
+          <span>Book your service and you&apos;ll be instantly connected with your expert.</span>
+        </p>
+        <p className="flex items-start gap-2">
+          <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
+          <span>
+            Your expert will let you know where the session will take place and share a
+            meeting link with you.
+          </span>
+        </p>
+        <p className="flex items-start gap-2">
+          <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
+          <span>
+            You can message them anytime, ask questions, and get support. Your learning
+            journey starts the moment you book.
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderReviewsSection = () => (
+    <div id="reviews-section" className="mt-0 lg:mt-10 scroll-mt-6">
+      <div className="mb-[10px] sm:mb-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-lg md:text-xl font-semibold text-black">Reviews</h2>
+          {reviewsList.length > 0 && (
+            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+              {reviewsList.length}
+            </span>
+          )}
+        </div>
+        {canUserReview && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!newReviewerName && userInfo?.name) {
+                setNewReviewerName(userInfo.name);
+              }
+              setAddReviewOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
+          >
+            <Plus size={14} />
+            <span>Write a review</span>
+          </button>
+        )}
+      </div>
+
+      {reviewsList.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] sm:gap-5">
+          {reviewsList.map((review) => (
+            <div
+              key={review.id}
+              className="flex flex-col overflow-hidden rounded-2xl bg-[#F5F5F5] transition hover:shadow-sm"
+            >
+              {(() => {
+                const revImages =
+                  Array.isArray(review.images) && review.images.length > 0
+                    ? review.images
+                    : review.image
+                    ? [review.image]
+                    : [];
+                const coverImg = revImages[0];
+                if (!coverImg) return null;
+
+                return (
+                  <div className="relative w-full aspect-square overflow-hidden bg-gray-100 group">
+                    <img
+                      src={coverImg}
+                      alt="Review"
+                      onClick={() => openReviewFullscreen(revImages, 0, review.userName)}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105 cursor-pointer"
+                    />
+                    {revImages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openReviewFullscreen(revImages, 0, review.userName);
+                        }}
+                        className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur-xs transition hover:bg-black/80 hover:scale-105 cursor-pointer"
+                        title={`View all ${revImages.length} photos`}
+                      >
+                        <GalleryHorizontalEnd size={18} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="flex flex-1 flex-col p-5">
+                {/* Reviewer info with avatar */}
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 overflow-hidden">
+                    {review.userAvatar ? (
+                      <img
+                        src={review.userAvatar}
+                        alt={review.userName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <svg
+                        className="h-4 w-4 shrink-0 text-gray-700"
+                        viewBox="0 0 22 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C2.5166 22.1338 3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+                        <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-semibold text-gray-900 leading-snug truncate">
+                      {review.userName || "Guest"}
+                    </h4>
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Check size={12} className="stroke-[2.5]" />
+                      <span>{review.verifiedBadge || "Verified attendee"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5 Stars in primary color */}
+                <div className="mt-3.5 flex items-center gap-1 text-primary">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      size={14}
+                      className={
+                        i < (review.rating || 5)
+                          ? "fill-primary text-primary"
+                          : "text-gray-300"
+                      }
+                    />
+                  ))}
+                </div>
+
+                <p className="mt-3.5 text-sm leading-relaxed text-gray-700 flex-1">
+                  &ldquo;{review.comment}&rdquo;
+                </p>
+
+                {review.date && (
+                  <div className="mt-5 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                    <span>{review.date}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 py-4">No reviews yet. Be the first to write one!</p>
+      )}
+    </div>
+  );
+
+  const renderMobileBottomBar = () => (
+    <div className="fixed bottom-[62px] left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] flex items-center justify-between lg:hidden">
+      <div className="flex flex-col justify-center min-w-0 pr-2">
+        <div className="flex items-baseline gap-1">
+          <span className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+            {formatPrice(listing?.price ?? 0, listing?.currency || "USD")}
+          </span>
+          {isHourlyPricing && listing?.duration && (
+            <span className="text-xs text-gray-500 font-normal shrink-0">
+              /{formatDurationForPrice(listing.duration)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-gray-600 mt-0.5">
+          {listing?.createdBy?.averageRating ? (
+            <span className="flex items-center font-semibold text-gray-900">
+              ★ {listing.createdBy.averageRating.toFixed(1)}
+            </span>
+          ) : null}
+          {listing?.createdBy?.averageRating ? <span className="text-gray-400">·</span> : null}
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById("reviews-section");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="underline text-gray-600 hover:text-black cursor-pointer font-medium"
+          >
+            {reviewsList.length} {reviewsList.length === 1 ? "review" : "reviews"}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {listing?.pricingType === "hourly_calendar" ? (
+          <button
+            type="button"
+            onClick={() => setMobileCalendarOpen(true)}
+            className="rounded-full bg-primary px-5 py-2.5 sm:py-3 text-sm font-semibold text-white shadow-md active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <Calendar size={16} />
+            <span>Select date</span>
+          </button>
+        ) : listing?.pricingType === "fixed" ? (
+          <button
+            type="button"
+            onClick={handleFixedListingCheckout}
+            disabled={checkoutLoading}
+            className="rounded-full bg-primary px-5 sm:px-6 py-2.5 sm:py-3 text-sm font-semibold text-white shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-60"
+          >
+            {checkoutLoading ? "Opening..." : "Buy now"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleAskForQuote()}
+            className="rounded-full bg-primary px-5 sm:px-6 py-2.5 sm:py-3 text-sm font-semibold text-white shadow-md active:scale-95 transition-all cursor-pointer"
+          >
+            Request a quote
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderMobileCalendarModal = () => {
+    if (!mobileCalendarOpen) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 z-[9998] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
+        <div className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-gray-900">Select Date & Time</h3>
+              <p className="text-xs text-gray-500">Pick an available slot with this expert</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileCalendarOpen(false)}
+              className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 hover:text-black transition cursor-pointer"
+              aria-label="Close calendar"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {renderRightPanel(true)}
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   return (
     <MainLayout
       width="4440px"
-      contentClassName="lg:overflow-x-visible"
+      contentClassName="lg:overflow-x-visible !min-h-0"
+      mainClassName="!pb-0"
       breadcrumbs={listingBreadcrumbNav}
       hideSearchCard={true}
     >
-      <div className="min-h-screen pb-8">
+      <div className="pb-[20px] lg:pb-8">
         {loading ? (
           <div className="w-full py-16 text-center text-gray-500">Loading listing...</div>
         ) : error ? (
@@ -1312,7 +1669,7 @@ const ListingDetails = () => {
                   </h1>
 
                   {/* Location & Duration on left, Copy link & Save on right */}
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+                  <div className="mt-[10px] md:mt-3 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-4 text-sm leading-none text-black md:gap-5">
                       <div className="flex items-center gap-2">
                         <MapPin size={18} className="shrink-0" />
@@ -1349,10 +1706,10 @@ const ListingDetails = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 max-w-7xl space-y-4">
+                  <div className="mt-[10px] md:mt-4 max-w-7xl">
                     <ImageGallery images={galleryImages} />
 
-                    <div className="mt-5 text-sm leading-relaxed text-black">
+                    <div className="mt-[10px] md:mt-5 text-sm leading-relaxed text-black [&_p:last-child]:mb-0 [&_p:first-child]:mt-0">
                       {listing?.description ? (
                         <div dangerouslySetInnerHTML={{ __html: listing.description }} />
                       ) : (
@@ -1361,152 +1718,25 @@ const ListingDetails = () => {
                     </div>
                   </div>
 
-                  {/* Reviews Section underneath Meet your expert / Teacher Card */}
-                  <div id="reviews-section" className="mt-8 md:mt-10 scroll-mt-6">
-                    <div className="mb-5 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2.5">
-                        <h2 className="text-lg md:text-xl font-semibold text-black">Reviews</h2>
-                        {reviewsList.length > 0 && (
-                          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
-                            {reviewsList.length}
-                          </span>
-                        )}
-                      </div>
-                      {canUserReview && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!newReviewerName && userInfo?.name) {
-                              setNewReviewerName(userInfo.name);
-                            }
-                            setAddReviewOpen(true);
-                          }}
-                          className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 cursor-pointer shadow-xs shrink-0"
-                        >
-                          <Plus size={14} />
-                          <span>Write a review</span>
-                        </button>
-                      )}
-                    </div>
+                  {/* Mobile Order: Meet your expert -> How does it work? -> Reviews in the last */}
+                  <div className="lg:hidden space-y-[10px] mt-[20px]">
+                    {renderTeacherCardContent()}
+                    {renderHowDoesItWorkContent()}
+                  </div>
 
-                    {/* Review Cards: horizontal row, wraps to next line */}
-                    {reviewsList.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        {reviewsList.map((review) => (
-                          <div
-                            key={review.id}
-                            className="flex flex-col overflow-hidden rounded-2xl bg-[#F5F5F5] transition hover:shadow-sm"
-                          >
-                            {/* Top Cover Image with Multi-image badge & fullscreen trigger */}
-                            {(() => {
-                              const revImages =
-                                Array.isArray(review.images) && review.images.length > 0
-                                  ? review.images
-                                  : review.image
-                                  ? [review.image]
-                                  : [];
-                              const coverImg = revImages[0];
-                              if (!coverImg) return null;
+                  {/* Reviews Section on mobile (20px below How does it work) */}
+                  <div className="lg:hidden mt-[20px]">
+                    {renderReviewsSection()}
+                  </div>
 
-                              return (
-                                <div className="relative w-full aspect-square overflow-hidden bg-gray-100 group">
-                                  <img
-                                    src={coverImg}
-                                    alt="Review"
-                                    onClick={() => openReviewFullscreen(revImages, 0, review.userName)}
-                                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105 cursor-pointer"
-                                  />
-                                  {revImages.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openReviewFullscreen(revImages, 0, review.userName);
-                                      }}
-                                      className="absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white shadow-md backdrop-blur-xs transition hover:bg-black/80 hover:scale-105 cursor-pointer"
-                                      title={`View all ${revImages.length} photos`}
-                                    >
-                                      <GalleryHorizontalEnd size={18} />
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })()}
-
-                            <div className="flex flex-1 flex-col p-5">
-                              {/* Reviewer info with avatar */}
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 overflow-hidden">
-                                  {review.userAvatar ? (
-                                    <img
-                                      src={review.userAvatar}
-                                      alt={review.userName}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <svg
-                                      className="h-4 w-4 shrink-0 text-gray-700"
-                                      viewBox="0 0 22 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C2.5166 22.1338 3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-                                      <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-                                    </svg>
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <h4 className="text-sm font-semibold text-gray-900 leading-snug truncate">
-                                    {review.userName || "Guest"}
-                                  </h4>
-                                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                                    <Check size={12} className="stroke-[2.5]" />
-                                    <span>{review.verifiedBadge || "Verified attendee"}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* 5 Stars in primary color */}
-                              <div className="mt-3.5 flex items-center gap-1 text-primary">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    size={14}
-                                    className={
-                                      i < (review.rating || 5)
-                                        ? "fill-primary text-primary"
-                                        : "text-gray-300"
-                                    }
-                                  />
-                                ))}
-                              </div>
-
-                              {/* Review Quote */}
-                              <p className="mt-3.5 text-sm leading-relaxed text-gray-700 flex-1">
-                                &ldquo;{review.comment}&rdquo;
-                              </p>
-
-                              {/* Date */}
-                              {review.date && (
-                                <div className="mt-5 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                                  <span>{review.date}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 py-4">No reviews yet. Be the first to write one!</p>
-                    )}
+                  {/* Desktop Order: Reviews at bottom of Column 1 */}
+                  <div className="hidden lg:block">
+                    {renderReviewsSection()}
                   </div>
                 </div>
 
-                {/* Column 2: Booking/Quote Panel & How does it work */}
-                <aside className="space-y-4 lg:col-span-4 xl:col-span-4">
+                {/* Column 2 (Desktop only): Booking/Quote Panel & Meet your expert & How does it work */}
+                <aside className="hidden lg:block space-y-4 lg:col-span-4 xl:col-span-4">
                   <div
                     className={
                       listing?.pricingType === "hourly_calendar"
@@ -1514,62 +1744,23 @@ const ListingDetails = () => {
                         : "rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
                     }
                   >
-                    {renderRightPanel()}
+                    {renderRightPanel(false)}
                   </div>
 
-                  {/* Meet your expert / Teacher Card */}
-                  <TeacherCard
-                    teacher={listing?.createdBy}
-                    title="Meet your expert"
-                    roleTitle="Expert"
-                    name={listing?.createdBy?.name}
-                    averageRating={listing?.createdBy?.averageRating}
-                    hideLesson={listing?.createdBy?.hideLesson}
-                    classHosted={listing?.createdBy?.classHosted}
-                    classesAttended={listing?.createdBy?.classesAttended}
-                    classesHosted={listing?.createdBy?.classesHosted}
-                    bio={listing?.createdBy?.bio}
-                    image={listing?.createdBy?.image}
-                    lession={0}
-                    reviews={reviewsList.length}
-                    onReviewsClick={() => {
-                      const el = document.getElementById("reviews-section");
-                      if (el) {
-                        el.scrollIntoView({ behavior: "smooth" });
-                      }
-                    }}
-                    className="mt-0"
-                  />
-
-                  <div className="rounded-2xl bg-[#F5F5F5] p-5">
-                    <h2 className="mb-4 text-lg font-semibold text-black">How does it work?</h2>
-                    <div className="space-y-4 text-sm leading-relaxed text-black">
-                      <p className="flex items-start gap-2">
-                        <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
-                        <span>Book your service and you&apos;ll be instantly connected with your expert.</span>
-                      </p>
-                      <p className="flex items-start gap-2">
-                        <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
-                        <span>
-                          Your expert will let you know where the session will take place and share a
-                          meeting link with you.
-                        </span>
-                      </p>
-                      <p className="flex items-start gap-2">
-                        <FaCircleCheck className="mt-0.5 shrink-0 text-primary" size={18} />
-                        <span>
-                          You can message them anytime, ask questions, and get support. Your learning
-                          journey starts the moment you book.
-                        </span>
-                      </p>
-                    </div>
-                  </div>
+                  {renderTeacherCardContent()}
+                  {renderHowDoesItWorkContent()}
                 </aside>
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/* Mobile Fixed Bottom Action Bar */}
+      {renderMobileBottomBar()}
+
+      {/* Mobile Calendar Modal Popup */}
+      {renderMobileCalendarModal()}
 
       {/* Add Review Modal */}
       {addReviewOpen && canUserReview && (

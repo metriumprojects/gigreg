@@ -157,7 +157,7 @@ const Header = ({
   };
 
   const hasNoSearchBelowHeader = hideSearchCard || location.pathname !== "/teach";
-  const headerPb = (breadcrumbs && hasNoSearchBelowHeader) ? "pb-[10px]" : "pb-[20px]";
+  const headerPb = (breadcrumbs && hasNoSearchBelowHeader) ? "pb-[10px] lg:pb-[20px]" : "pb-[20px]";
 
   return (
     <header className={`relative z-50 mx-auto w-full px-3 pt-[20px] ${headerPb} md:px-10`}>

@@ -248,7 +248,12 @@ const userSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.data;
+        const loggedUser = action.payload?.user || action.payload?.data || action.payload;
+        state.user = loggedUser;
+        state.userInfo = loggedUser;
+        if (action.payload?.token) {
+          localStorage.setItem("admin_token", action.payload.token);
+        }
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -262,10 +267,12 @@ const userSlice = createSlice({
       .addCase(getUser.fulfilled, (state, action) => {
         state.loading = false;
         state.userInfo = action.payload;
+        state.user = action.payload;
       })
       .addCase(getUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        state.userInfo = null;
       })
       // Get user by ID
       .addCase(getUserById.pending, (state) => {
@@ -328,10 +335,16 @@ const userSlice = createSlice({
         state.loading = false;
         state.userInfo = null;
         state.user = null;
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("token");
       })
       .addCase(LogoutUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        state.userInfo = null;
+        state.user = null;
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("token");
       })
   },
 });

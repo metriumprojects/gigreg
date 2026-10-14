@@ -1034,17 +1034,6 @@ export default function CategoriesBar({
         </div>
       )}
 
-      {/* Categories Toolbar: Desktop header only (mobile is inside bottom navigation dropdown) */}
-      {Boolean(isHome && !breadcrumbs && onSelectCategory) && (
-        <div className="hidden lg:block w-full">
-          <SearchCategoryToolbar
-            categories={_categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={onSelectCategory}
-          />
-        </div>
-      )}
-
       {/* Mobile (<lg): Clean Collapsible 'Search services' Card with Floating Shadow */}
       {!hideMobileSearchCard && (
         <div className="w-full lg:hidden rounded-2xl border border-gray-100/90 bg-white p-4 floating-search-card sm:p-5">
@@ -1599,6 +1588,17 @@ export default function CategoriesBar({
           />
         </div>
       </div>
+
+      {/* Categories Toolbar: Desktop header only - placed below the search row */}
+      {Boolean(isHome && !breadcrumbs && onSelectCategory) && (
+        <div className="hidden lg:block w-full">
+          <SearchCategoryToolbar
+            categories={_categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={onSelectCategory}
+          />
+        </div>
+      )}
     </div>
   );
 }

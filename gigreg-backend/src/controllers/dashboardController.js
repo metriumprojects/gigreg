@@ -20,61 +20,75 @@ export const loginAdmin = async (req, res) => {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
 
-        if (user.role != "admin") {
-            res.status(401).json({ status: false, message: "Invalid role" });
+        if (!user) {
+            return res.status(401).json({ status: false, message: "Invalid credentials" });
         }
 
-        if (user && (await user.matchPassword(password))) {
+        if (user.role !== "admin") {
+            return res.status(403).json({ status: false, message: "Access denied. Admin role required." });
+        }
+
+        if (await user.matchPassword(password)) {
             const token = generateToken(user._id);
 
-            // Set JWT token in cookie
+            // Cookie options compatible with both development and production
+            const isProduction = process.env.NODE_ENV === "production" && !req.headers.host?.includes("localhost");
             res.cookie("token", token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "strict",
+                secure: isProduction,
+                sameSite: isProduction ? "None" : "lax",
                 maxAge: 7 * 24 * 60 * 60 * 1000,
             });
 
-            res.json({
+            return res.json({
                 status: true,
-                _id: user._id,
-                email: user.email,
+                token,
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                },
                 message: "Login successful",
             });
         } else {
-            res.status(401).json({ status: false, message: "Invalid credentials" });
+            return res.status(401).json({ status: false, message: "Invalid credentials" });
         }
     } catch (error) {
-        res.status(500).json({ status: false, message: error.message });
+        return res.status(500).json({ status: false, message: error.message });
     }
 };
 export const loginUserByAdmin = async (req, res) => {
     try {
-
         const user = await User.findById(req.params.id);
 
         if (user) {
             const token = generateToken(user._id);
 
-            // Set JWT token in cookie
+            const isProduction = process.env.NODE_ENV === "production" && !req.headers.host?.includes("localhost");
             res.cookie("token", token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "strict",
+                secure: isProduction,
+                sameSite: isProduction ? "None" : "lax",
                 maxAge: 7 * 24 * 60 * 60 * 1000,
             });
 
-            res.json({
+            return res.json({
                 status: true,
-                _id: user._id,
-                email: user.email,
+                token,
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                },
                 message: "Login successful",
             });
         } else {
-            res.status(401).json({ status: false, message: "Invalid credentials" });
+            return res.status(404).json({ status: false, message: "User not found" });
         }
     } catch (error) {
-        res.status(500).json({ status: false, message: error.message });
+        return res.status(500).json({ status: false, message: error.message });
     }
 };
 

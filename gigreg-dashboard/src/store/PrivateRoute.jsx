@@ -8,24 +8,38 @@ const PrivateRoute = () => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { userInfo } = useSelector((state) => state.auth);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [checkingAuth, setCheckingAuth] = useState(!userInfo);
 
   useEffect(() => {
     let isMounted = true;
+
     const checkUser = async () => {
+      const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+
       if (!userInfo) {
+        if (!token) {
+          if (isMounted) setCheckingAuth(false);
+          return;
+        }
+
         try {
           await dispatch(getUser()).unwrap();
         } catch (_) {
-          // User is not authenticated; redirect handled in render.
+          // Token invalid or expired
         }
       }
+
       if (isMounted) {
         setCheckingAuth(false);
       }
     };
 
-    checkUser();
+    if (!userInfo) {
+      checkUser();
+    } else {
+      setCheckingAuth(false);
+    }
+
     return () => {
       isMounted = false;
     };
@@ -41,3 +55,4 @@ const PrivateRoute = () => {
 };
 
 export default PrivateRoute;
+

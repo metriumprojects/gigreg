@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { Lock, Mail, ArrowRight } from 'lucide-react';
 import { Eye, EyeOff } from "lucide-react";
@@ -9,11 +9,18 @@ import { loginUser } from '../store/Reducer/AuthReducer';
 export default function Login() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { userInfo } = useSelector((state) => state.auth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (userInfo && userInfo.role === "admin") {
+      navigate("/", { replace: true });
+    }
+  }, [userInfo, navigate]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -29,12 +36,11 @@ export default function Login() {
       .then((res) => {
         setLoading(false);
 
-        if (res.payload.status) {
-          toast.success(res.payload.message);
-
-          navigate("/"); // Redirect after login
+        if (res.payload?.status) {
+          toast.success(res.payload.message || "Login successful");
+          navigate("/", { replace: true }); // Redirect after login
         } else {
-          toast.error(res.payload.message);
+          toast.error(res.payload?.message || "Invalid credentials");
         }
       })
       .catch(() => {
