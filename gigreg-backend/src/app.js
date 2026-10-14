@@ -32,6 +32,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5180",
   "http://localhost",
+  "https://localhost",
   "capacitor://localhost",
   "https://gigreg-admin.onrender.com",
   "https://gigreg-frontend.onrender.com",
@@ -57,7 +58,12 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Allow mobile apps, curl, server-to-server or listed origins
-      if (!origin || allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+        origin.startsWith("capacitor://")
+      ) {
         return callback(null, true);
       }
       return callback(null, false);
