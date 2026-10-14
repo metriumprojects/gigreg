@@ -7,6 +7,7 @@ import PrivateRoute from "./redux/PrivateRoute";
 import api from "./redux/api";
 import { initPushNotifications } from "./utils/pushNotifications";
 import NetworkStatusListener from "./components/NetworkStatusListener";
+import NativeAppManager from "./components/NativeAppManager";
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -82,6 +83,7 @@ const App = () => {
       <Router>
         <PushNotificationManager />
         <NetworkStatusListener />
+        <NativeAppManager />
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/" element={<Listing />} />

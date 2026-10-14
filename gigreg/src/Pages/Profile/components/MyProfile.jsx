@@ -5,6 +5,8 @@ import { updateProfileImage } from '../../../redux/reducers/AuthReducer';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserAvatarPlaceholder from '../../../components/UserAvatarPlaceholder';
+import { pickNativeImage } from '../../../utils/nativeCamera';
+import { Capacitor } from '@capacitor/core';
 
 const MyProfile = () => {
   const dispatch = useDispatch();
@@ -14,12 +16,7 @@ const MyProfile = () => {
   const fileInputRef = React.useRef(null);
   const navigate = useNavigate();
 
-  const handleImageClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files?.[0];
+  const processAndUploadImage = async (file) => {
     if (!file) return;
 
     // Show preview
@@ -33,12 +30,35 @@ const MyProfile = () => {
 
     try {
       await dispatch(updateProfileImage(formData)).unwrap();
+      toast.success("Profile image updated successfully!");
     } catch (error) {
       toast.error("Image upload failed: " + (error?.message || error));
       // Reset image on error
       if (userInfo?.image?.url) {
         setProfileImage(userInfo.image.url);
       }
+    }
+  };
+
+  const handleImageClick = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const file = await pickNativeImage();
+        if (file) {
+          await processAndUploadImage(file);
+        }
+      } catch (err) {
+        toast.error("Could not select image: " + err.message);
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processAndUploadImage(file);
     }
   };
 

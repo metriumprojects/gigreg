@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { getLoginUrl, getSafeRedirectPath } from "../../utils/authRedirect";
+import { shareNativeContent } from "../../utils/nativeShare";
 import MainLayout from "../../components/MainLayout";
 import ImageGallery from "../Curriculum-Booking/component/ImageGallery";
 import TeacherCard from "../Curriculum-Booking/component/TeacherCard";
@@ -1037,12 +1038,12 @@ const ListingDetails = () => {
     : "In person";
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("Listing link copied to clipboard");
-    } catch {
-      toast.error("Unable to copy listing link");
-    }
+    await shareNativeContent({
+      title: listing?.title || "GigMake Listing",
+      text: `Check out "${listing?.title || "this gig"}" on GigMake!`,
+      url: window.location.href,
+      dialogTitle: "Share Listing",
+    });
   };
 
   const handleFavorite = () => {

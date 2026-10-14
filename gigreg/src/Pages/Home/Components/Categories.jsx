@@ -20,6 +20,7 @@ import Logo from "../../../components/Logo";
 import UserAvatarPlaceholder from "../../../components/UserAvatarPlaceholder";
 import { getLoginUrl, getRegisterUrl, getSafeRedirectPath } from "../../../utils/authRedirect";
 import SearchCategoryToolbar from "./SearchCategoryToolbar";
+import { getCurrentDeviceLocation } from "../../../utils/nativeLocation";
 
 export default function CategoriesBar({
   categories: propCategories = [],
@@ -163,46 +164,24 @@ export default function CategoriesBar({
     onSortChange?.(val);
   };
 
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast.info("Geolocation is not supported by your browser");
-      return;
-    }
+  const handleUseCurrentLocation = async () => {
     setGettingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-          );
-          const data = await res.json();
-          const city =
-            data?.address?.city ||
-            data?.address?.town ||
-            data?.address?.village ||
-            data?.address?.county ||
-            data?.address?.state ||
-            "Current Location";
-          setLocalLocation(city);
-          if (onLocationSelect) {
-            onLocationSelect({ description: city, lat: latitude, lng: longitude });
-          } else {
-            onLocationChange?.(city);
-          }
-        } catch {
-          setLocalLocation("Current Location");
-          onLocationChange?.("Current Location");
-        } finally {
-          setGettingLocation(false);
-        }
-      },
-      () => {
-        toast.info("Unable to retrieve your location");
-        setGettingLocation(false);
-      },
-      { timeout: 10000 }
-    );
+    try {
+      const loc = await getCurrentDeviceLocation();
+      const city = loc.city || "Current Location";
+      setLocalLocation(city);
+      if (onLocationSelect) {
+        onLocationSelect({ description: city, lat: loc.lat, lng: loc.lng });
+      } else {
+        onLocationChange?.(city);
+      }
+      toast.success(`Location set: ${city}`);
+    } catch (err) {
+      console.error("handleUseCurrentLocation error:", err);
+      toast.info(err.message || "Unable to retrieve your location");
+    } finally {
+      setGettingLocation(false);
+    }
   };
 
   useEffect(() => {

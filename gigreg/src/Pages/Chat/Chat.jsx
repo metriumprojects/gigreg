@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { io } from "socket.io-client";
+import { Capacitor } from "@capacitor/core";
 import MainLayout from "../../components/MainLayout";
 import Sidebar from "./components/Sidebar";
 import { socketHost } from "../../redux/api";
+import { pickNativeImage } from "../../utils/nativeCamera";
+import { hapticSuccess, hapticImpact } from "../../utils/nativeHaptics";
 import {
   appendIncomingMessage,
   fetchChatConnections,
@@ -1337,6 +1340,25 @@ export default function Chat() {
     reader.readAsDataURL(file);
   };
 
+  const handleNativeImageClick = async (e) => {
+    if (Capacitor.isNativePlatform()) {
+      e.preventDefault();
+      try {
+        const file = await pickNativeImage();
+        if (file) {
+          setSelectedImage(file);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setImagePreview(reader.result);
+          };
+          reader.readAsDataURL(file);
+        }
+      } catch (err) {
+        console.warn("Could not capture photo:", err);
+      }
+    }
+  };
+
   const handleRemoveImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
@@ -1359,6 +1381,7 @@ export default function Chat() {
             image: selectedImage,
           })
         ).unwrap();
+        hapticSuccess();
         setMessage("");
         handleRemoveImage();
       } catch (error) {
@@ -1380,6 +1403,7 @@ export default function Chat() {
       userId: viewerIdRef.current,
       message: trimmed,
     });
+    hapticImpact();
     setMessage("");
   };
 
@@ -1861,7 +1885,10 @@ export default function Chat() {
                   </div>
                 )}
                 <div className="flex items-center gap-2 md:gap-3">
-                  <label className="cursor-pointer hover:bg-gray-100 p-2 rounded-full transition-colors">
+                  <label
+                    className="cursor-pointer hover:bg-gray-100 p-2 rounded-full transition-colors"
+                    onClick={handleNativeImageClick}
+                  >
                     <ImageIcon size={20} className="text-gray-600 md:w-6 md:h-6" />
                     <input
                       type="file"

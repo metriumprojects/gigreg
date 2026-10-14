@@ -3,6 +3,7 @@ import { Copy } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useCurrency } from "../../../../currency/CurrencyContext";
+import { shareNativeContent } from "../../../../utils/nativeShare";
 
 const pricingLabelMap = {
   hourly_calendar: "Hourly calendar",
@@ -40,8 +41,12 @@ const ListingCard = ({ listing }) => {
   const handleCopy = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    navigator.clipboard.writeText(`${window.location.origin}${publicListingPath}`);
-    toast.success("Listing link copied to clipboard");
+    shareNativeContent({
+      title: listing?.title || "GigMake Listing",
+      text: `Check out "${listing?.title || "this gig"}" on GigMake!`,
+      url: `${window.location.origin}${publicListingPath}`,
+      dialogTitle: "Share Listing",
+    });
   };
 
   return (
