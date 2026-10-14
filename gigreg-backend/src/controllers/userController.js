@@ -778,3 +778,68 @@ export const getUserById = async (req, res) => {
     res.status(500).json({ status: false, message: "Server error" });
   }
 };
+
+export const savePushToken = async (req, res) => {
+  try {
+    const { token, platform = "android" } = req.body;
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ status: false, message: "Valid token is required" });
+    }
+
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ status: false, message: "User not found" });
+    }
+
+    if (!Array.isArray(user.fcmTokens)) {
+      user.fcmTokens = [];
+    }
+
+    const trimmedToken = token.trim();
+    const existingIndex = user.fcmTokens.findIndex((t) => t.token === trimmedToken);
+    if (existingIndex >= 0) {
+      user.fcmTokens[existingIndex].updatedAt = new Date();
+      user.fcmTokens[existingIndex].platform = platform;
+    } else {
+      user.fcmTokens.push({
+        token: trimmedToken,
+        platform,
+        updatedAt: new Date(),
+      });
+    }
+
+    // Keep token array clean (keep most recent 5 tokens)
+    if (user.fcmTokens.length > 5) {
+      user.fcmTokens = user.fcmTokens.slice(-5);
+    }
+
+    await user.save();
+    return res.json({ status: true, message: "Push token registered successfully" });
+  } catch (error) {
+    console.error("savePushToken error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+export const removePushToken = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ status: false, message: "Token is required" });
+    }
+
+    const userId = req.user?._id;
+    if (userId) {
+      await User.findByIdAndUpdate(userId, {
+        $pull: { fcmTokens: { token: token.trim() } },
+      });
+    }
+
+    return res.json({ status: true, message: "Push token removed successfully" });
+  } catch (error) {
+    console.error("removePushToken error:", error);
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+

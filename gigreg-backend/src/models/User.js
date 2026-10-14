@@ -57,8 +57,15 @@ isVerified: { type: Boolean, default: false },
 
     resetPasswordToken: String,
     resetPasswordExpire: Date,
-     averageRating:{type:Number,default:0},
+    averageRating:{type:Number,default:0},
     totalRatings:{type:Number,default:0},
+    fcmTokens: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, default: "android" },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

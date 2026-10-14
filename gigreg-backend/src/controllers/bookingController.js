@@ -16,6 +16,7 @@ import { convertWithStripeFx } from "../services/stripeFxService.js";
 import { getCommissionRate } from "../services/appSettingsService.js";
 import { getStripe } from "../services/stripeService.js";
 import { processPendingTeacherPayouts } from "./stripeConnectController.js";
+import { sendPushNotification } from "../services/notificationService.js";
 
 const stripe = getStripe();
 
@@ -1002,6 +1003,29 @@ export const confirmBooking = async (req, res) => {
         sendEmail(studentMail),
       ]);
 
+      // 🔔 Push notifications for order/booking confirmation
+      sendPushNotification({
+        userIds: teacher._id,
+        title: `🎉 New Order for "${itemTitle}"`,
+        body: `${booking.firstname || "A client"} purchased your service.`,
+        data: {
+          type: "booking",
+          bookingId: String(booking._id),
+          roomId: String(chatRoom._id),
+        },
+      }).catch((err) => console.error("Teacher order push notification error:", err));
+
+      sendPushNotification({
+        userIds: student._id,
+        title: `Order Confirmed: "${itemTitle}"`,
+        body: `Your booking with ${teacher.name} has been confirmed.`,
+        data: {
+          type: "booking",
+          bookingId: String(booking._id),
+          roomId: String(chatRoom._id),
+        },
+      }).catch((err) => console.error("Student order push notification error:", err));
+
       const failedEmails = emailResults.filter((result) => !result.status);
       if (failedEmails.length) {
         console.error("Booking confirmed but notification email failed:", {
@@ -1963,6 +1987,19 @@ export const completeLessonByTeacher = async (req, res) => {
           processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
             console.warn("Auto transfer on complete listing error:", err.message)
           );
+        }
+
+        // 🔔 Send push notification to buyer that order is completed
+        if (booking.user?._id) {
+          sendPushNotification({
+            userIds: booking.user._id,
+            title: "Order Completed! ✅",
+            body: `Your order #${String(booking._id).slice(-6)} has been marked as completed.`,
+            data: {
+              type: "booking",
+              bookingId: String(booking._id),
+            },
+          }).catch((err) => console.error("Order completion push notification error:", err));
         }
 
         return res.json({

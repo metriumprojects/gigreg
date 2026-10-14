@@ -6,6 +6,7 @@ import Listing from "../models/Listing.js";
 import cloudinary from "../config/cloudinary.js";
 import { emitChatMessage, emitChatMessageUpdate } from "../socket/socketHandler.js";
 import { requireCurrency, requirePositivePrice } from "../services/currencyService.js";
+import { sendPushNotification } from "../services/notificationService.js";
 
 const resolveTeacherQuoteCurrency = async ({ quoteCurrency, inputCurrency, teacherId, fallbackCurrency }) => {
   const requestedCurrency = quoteCurrency || inputCurrency || fallbackCurrency;
@@ -173,6 +174,17 @@ export const startChat = async (req, res) => {
       chatRoom.lastMessage = savedMessage.message;
       chatRoom.updatedAt = savedMessage.createdAt;
       await chatRoom.save();
+
+      sendPushNotification({
+        userIds: targetUserId,
+        title: req.user.name || "GigMake Message",
+        body: initialMessage.trim(),
+        data: {
+          type: "chat",
+          roomId: String(chatRoom._id),
+          senderId: String(currentUserId),
+        },
+      }).catch((err) => console.error("startChat push notification error:", err));
     }
 
     const populatedRoom = await ChatRoom.findById(chatRoom._id)
@@ -355,6 +367,29 @@ export const sendMessage = async (req, res) => {
 
     emitChatMessage(roomId, newMessage);
 
+    // Send push notification to recipient
+    const recipientId = String(room.student) === String(userId) ? room.teacher : room.student;
+    const senderName = req.user.name || "GigMake User";
+    let pushBody = trimmedMessage;
+    if (payload.type === "quote") {
+      pushBody = `Custom offer: ${payload.quote?.price} ${payload.quote?.currency || "USD"}`;
+    } else if (payload.type === "quote_request") {
+      pushBody = "Sent you a custom request";
+    } else if (!pushBody) {
+      pushBody = singleImageFile ? "Sent an image" : "Sent an attachment";
+    }
+
+    sendPushNotification({
+      userIds: recipientId,
+      title: senderName,
+      body: pushBody,
+      data: {
+        type: "chat",
+        roomId: String(roomId),
+        senderId: String(userId),
+      },
+    }).catch((err) => console.error("Chat push notification error:", err));
+
     res.json({ message: newMessage });
   } catch (error) {
     console.error("sendMessage error:", error);
@@ -429,6 +464,28 @@ export const updateQuoteMessage = async (req, res) => {
     await message.populate("userId", "name email image");
 
     emitChatMessageUpdate(message.roomId, message);
+
+    // Send push notification for quote update
+    const notifyUserId = isTeacher ? room.student : room.teacher;
+    const notifyTitle = isTeacher
+      ? "Custom Offer Updated"
+      : status === "accepted"
+      ? "Quote Accepted! 🎉"
+      : "Quote Updated";
+    const notifyBody = isTeacher
+      ? `${req.user.name || "Seller"} updated the custom offer`
+      : `${req.user.name || "Client"} ${status === "accepted" ? "accepted your offer" : "updated the quote"}`;
+
+    sendPushNotification({
+      userIds: notifyUserId,
+      title: notifyTitle,
+      body: notifyBody,
+      data: {
+        type: "chat",
+        roomId: String(room._id),
+        messageId: String(message._id),
+      },
+    }).catch((err) => console.error("Quote push notification error:", err));
 
     res.json({ message });
   } catch (error) {

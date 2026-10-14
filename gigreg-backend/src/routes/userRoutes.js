@@ -14,7 +14,8 @@ import {
   getUserById,
   googleLogin,
   verifyEmail,
-
+  savePushToken,
+  removePushToken,
 } from "../controllers/userController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/uploadMiddleware.js";
@@ -35,5 +36,7 @@ router.post("/become-teacher", protect,becomeTeacher);
 router.post("/isonline-teacher", protect,isOnlineTeacher);
 router.get("/user/:id", protect,getUserById);
 router.post("/google-login", googleLogin);
+router.post("/save-push-token", protect, savePushToken);
+router.post("/remove-push-token", removePushToken);
 
 export default router;
