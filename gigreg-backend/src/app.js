@@ -33,11 +33,15 @@ const allowedOrigins = [
   "http://localhost:5180",
   "http://localhost",
   "capacitor://localhost",
+  "https://gigreg-admin.onrender.com",
+  "https://gigreg-frontend.onrender.com",
   process.env.FRONTEND_URL,
   process.env.CLIENT_URL,
   process.env.ADMIN_URL,
   process.env.DASHBOARD_URL,
-].filter(Boolean);
+]
+  .filter(Boolean)
+  .map((url) => url.replace(/\/+$/, ""));
 
 // Request logger (clean, single-line in non-production)
 if (process.env.NODE_ENV !== "production") {
