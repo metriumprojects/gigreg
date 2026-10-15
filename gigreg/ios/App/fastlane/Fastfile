@@ -1,10 +1,23 @@
+require "securerandom"
+
 opt_out_usage
 default_platform(:ios)
 
+TEAM_ID   = "8244GB6YJZ"
+BUNDLE_ID = "com.gigmake.app"
+
 platform :ios do
-  desc "Build iOS App and upload to TestFlight"
+  desc "Build GigMake iOS and upload to TestFlight"
   lane :beta do
-    # App Store Connect API Token
+    # All paths below are absolute (set by the workflow), so the fastlane
+    # working-directory rules (sh vs actions) cannot break them.
+    p12_path     = ENV["IOS_DIST_P12_PATH"]
+    p12_password = ENV["IOS_DIST_P12_PASSWORD"]
+    wwdr_path    = ENV["APPLE_WWDR_CERT_PATH"]
+    UI.user_error!("IOS_DIST_P12_PATH is missing or file not found") unless p12_path && File.exist?(p12_path)
+    UI.user_error!("IOS_DIST_P12_PASSWORD is missing") if p12_password.to_s.empty?
+    UI.user_error!("APPLE_WWDR_CERT_PATH is missing or file not found") unless wwdr_path && File.exist?(wwdr_path)
+
     api_key = app_store_connect_api_key(
       key_id: ENV["APPSTORE_KEY_ID"],
       issuer_id: ENV["APPSTORE_ISSUER_ID"],
@@ -12,9 +25,9 @@ platform :ios do
       is_key_content_base64: false
     )
 
-    # Temporary Keychain for CI Runner
-    keychain_name = "fastlane_tmp_keychain"
-    keychain_password = "password"
+    # 1. Fresh keychain on the ephemeral runner
+    keychain_name     = "gigmake_ci"
+    keychain_password = SecureRandom.hex(16)
     create_keychain(
       name: keychain_name,
       password: keychain_password,
@@ -23,59 +36,76 @@ platform :ios do
       timeout: 3600,
       lock_when_sleeps: false
     )
+    # Resolves the real file (macOS adds a "-db" suffix)
+    keychain_path = FastlaneCore::Helper.keychain_path(keychain_name)
 
-    # On macOS, the created keychain has a -db suffix
-    kc_path = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
-    kc_path = File.expand_path("~/Library/Keychains/#{keychain_name}") unless File.exist?(kc_path)
-
-    # Fetch or create Apple Distribution Certificate and import into keychain
-    get_certificates(
-      api_key: api_key,
-      keychain_path: kc_path,
+    # 2. Apple WWDR G3 intermediate (issuer of Apple Distribution certs), so the identity is trusted
+    import_certificate(
+      certificate_path: wwdr_path,
+      keychain_name: keychain_name,
       keychain_password: keychain_password
     )
 
-    # Allow codesign tool to access keychain without GUI prompt
-    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{keychain_password} '#{kc_path}'")
-
-    # Fetch or create Provisioning Profile for App Store / TestFlight
-    profile = get_provisioning_profile(
-      api_key: api_key,
-      app_identifier: "com.gigmake.app"
+    # 3. Import the ONE persistent Apple Distribution certificate (no new certs are ever created)
+    import_certificate(
+      certificate_path: p12_path,
+      certificate_password: p12_password,
+      keychain_name: keychain_name,
+      keychain_password: keychain_password
     )
+    sh("security", "set-key-partition-list", "-S", "apple-tool:,apple:,codesign:", "-s",
+       "-k", keychain_password, keychain_path, log: false)
 
-    profile_name = ENV["SIGH_NAME"] || "com.gigmake.app AppStore"
-    team_id = "8244GB6YJZ"
+    identities = sh("security", "find-identity", "-v", "-p", "codesigning", keychain_path)
+    UI.user_error!("Apple Distribution identity not found in keychain") unless identities.include?("Apple Distribution")
 
-    # Configure Xcode code signing with downloaded profile and distribution certificate
+    # 4. App Store provisioning profile bound to the imported certificate (reused on every run)
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+    UI.user_error!("Provisioning profile name not resolved") if profile_name.to_s.empty?
+
+    # 5. Manual signing on the App target only (Pods targets stay untouched)
     update_code_signing_settings(
       use_automatic_signing: false,
       path: "App.xcodeproj",
-      team_id: team_id,
+      team_id: TEAM_ID,
       targets: ["App"],
+      build_configurations: ["Release"],
+      code_sign_identity: "Apple Distribution",
       profile_name: profile_name,
-      code_sign_identity: "Apple Distribution"
+      bundle_identifier: BUNDLE_ID
     )
 
-    # Build the .ipa archive
+    # 6. Unique build number: latest TestFlight build + 1
+    build_number = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      initial_build_number: 0
+    ).to_i + 1
+    info_plist = File.join(ENV.fetch("GITHUB_WORKSPACE"), "gigreg/ios/App/App/Info.plist")
+    set_info_plist_value(path: info_plist, key: "CFBundleVersion", value: build_number.to_s)
+    UI.message("Using build number #{build_number}")
+
+    # 7. Archive + export IPA
     build_app(
       workspace: "App.xcworkspace",
       scheme: "App",
+      configuration: "Release",
       export_method: "app-store",
+      export_team_id: TEAM_ID,
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: { BUNDLE_ID => profile_name }
+      },
       output_directory: "./build",
       output_name: "GigMake.ipa",
-      clean: true,
-      export_options: {
-        method: "app-store",
-        signingStyle: "manual",
-        provisioningProfiles: {
-          "com.gigmake.app" => profile_name
-        }
-      },
-      xcargs: "DEVELOPMENT_TEAM='#{team_id}' PROVISIONING_PROFILE_SPECIFIER='#{profile_name}' CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution'"
+      clean: true
     )
 
-    # Upload to TestFlight
+    # 8. Upload to TestFlight
     upload_to_testflight(
       api_key: api_key,
       skip_waiting_for_build_processing: true
