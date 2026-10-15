@@ -24,7 +24,9 @@ platform :ios do
       lock_when_sleeps: false
     )
 
-    kc_path = lane_context[SharedValues::KEYCHAIN_PATH]
+    # On macOS, the created keychain has a -db suffix
+    kc_path = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+    kc_path = File.expand_path("~/Library/Keychains/#{keychain_name}") unless File.exist?(kc_path)
 
     # Fetch or create Apple Distribution Certificate and import into keychain
     get_certificates(
@@ -32,6 +34,9 @@ platform :ios do
       keychain_path: kc_path,
       keychain_password: keychain_password
     )
+
+    # Allow codesign tool to access keychain without GUI prompt
+    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{keychain_password} '#{kc_path}'")
 
     # Fetch or create Provisioning Profile for App Store / TestFlight
     get_provisioning_profile(
