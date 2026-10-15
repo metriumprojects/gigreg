@@ -1,3 +1,4 @@
+opt_out_usage
 default_platform(:ios)
 
 platform :ios do
@@ -23,10 +24,12 @@ platform :ios do
       lock_when_sleeps: false
     )
 
+    kc_path = lane_context[SharedValues::KEYCHAIN_PATH]
+
     # Fetch or create Apple Distribution Certificate and import into keychain
     get_certificates(
       api_key: api_key,
-      keychain_name: keychain_name,
+      keychain_path: kc_path,
       keychain_password: keychain_password
     )
 
