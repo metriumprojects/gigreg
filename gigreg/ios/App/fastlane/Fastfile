@@ -1,0 +1,61 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build iOS App and upload to TestFlight"
+  lane :beta do
+    # App Store Connect API Token
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APPSTORE_KEY_ID"],
+      issuer_id: ENV["APPSTORE_ISSUER_ID"],
+      key_content: ENV["APPSTORE_PRIVATE_KEY"],
+      is_key_content_base64: false
+    )
+
+    # Temporary Keychain for CI Runner
+    keychain_name = "fastlane_tmp_keychain"
+    keychain_password = "password"
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
+
+    # Fetch or create Apple Distribution Certificate and import into keychain
+    get_certificates(
+      api_key: api_key,
+      keychain_name: keychain_name,
+      keychain_password: keychain_password
+    )
+
+    # Fetch or create Provisioning Profile for App Store / TestFlight
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.gigmake.app"
+    )
+
+    # Disable automatic signing and point to downloaded profile
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "App.xcodeproj"
+    )
+
+    # Build the .ipa archive
+    build_app(
+      workspace: "App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "GigMake.ipa",
+      clean: true
+    )
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

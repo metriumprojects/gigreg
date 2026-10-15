@@ -1,0 +1,68 @@
+name: Build iOS & Deploy to TestFlight
+
+on:
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+  push:
+    branches:
+      - master
+    paths:
+      - 'gigreg/**'
+      - '.github/workflows/ios-testflight.yml'
+
+jobs:
+  build-and-deploy-ios:
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: gigreg/package-lock.json
+
+      - name: Install Node dependencies
+        working-directory: gigreg
+        run: npm ci
+
+      - name: Build web application
+        working-directory: gigreg
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        working-directory: gigreg
+        run: npx cap sync ios
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install Fastlane & CocoaPods
+        run: |
+          gem install fastlane --no-document
+          gem install cocoapods --no-document
+
+      - name: Install CocoaPods dependencies
+        working-directory: gigreg/ios/App
+        run: pod install --repo-update
+
+      - name: Build IPA & Upload to TestFlight
+        working-directory: gigreg/ios/App
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: fastlane beta
+
+      - name: Upload IPA Artifact to GitHub
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GigMake-iOS-IPA
+          path: gigreg/ios/App/build/GigMake.ipa
+          if-no-files-found: warn
