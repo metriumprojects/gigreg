@@ -39,11 +39,10 @@ jobs:
           APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-          IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
-          IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          IOS_DIST_PRIVATE_KEY: ${{ secrets.IOS_DIST_PRIVATE_KEY }}
         run: |
           missing=0
-          for v in APPSTORE_KEY_ID APPSTORE_ISSUER_ID APPSTORE_PRIVATE_KEY IOS_DIST_P12_BASE64 IOS_DIST_P12_PASSWORD; do
+          for v in APPSTORE_KEY_ID APPSTORE_ISSUER_ID APPSTORE_PRIVATE_KEY IOS_DIST_PRIVATE_KEY; do
             if [ -z "${!v}" ]; then echo "::error::Missing GitHub secret: $v"; missing=1; fi
           done
           exit $missing
@@ -86,10 +85,20 @@ jobs:
 
       - name: Prepare signing files
         env:
-          IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          IOS_DIST_PRIVATE_KEY: ${{ secrets.IOS_DIST_PRIVATE_KEY }}
         run: |
-          echo "$IOS_DIST_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          echo "$IOS_DIST_PRIVATE_KEY" > "$RUNNER_TEMP/dist.key"
           curl -fsSL -o "$RUNNER_TEMP/AppleWWDRCAG3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          P12_PASS=$(openssl rand -hex 16)
+          echo "IOS_DIST_P12_PASSWORD=$P12_PASS" >> $GITHUB_ENV
+          openssl pkcs12 -export \
+            -inkey "$RUNNER_TEMP/dist.key" \
+            -in gigreg/ios/App/fastlane/dist.pem \
+            -out "$RUNNER_TEMP/dist.p12" \
+            -name "GigMake Apple Distribution" \
+            -passout "pass:$P12_PASS"
+          echo "IOS_DIST_P12_PATH=$RUNNER_TEMP/dist.p12" >> $GITHUB_ENV
+          echo "APPLE_WWDR_CERT_PATH=$RUNNER_TEMP/AppleWWDRCAG3.cer" >> $GITHUB_ENV
           ls -la "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/AppleWWDRCAG3.cer"
 
       - name: Build IPA & Upload to TestFlight
@@ -98,14 +107,14 @@ jobs:
           APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-          IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
-          IOS_DIST_P12_PATH: ${{ runner.temp }}/dist.p12
-          APPLE_WWDR_CERT_PATH: ${{ runner.temp }}/AppleWWDRCAG3.cer
+          IOS_DIST_P12_PASSWORD: ${{ env.IOS_DIST_P12_PASSWORD }}
+          IOS_DIST_P12_PATH: ${{ env.IOS_DIST_P12_PATH }}
+          APPLE_WWDR_CERT_PATH: ${{ env.APPLE_WWDR_CERT_PATH }}
         run: fastlane beta
 
       - name: Remove signing files
         if: always()
-        run: rm -f "$RUNNER_TEMP/dist.p12"
+        run: rm -f "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/dist.key"
 
       - name: Upload IPA Artifact to GitHub
         if: success()
