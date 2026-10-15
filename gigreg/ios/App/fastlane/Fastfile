@@ -40,11 +40,7 @@ platform :ios do
     keychain_path = FastlaneCore::Helper.keychain_path(keychain_name)
 
     # 2. Apple WWDR G3 intermediate (issuer of Apple Distribution certs), so the identity is trusted
-    import_certificate(
-      certificate_path: wwdr_path,
-      keychain_name: keychain_name,
-      keychain_password: keychain_password
-    )
+    sh("security", "import", wwdr_path, "-k", keychain_path)
 
     # 3. Import the ONE persistent Apple Distribution certificate (no new certs are ever created)
     import_certificate(
