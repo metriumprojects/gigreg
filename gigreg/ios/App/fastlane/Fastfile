@@ -81,7 +81,7 @@ platform :ios do
       app_identifier: BUNDLE_ID,
       initial_build_number: 0
     ).to_i + 1
-    info_plist = File.join(ENV.fetch("GITHUB_WORKSPACE"), "gigreg/ios/App/App/Info.plist")
+    info_plist = File.exist?(File.expand_path("../App/Info.plist", __dir__)) ? File.expand_path("../App/Info.plist", __dir__) : File.join(ENV.fetch("GITHUB_WORKSPACE"), "gigreg/ios/App/App/Info.plist")
     set_info_plist_value(path: info_plist, key: "CFBundleVersion", value: build_number.to_s)
     UI.message("Using build number #{build_number}")
 
@@ -92,6 +92,7 @@ platform :ios do
       configuration: "Release",
       export_method: "app-store",
       export_team_id: TEAM_ID,
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
       export_options: {
         signingStyle: "manual",
         provisioningProfiles: { BUNDLE_ID => profile_name }
@@ -104,6 +105,7 @@ platform :ios do
     # 8. Upload to TestFlight
     upload_to_testflight(
       api_key: api_key,
+      ipa: "./build/GigMake.ipa",
       skip_waiting_for_build_processing: true
     )
   end

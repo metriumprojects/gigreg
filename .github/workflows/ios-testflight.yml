@@ -93,26 +93,16 @@ jobs:
           echo "IOS_DIST_P12_PASSWORD=$P12_PASS" >> $GITHUB_ENV
           
           # Force legacy 3DES/SHA1 cipher suite required by macOS Security.framework
-          if openssl pkcs12 -export -legacy -help >/dev/null 2>&1; then
-            openssl pkcs12 -export -legacy \
-              -inkey "$RUNNER_TEMP/dist.key" \
-              -in gigreg/ios/App/fastlane/dist.pem \
-              -out "$RUNNER_TEMP/dist.p12" \
-              -name "GigMake Apple Distribution" \
-              -passout "pass:$P12_PASS"
-          else
-            openssl pkcs12 -export \
-              -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
-              -inkey "$RUNNER_TEMP/dist.key" \
-              -in gigreg/ios/App/fastlane/dist.pem \
-              -out "$RUNNER_TEMP/dist.p12" \
-              -name "GigMake Apple Distribution" \
-              -passout "pass:$P12_PASS"
-          fi
-          
-          # Verify .p12 can be decrypted with the password right here before calling fastlane
-          openssl pkcs12 -info -noout -in "$RUNNER_TEMP/dist.p12" -passin "pass:$P12_PASS"
-          
+          openssl pkcs12 -export -legacy \
+            -inkey "$RUNNER_TEMP/dist.key" \
+            -in gigreg/ios/App/fastlane/dist.pem \
+            -out "$RUNNER_TEMP/dist.p12" \
+            -name "GigMake Apple Distribution" \
+            -passout "pass:$P12_PASS"
+
+          # Verify file exists and is non-empty
+          test -s "$RUNNER_TEMP/dist.p12" || { echo "::error::Failed to generate dist.p12"; exit 1; }
+
           echo "IOS_DIST_P12_PATH=$RUNNER_TEMP/dist.p12" >> $GITHUB_ENV
           echo "APPLE_WWDR_CERT_PATH=$RUNNER_TEMP/AppleWWDRCAG3.cer" >> $GITHUB_ENV
           ls -la "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/AppleWWDRCAG3.cer"
