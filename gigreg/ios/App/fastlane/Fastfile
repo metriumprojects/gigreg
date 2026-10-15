@@ -39,15 +39,22 @@ platform :ios do
     sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{keychain_password} '#{kc_path}'")
 
     # Fetch or create Provisioning Profile for App Store / TestFlight
-    get_provisioning_profile(
+    profile = get_provisioning_profile(
       api_key: api_key,
       app_identifier: "com.gigmake.app"
     )
 
-    # Disable automatic signing and point to downloaded profile
+    profile_name = ENV["SIGH_NAME"] || "com.gigmake.app AppStore"
+    team_id = "8244GB6YJZ"
+
+    # Configure Xcode code signing with downloaded profile and distribution certificate
     update_code_signing_settings(
       use_automatic_signing: false,
-      path: "App.xcodeproj"
+      path: "App.xcodeproj",
+      team_id: team_id,
+      targets: ["App"],
+      profile_name: profile_name,
+      code_sign_identity: "Apple Distribution"
     )
 
     # Build the .ipa archive
@@ -57,7 +64,15 @@ platform :ios do
       export_method: "app-store",
       output_directory: "./build",
       output_name: "GigMake.ipa",
-      clean: true
+      clean: true,
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        provisioningProfiles: {
+          "com.gigmake.app" => profile_name
+        }
+      },
+      xcargs: "DEVELOPMENT_TEAM='#{team_id}' PROVISIONING_PROFILE_SPECIFIER='#{profile_name}' CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution'"
     )
 
     # Upload to TestFlight
