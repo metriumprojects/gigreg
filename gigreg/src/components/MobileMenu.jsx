@@ -324,8 +324,11 @@ const MobileMenu = ({
       {/* Categories Movable Bottom Sheet */}
       {showCategoriesMenu && (
         <div
-          style={{ height: `${sheetHeight}px` }}
-          className={`lg:hidden fixed bottom-[62px] left-0 right-0 z-50 bg-white rounded-t-3xl border-t border-gray-200 shadow-[0_-12px_36px_rgba(0,0,0,0.22)] flex flex-col ${
+          style={{
+            height: `${sheetHeight}px`,
+            bottom: 'calc(62px + env(safe-area-inset-bottom, 0px))'
+          }}
+          className={`lg:hidden fixed left-0 right-0 z-50 bg-white rounded-t-3xl border-t border-gray-200 shadow-[0_-12px_36px_rgba(0,0,0,0.22)] flex flex-col ${
             isDragging ? '' : 'transition-[height] duration-200 ease-out'
           }`}
         >
@@ -453,7 +456,8 @@ const MobileMenu = ({
         createPortal(
           <div
             ref={menuRef}
-            className="fixed bottom-[66px] left-2 z-[9999] w-52 overflow-hidden rounded-xl bg-white shadow-2xl border border-gray-100 py-1 text-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
+            style={{ bottom: 'calc(66px + env(safe-area-inset-bottom, 0px))' }}
+            className="fixed left-2 z-[9999] w-52 overflow-hidden rounded-xl bg-white shadow-2xl border border-gray-100 py-1 text-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
           >
             {userInfo ? (
               <>
@@ -558,7 +562,13 @@ const MobileMenu = ({
         )}
 
       {/* Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 w-full h-[62px] bg-white border-t border-gray-200 z-50 flex items-center">
+      <div
+        className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 flex items-center"
+        style={{
+          height: 'calc(62px + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        }}
+      >
         {/* Center Attached Categories Pill with Arrow */}
         {shouldShowCategoriesButton && (
           <button

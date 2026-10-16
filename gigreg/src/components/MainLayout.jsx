@@ -39,7 +39,10 @@ const MainLayout = ({
   const maxWidth = width || '1400px'
   
   return (
-    <div className='w-full mx-auto' >
+    <div
+      className='w-full mx-auto bg-white min-h-screen'
+      style={hideHeader ? { paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 8px))' } : undefined}
+    >
     {!hideHeader && (
       <Header
         categories={categories}
@@ -70,7 +73,15 @@ const MainLayout = ({
       />
     )}
       <div className={`relative min-h-0 lg:min-h-[98vh] lg:mx-0 2xl:mx-0 overflow-x-hidden w-full mx-auto ${contentClassName}`}>
-      <main className={`mx-auto px-3 lg:px-10 py-0 pb-0 lg:pb-[32px] ${mainClassName}`} style={{ maxWidth: maxWidth }}>
+      <main
+        className={`mx-auto px-3 lg:px-10 py-0 ${mainClassName}`}
+        style={{
+          maxWidth: maxWidth,
+          paddingBottom: hideMobileMenu
+            ? 'max(16px, env(safe-area-inset-bottom, 0px))'
+            : 'calc(76px + env(safe-area-inset-bottom, 0px))'
+        }}
+      >
         {children}
       </main>
       </div>

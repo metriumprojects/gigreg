@@ -160,7 +160,10 @@ const Header = ({
   const headerPb = (breadcrumbs && hasNoSearchBelowHeader) ? "pb-[10px] lg:pb-[20px]" : "pb-[20px]";
 
   return (
-    <header className={`relative z-50 mx-auto w-full px-3 pt-[20px] ${headerPb} md:px-10`}>
+    <header
+      className={`relative z-50 mx-auto w-full px-3 ${headerPb} md:px-10`}
+      style={{ paddingTop: 'max(20px, calc(env(safe-area-inset-top, 0px) + 8px))' }}
+    >
       <CategoriesBar
         categories={categories}
         selectedCategory={selectedCategory}

@@ -150,7 +150,8 @@ export default function HeaderSearchOverlay({ open, onClose, searchInput = "" })
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/20 px-3 pt-20 md:pt-24"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/20 px-3 md:pt-24"
+      style={{ paddingTop: 'max(80px, calc(env(safe-area-inset-top, 0px) + 24px))' }}
       onClick={onClose}
     >
       <Motion.div

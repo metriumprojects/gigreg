@@ -12,6 +12,10 @@
   "android": {
     "allowMixedContent": true
   },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff"
+  },
   "plugins": {
     "GoogleAuth": {
       "scopes": ["profile", "email"],

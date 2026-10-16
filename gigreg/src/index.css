@@ -9,9 +9,18 @@
     --breakpoint-4xl: 120rem;
 }
 
+:root {
+  color-scheme: light;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
 body {
-  font-family: 'DM Sans', sans-serif;
+  background-color: #ffffff !important;
   color: #1A2B49;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100%;
 }
 
 .fAlnEc .gNJDp a:not(.TrZEUc):not(.WpHeLc), .fAlnEc .gNJDp button:not(.TrZEUc) {
