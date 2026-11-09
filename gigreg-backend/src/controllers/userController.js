@@ -41,6 +41,15 @@ import { normalizeCurrency, SUPPORTED_CURRENCIES } from "../services/currencySer
 const isSellerProfileComplete = (user) =>
   Boolean(user?.sellerName?.trim() && user?.dateOfBirth && user?.country?.trim());
 
+export const isPastDate = (dob) => {
+  if (!dob) return false;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return d < today;
+};
+
 const resolveDisplayName = (user, role = user?.role) => {
   if (role === "teacher") {
     return user.sellerName || user.name || "";
@@ -61,6 +70,12 @@ export const registerUser = async (req, res) => {
         return res.status(400).json({
           status: false,
           message: "Date of birth and country are required for sellers",
+        });
+      }
+      if (!isPastDate(dateOfBirth)) {
+        return res.status(400).json({
+          status: false,
+          message: "Date of birth must be a past date",
         });
       }
     }
@@ -194,6 +209,12 @@ export const loginUser = async (req, res) => {
       }
 
       if (setupProvided) {
+        if (!isPastDate(dateOfBirth)) {
+          return res.status(400).json({
+            status: false,
+            message: "Date of birth must be a past date",
+          });
+        }
         user.sellerName = sellerName.trim();
         user.dateOfBirth = new Date(dateOfBirth);
         user.country = country.trim();
@@ -361,6 +382,12 @@ export const googleLogin = async (req, res) => {
       }
 
       if (setupProvided) {
+        if (!isPastDate(dateOfBirth)) {
+          return res.status(400).json({
+            status: false,
+            message: "Date of birth must be a past date",
+          });
+        }
         user.sellerName = sellerName.trim();
         user.dateOfBirth = new Date(dateOfBirth);
         user.country = country.trim();
@@ -661,7 +688,15 @@ export const becomeTeacher = async (req, res) => {
 
     if (role === "teacher") {
       if (sellerName?.trim()) user.sellerName = sellerName.trim();
-      if (dateOfBirth) user.dateOfBirth = new Date(dateOfBirth);
+      if (dateOfBirth) {
+        if (!isPastDate(dateOfBirth)) {
+          return res.status(400).json({
+            status: false,
+            message: "Date of birth must be a past date",
+          });
+        }
+        user.dateOfBirth = new Date(dateOfBirth);
+      }
       if (country?.trim()) user.country = country.trim();
 
       if (!isSellerProfileComplete(user)) {

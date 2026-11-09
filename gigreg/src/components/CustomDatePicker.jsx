@@ -23,11 +23,20 @@ export default function CustomDatePicker({
   variant = "pill", // "pill" | "input"
   className = "",
   minYear = 1930,
-  maxYear = new Date().getFullYear(),
+  maxYear,
+  pastOnly = true, // By default for DOB: disallow future and current date
 }) {
   const [day, setDay] = useState("");
   const [month, setMonth] = useState("");
   const [year, setYear] = useState("");
+
+  // Determine maximum allowable date (strictly before today)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const maxAllowedDate = pastOnly
+    ? new Date(today.getTime() - 24 * 60 * 60 * 1000)
+    : today;
+  const effectiveMaxYear = maxYear !== undefined ? maxYear : maxAllowedDate.getFullYear();
 
   // Sync state from incoming "YYYY-MM-DD" value
   useEffect(() => {
@@ -45,12 +54,27 @@ export default function CustomDatePicker({
     }
   }, [value]);
 
+  // Allowed months for selected year
+  const allowedMonths = MONTHS.filter((m) => {
+    if (!pastOnly) return true;
+    const y = parseInt(year, 10);
+    if (y === maxAllowedDate.getFullYear()) {
+      return parseInt(m.value, 10) <= maxAllowedDate.getMonth() + 1;
+    }
+    return true;
+  });
+
   // Calculate days in the selected month & year
   const getDaysCount = () => {
     const y = parseInt(year, 10) || 2000;
     const m = parseInt(month, 10);
     if (!m) return 31;
-    return new Date(y, m, 0).getDate();
+    let maxDaysInMonth = new Date(y, m, 0).getDate();
+
+    if (pastOnly && y === maxAllowedDate.getFullYear() && m === maxAllowedDate.getMonth() + 1) {
+      maxDaysInMonth = Math.min(maxDaysInMonth, maxAllowedDate.getDate());
+    }
+    return maxDaysInMonth;
   };
 
   const daysCount = getDaysCount();
@@ -61,15 +85,25 @@ export default function CustomDatePicker({
 
   // Years list descending
   const years = [];
-  for (let y = maxYear; y >= minYear; y--) {
+  for (let y = effectiveMaxYear; y >= minYear; y--) {
     years.push(String(y));
   }
 
-  // Trigger parent onChange when all 3 or changed
+  // Trigger parent onChange when all 3 are valid
   const notifyChange = (newDay, newMonth, newYear) => {
     if (newDay && newMonth && newYear) {
-      const maxD = new Date(parseInt(newYear, 10), parseInt(newMonth, 10), 0).getDate();
-      const validDay = parseInt(newDay, 10) > maxD ? String(maxD).padStart(2, "0") : newDay;
+      const y = parseInt(newYear, 10);
+      const m = parseInt(newMonth, 10);
+      const d = parseInt(newDay, 10);
+
+      const maxD = new Date(y, m, 0).getDate();
+      const validDay = d > maxD ? String(maxD).padStart(2, "0") : newDay;
+      const selectedDate = new Date(`${newYear}-${newMonth}-${validDay}T00:00:00`);
+
+      if (pastOnly && selectedDate >= today) {
+        onChange?.("");
+        return;
+      }
       onChange?.(`${newYear}-${newMonth}-${validDay}`);
     } else {
       onChange?.("");
@@ -85,13 +119,41 @@ export default function CustomDatePicker({
   const handleMonthChange = (e) => {
     const newMonth = e.target.value;
     setMonth(newMonth);
-    notifyChange(day, newMonth, year);
+
+    let adjustedDay = day;
+    const maxD = new Date(parseInt(year, 10) || 2000, parseInt(newMonth, 10), 0).getDate();
+    if (parseInt(day, 10) > maxD) {
+      adjustedDay = String(maxD).padStart(2, "0");
+      setDay(adjustedDay);
+    }
+    if (pastOnly && parseInt(year, 10) === maxAllowedDate.getFullYear() && parseInt(newMonth, 10) === maxAllowedDate.getMonth() + 1) {
+      if (parseInt(adjustedDay, 10) > maxAllowedDate.getDate()) {
+        adjustedDay = "";
+        setDay("");
+      }
+    }
+    notifyChange(adjustedDay, newMonth, year);
   };
 
   const handleYearChange = (e) => {
     const newYear = e.target.value;
     setYear(newYear);
-    notifyChange(day, month, newYear);
+
+    let adjustedMonth = month;
+    let adjustedDay = day;
+
+    if (pastOnly && parseInt(newYear, 10) === maxAllowedDate.getFullYear()) {
+      if (parseInt(month, 10) > maxAllowedDate.getMonth() + 1) {
+        adjustedMonth = "";
+        adjustedDay = "";
+        setMonth("");
+        setDay("");
+      } else if (parseInt(month, 10) === maxAllowedDate.getMonth() + 1 && parseInt(day, 10) > maxAllowedDate.getDate()) {
+        adjustedDay = "";
+        setDay("");
+      }
+    }
+    notifyChange(adjustedDay, adjustedMonth, newYear);
   };
 
   const selectStyle =
@@ -136,7 +198,7 @@ export default function CustomDatePicker({
                   className={selectStyle}
                 >
                   <option value="">Month</option>
-                  {MONTHS.map((m) => (
+                  {allowedMonths.map((m) => (
                     <option key={m.value} value={m.value}>
                       {m.label}
                     </option>
@@ -204,7 +266,7 @@ export default function CustomDatePicker({
               className="w-full bg-gray-50 hover:bg-gray-100 text-zinc-900 font-medium text-sm rounded-lg border border-gray-200 px-3 py-1.5 outline-none cursor-pointer appearance-none transition-colors pr-7"
             >
               <option value="">Month</option>
-              {MONTHS.map((m) => (
+              {allowedMonths.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
                 </option>

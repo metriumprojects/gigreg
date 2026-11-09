@@ -114,6 +114,13 @@ export default function CreateSellerProfile() {
         toast.error("Please enter your date of birth");
         return;
       }
+      const dobDate = new Date(`${dateOfBirth}T00:00:00`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (dobDate >= today) {
+        toast.error("Date of birth must be a past date");
+        return;
+      }
       setStepIndex(2);
       return;
     }
