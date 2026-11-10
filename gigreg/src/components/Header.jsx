@@ -11,6 +11,7 @@ import {
 import CreateRequestPopup from "../Pages/Home/Components/CreateRequestPopup";
 import CategoriesBar from "../Pages/Home/Components/Categories";
 import HeaderSearchOverlay from "./HeaderSearchOverlay";
+import FilterModal from "../Pages/Home/Components/FilterModal";
 
 const Header = ({
   categories = [],
@@ -47,6 +48,21 @@ const Header = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [showHeaderSearch, setShowHeaderSearch] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [headerMin, setHeaderMin] = useState(minPrice !== undefined && minPrice !== null ? minPrice : 0);
+  const [headerMax, setHeaderMax] = useState(maxPrice !== undefined && maxPrice !== null ? maxPrice : 100000);
+
+  useEffect(() => {
+    if (minPrice !== undefined && minPrice !== null) {
+      setHeaderMin(minPrice);
+    }
+  }, [minPrice]);
+
+  useEffect(() => {
+    if (maxPrice !== undefined && maxPrice !== null) {
+      setHeaderMax(maxPrice);
+    }
+  }, [maxPrice]);
   const [currentSearch, setCurrentSearch] = useState(searchInput);
   const menuRef = useRef(null);
   const profileTimeoutRef = useRef(null);
@@ -145,6 +161,14 @@ const Header = ({
     });
   };
 
+  const handleCategoriesFilterClick = () => {
+    if (onFilterClick) {
+      onFilterClick();
+    } else {
+      setShowPriceModal(true);
+    }
+  };
+
   const handleSearchClick = () => {
     if (isHome) {
       if (onSearchToggle) {
@@ -185,7 +209,7 @@ const Header = ({
         locationFilter={locationFilter}
         onLocationChange={onLocationChange}
         onLocationSelect={onLocationSelect}
-        onFilterClick={onFilterClick || (() => setShowHeaderSearch(true))}
+        onFilterClick={handleCategoriesFilterClick}
         searchPlaceholder={searchPlaceholder}
         breadcrumbs={breadcrumbs}
         isOnlineSelected={isOnlineSelected}
@@ -213,6 +237,37 @@ const Header = ({
         onClose={() => setShowHeaderSearch(false)}
         searchInput={currentSearch}
       />
+
+      {!onFilterClick && (
+        <FilterModal
+          open={showPriceModal}
+          onClose={() => setShowPriceModal(false)}
+          min={headerMin}
+          max={headerMax}
+          onMinChange={(val) => {
+            setHeaderMin(val);
+            onMinPriceChange?.(val);
+          }}
+          onMaxChange={(val) => {
+            setHeaderMax(val);
+            onMaxPriceChange?.(val);
+          }}
+          onClear={() => {
+            setHeaderMin(0);
+            setHeaderMax(100000);
+            onMinPriceChange?.(0);
+            onMaxPriceChange?.(100000);
+          }}
+          onApply={() => {
+            setShowPriceModal(false);
+            const minVal = headerMin !== "" && headerMin !== undefined ? Number(headerMin) : 0;
+            const maxVal = headerMax !== "" && headerMax !== undefined ? Number(headerMax) : 100000;
+            if (location.pathname !== "/") {
+              navigate(`/?minPrice=${minVal}&maxPrice=${maxVal}`);
+            }
+          }}
+        />
+      )}
     </header>
   );
 };

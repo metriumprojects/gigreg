@@ -17,6 +17,13 @@ export default function FilterModal({
 }) {
   if (!open) return null;
 
+  const handleApply = () => {
+    if (min === "") onMinChange?.(0);
+    if (max === "") onMaxChange?.(100000);
+    if (onApply) onApply();
+    else onClose();
+  };
+
   return (
     <div
       className="fixed bg-black/40 backdrop-blur-xs inset-0 flex items-center justify-center z-50 p-4"
@@ -51,10 +58,15 @@ export default function FilterModal({
                   type="number"
                   min="0"
                   max="99999"
-                  value={min}
+                  value={min === 0 ? 0 : min || ""}
                   onChange={(e) => {
-                    const val = Math.max(0, Number(e.target.value));
-                    onMinChange?.(val);
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      onMinChange?.("");
+                    } else {
+                      const val = Math.max(0, Number(raw));
+                      onMinChange?.(val);
+                    }
                   }}
                   className="w-full bg-transparent text-sm font-semibold text-black outline-none placeholder:text-gray-400"
                   placeholder="0"
@@ -69,10 +81,15 @@ export default function FilterModal({
                   type="number"
                   min="1"
                   max="100000"
-                  value={max}
+                  value={max === 0 ? 0 : max || ""}
                   onChange={(e) => {
-                    const val = Math.max(0, Number(e.target.value));
-                    onMaxChange?.(val);
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      onMaxChange?.("");
+                    } else {
+                      const val = Math.max(0, Number(raw));
+                      onMaxChange?.(val);
+                    }
                   }}
                   className="w-full bg-transparent text-sm font-semibold text-black outline-none placeholder:text-gray-400"
                   placeholder="100000"
@@ -93,7 +110,7 @@ export default function FilterModal({
           </button>
           <button
             type="button"
-            onClick={onApply || onClose}
+            onClick={handleApply}
             className="h-11 px-7 rounded-full bg-primary hover:opacity-90 text-white text-sm font-bold shadow-sm transition-all cursor-pointer active:scale-98"
           >
             Search

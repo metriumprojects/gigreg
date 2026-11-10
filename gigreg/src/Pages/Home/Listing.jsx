@@ -287,6 +287,8 @@ const Listing = () => {
   const [showMore, setShowMore] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryParam = searchParams.get("category") || "";
+  const minParam = searchParams.get("minPrice");
+  const maxParam = searchParams.get("maxPrice");
   const [selectedCategories, setSelectedCategories] = useState(() => {
     if (!categoryParam) return [];
     return categoryParam.split(",").map((c) => c.trim()).filter(Boolean);
@@ -308,8 +310,28 @@ const Listing = () => {
   const [isInPersonSelected, setIsInPersonSelected] = useState(true);
   const [isOnDemandSelected, setIsOnDemandSelected] = useState(true);
   const [isFixedPriceSelected, setIsFixedPriceSelected] = useState(true);
-  const [min, setMin] = useState(0);
-  const [max, setMax] = useState(100000);
+  const [min, setMin] = useState(() => (minParam !== null && minParam !== "" ? Number(minParam) : 0));
+  const [max, setMax] = useState(() => (maxParam !== null && maxParam !== "" ? Number(maxParam) : 100000));
+
+  useEffect(() => {
+    if (minParam !== null && minParam !== "") {
+      const parsedMin = Number(minParam);
+      if (!isNaN(parsedMin)) {
+        setMin(parsedMin);
+        setPage(1);
+      }
+    }
+  }, [minParam]);
+
+  useEffect(() => {
+    if (maxParam !== null && maxParam !== "") {
+      const parsedMax = Number(maxParam);
+      if (!isNaN(parsedMax)) {
+        setMax(parsedMax);
+        setPage(1);
+      }
+    }
+  }, [maxParam]);
   const [sortOrder, setSortOrder] = useState("best_match");
   const [categoryDisplayLimit, setCategoryDisplayLimit] = useState(5);
   const moreMenuRef = useRef(null);
@@ -401,6 +423,7 @@ const Listing = () => {
     setMin(0);
     setMax(100000);
     setPage(1);
+    setSearchParams({});
   };
 
   useEffect(() => {
@@ -461,8 +484,8 @@ const Listing = () => {
           limit,
           search: searchFilter,
           category: selectedCategories.join(","),
-          minPrice: min,
-          maxPrice: max,
+          minPrice: min !== "" && min !== undefined ? Number(min) : 0,
+          maxPrice: max !== "" && max !== undefined ? Number(max) : 100000,
           currency,
           isOnline: isFilteringOnlineOnly ? true : undefined,
           supportsInPerson: isFilteringInPerson ? true : undefined,

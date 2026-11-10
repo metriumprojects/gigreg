@@ -1540,8 +1540,7 @@ export default function CategoriesBar({
           <button
             type="button"
             onClick={() => {
-              if (onFilterClick) onFilterClick();
-              else handleSearchClick?.();
+              onFilterClick?.();
             }}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-full border-[1.5px] border-black bg-white px-3 sm:px-5 text-sm font-semibold text-black transition-colors hover:bg-gray-50 cursor-pointer shrink-0"
             aria-label="Open price range"
