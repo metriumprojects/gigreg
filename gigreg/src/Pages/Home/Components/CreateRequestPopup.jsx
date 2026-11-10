@@ -30,8 +30,12 @@ const SegmentedControl = ({ options, value, onChange, disabled }) => (
   </div>
 );
 
-const inputClass =
-  "w-full rounded-lg border border-gray-900 bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400";
+const getInputClass = (hasError) =>
+  `w-full rounded-lg border bg-white px-4 py-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 transition-colors ${
+    hasError
+      ? "border-red-500 focus:border-red-500 ring-1 ring-red-500"
+      : "border-gray-900 focus:border-black"
+  }`;
 
 export default function CreateRequestPopup({ open, onClose }) {
   const dispatch = useDispatch();
@@ -40,6 +44,7 @@ export default function CreateRequestPopup({ open, onClose }) {
   const [serviceType, setServiceType] = useState("both");
   const [pricingType, setPricingType] = useState("fixed");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -57,7 +62,11 @@ export default function CreateRequestPopup({ open, onClose }) {
   }, [dispatch]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setErrors({});
+      return;
+    }
+    setErrors({});
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -87,11 +96,15 @@ export default function CreateRequestPopup({ open, onClose }) {
     setSelectedFiles([]);
     setServiceType("both");
     setPricingType("fixed");
+    setErrors({});
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: false }));
+    }
   };
 
   const handleFileChange = (e) => {
@@ -119,13 +132,26 @@ export default function CreateRequestPopup({ open, onClose }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.description || !formData.price || !formData.category) {
-      toast.error("Please fill in all required fields");
-      return;
+    const newErrors = {};
+    if (!formData.title?.trim()) {
+      newErrors.title = "Please enter a title";
+    }
+    if (!formData.description?.trim()) {
+      newErrors.description = "Please enter a description";
+    }
+    if (isInPerson && !formData.location?.trim()) {
+      newErrors.location = "Please enter a location";
+    }
+    if (!formData.price || Number(formData.price) <= 0) {
+      newErrors.price = "Please enter a valid budget";
+    }
+    if (!formData.category) {
+      newErrors.category = "Please select a category";
     }
 
-    if (isInPerson && !formData.location) {
-      toast.error("Please enter a location");
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -178,8 +204,11 @@ export default function CreateRequestPopup({ open, onClose }) {
           <h2 className="text-xl font-semibold text-black">Post a request</h2>
           <button
             type="button"
-            onClick={onClose}
-            className="text-gray-500 hover:text-black"
+            onClick={() => {
+              setErrors({});
+              onClose();
+            }}
+            className="text-gray-500 hover:text-black cursor-pointer"
             disabled={loading}
             aria-label="Close"
           >
@@ -195,6 +224,9 @@ export default function CreateRequestPopup({ open, onClose }) {
               setServiceType(value);
               if (value === "online") {
                 setFormData((prev) => ({ ...prev, location: "" }));
+                if (errors.location) {
+                  setErrors((prev) => ({ ...prev, location: false }));
+                }
               }
             }}
             options={[
@@ -204,25 +236,35 @@ export default function CreateRequestPopup({ open, onClose }) {
             ]}
           />
 
-          <input
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            type="text"
-            placeholder="Title"
-            className={inputClass}
-            disabled={loading}
-          />
+          <div>
+            <input
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              type="text"
+              placeholder="Title"
+              className={getInputClass(errors.title)}
+              disabled={loading}
+            />
+            {errors.title && (
+              <p className="mt-1 text-xs text-red-500 font-medium">{errors.title}</p>
+            )}
+          </div>
 
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            placeholder="Description"
-            rows={4}
-            className={`${inputClass} resize-none`}
-            disabled={loading}
-          />
+          <div>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Description"
+              rows={4}
+              className={`${getInputClass(errors.description)} resize-none`}
+              disabled={loading}
+            />
+            {errors.description && (
+              <p className="mt-1 text-xs text-red-500 font-medium">{errors.description}</p>
+            )}
+          </div>
 
           <div className="min-w-0 w-full">
             <div className="w-full overflow-hidden rounded-lg border border-gray-800 p-3">
@@ -257,7 +299,7 @@ export default function CreateRequestPopup({ open, onClose }) {
                       onClick={() =>
                         setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
                       }
-                      className="absolute right-1 top-1 rounded-full bg-black p-0.5 text-white"
+                      className="absolute right-1 top-1 rounded-full bg-black p-0.5 text-white cursor-pointer"
                     >
                       <X size={12} />
                     </button>
@@ -268,14 +310,24 @@ export default function CreateRequestPopup({ open, onClose }) {
           </div>
 
           {isInPerson && (
-            <LocationAutocomplete
-              value={formData.location}
-              onChange={(val) => setFormData({ ...formData, location: val })}
-              placeholder="Enter location"
-              leadingIcon={<MapPin size={18} className="text-gray-500" />}
-              className={inputClass}
-              disabled={loading}
-            />
+            <div>
+              <LocationAutocomplete
+                value={formData.location}
+                onChange={(val) => {
+                  setFormData((prev) => ({ ...prev, location: val }));
+                  if (errors.location) {
+                    setErrors((prev) => ({ ...prev, location: false }));
+                  }
+                }}
+                placeholder="Enter location"
+                leadingIcon={<MapPin size={18} className="text-gray-500" />}
+                className={getInputClass(errors.location)}
+                disabled={loading}
+              />
+              {errors.location && (
+                <p className="mt-1 text-xs text-red-500 font-medium">{errors.location}</p>
+              )}
+            </div>
           )}
 
           <SegmentedControl
@@ -288,45 +340,64 @@ export default function CreateRequestPopup({ open, onClose }) {
             ]}
           />
 
-          <input
-            name="price"
-            value={formData.price}
-            onChange={handleChange}
-            type="number"
-            min="1"
-            placeholder="Budget"
-            className={inputClass}
-            disabled={loading}
-          />
+          <div>
+            <input
+              name="price"
+              value={formData.price}
+              onChange={handleChange}
+              type="number"
+              min="1"
+              placeholder="Budget"
+              className={getInputClass(errors.price)}
+              disabled={loading}
+            />
+            {errors.price && (
+              <p className="mt-1 text-xs text-red-500 font-medium">{errors.price}</p>
+            )}
+          </div>
 
-          <div className="flex flex-wrap gap-2">
-            {categories?.length > 0 ? (
-              categories.map((cat) => {
-                const selected = formData.category === cat.name;
-                return (
-                  <button
-                    key={cat._id || cat.name}
-                    type="button"
-                    disabled={loading}
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        category: selected ? "" : cat.name,
-                      }))
-                    }
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-all cursor-pointer ${
-                      selected
-                        ? "border-primary bg-primary text-white font-medium shadow-xs"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {cat.name}
-                    {selected && <X size={13} className="text-white shrink-0" />}
-                  </button>
-                );
-              })
-            ) : (
-              <p className="text-sm text-gray-500">Loading categories...</p>
+          <div
+            className={`rounded-xl transition-all ${
+              errors.category
+                ? "border border-red-500 ring-1 ring-red-500 p-2.5 bg-red-50/10"
+                : "p-0"
+            }`}
+          >
+            <div className="flex flex-wrap gap-2">
+              {categories?.length > 0 ? (
+                categories.map((cat) => {
+                  const selected = formData.category === cat.name;
+                  return (
+                    <button
+                      key={cat._id || cat.name}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          category: selected ? "" : cat.name,
+                        }));
+                        if (errors.category) {
+                          setErrors((prev) => ({ ...prev, category: false }));
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-all cursor-pointer ${
+                        selected
+                          ? "border-primary bg-primary text-white font-medium shadow-xs"
+                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                      }`}
+                    >
+                      {cat.name}
+                      {selected && <X size={13} className="text-white shrink-0" />}
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-gray-500">Loading categories...</p>
+              )}
+            </div>
+            {errors.category && (
+              <p className="mt-2 text-xs text-red-500 font-medium">{errors.category}</p>
             )}
           </div>
 
@@ -335,14 +406,14 @@ export default function CreateRequestPopup({ open, onClose }) {
               type="button"
               onClick={handleSaveDraft}
               disabled={loading}
-              className="rounded-full bg-[#EFEFEF] w-[170px] flex items-center justify-center py-2.5 text-sm font-medium text-black disabled:opacity-50"
+              className="rounded-full bg-[#EFEFEF] w-[170px] flex items-center justify-center py-2.5 text-sm font-medium text-black disabled:opacity-50 cursor-pointer"
             >
               Save draft
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-full bg-black w-[170px] flex items-center justify-center py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-black w-[170px] flex items-center justify-center py-2.5 text-sm font-medium text-white disabled:opacity-50 cursor-pointer hover:bg-black/90"
             >
               {loading ? "Posting..." : "Post request"}
               {!loading && <ArrowRight size={16} />}
