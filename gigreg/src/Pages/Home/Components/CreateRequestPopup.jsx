@@ -314,14 +314,14 @@ export default function CreateRequestPopup({ open, onClose }) {
                         category: selected ? "" : cat.name,
                       }))
                     }
-                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-all cursor-pointer ${
                       selected
-                        ? "border-gray-400 bg-white text-black"
+                        ? "border-primary bg-primary text-white font-medium shadow-xs"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                     }`}
                   >
                     {cat.name}
-                    {selected && <X size={12} />}
+                    {selected && <X size={13} className="text-white shrink-0" />}
                   </button>
                 );
               })
