@@ -1,16 +1,19 @@
 {
   "name": "gigreg-backend",
   "version": "1.0.0",
-  "description": "Gigreg API — listings, bookings, requests, chat, payouts",
+  "description": "GigMake API — listings, bookings, requests, chat, payouts",
   "main": "src/server.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "test": "node --test",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"
   },
   "keywords": [
-    "gigreg",
+    "gigmake",
     "listings",
     "api"
   ],
@@ -20,6 +23,7 @@
     "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.8.0",
+    "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -32,9 +36,11 @@
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^2.2.1",
     "nodemailer": "^7.0.10",
-    "nodemon": "^3.1.10",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "stripe": "^19.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }

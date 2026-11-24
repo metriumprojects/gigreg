@@ -7,6 +7,29 @@ import { getCategories } from "../store/Reducer/CategoryReducer";
 import { toast } from "react-toastify";
 import { Link } from "react-router-dom";
 
+const formatCurrencyTotals = (totalsByCurrency, fallbackAmount = 0) => {
+  if (Array.isArray(totalsByCurrency) && totalsByCurrency.length > 0) {
+    return totalsByCurrency
+      .map(({ currency, amount }) => {
+        const code = String(currency || "USD").toUpperCase();
+        try {
+          return new Intl.NumberFormat(undefined, {
+            style: "currency",
+            currency: code,
+          }).format(Number(amount || 0));
+        } catch {
+          return `${code} ${Number(amount || 0).toFixed(2)}`;
+        }
+      })
+      .join(" · ");
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(fallbackAmount || 0));
+};
+
 const Dashboard = () => {
   const dispatch = useDispatch();
   const { allData, settings, settingsLoading } = useSelector((state) => state.dashboard);
@@ -44,7 +67,7 @@ const Dashboard = () => {
     },
     {
       title: "Total Payments",
-      value: allData?.totalAmount ?? 0,
+      value: formatCurrencyTotals(allData?.totalsByCurrency, allData?.totalAmount),
       icon: CreditCard,
       color: "bg-green-500",
     },
@@ -65,7 +88,7 @@ const Dashboard = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Gigreg Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">GigMake Dashboard</h1>
           <p className="text-sm text-gray-500">Manage listings and categories.</p>
         </div>
         <div className="flex gap-2">

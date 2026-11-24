@@ -13,6 +13,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>GigMake - Build Anything</title>
+    <meta
+      name="description"
+      content="GigMake connects you with verified experts, builders, and creators. Book hourly sessions, fixed-price builds, or request custom quotes."
+    />
+    <meta property="og:site_name" content="GigMake" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="GigMake - Build Anything" />
+    <meta
+      property="og:description"
+      content="Discover verified experts and book tailored services, hourly sessions, or custom builds on GigMake."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GigMake - Build Anything" />
+    <meta
+      name="twitter:description"
+      content="Discover verified experts and book tailored services, hourly sessions, or custom builds on GigMake."
+    />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -78,7 +95,10 @@
         syncTawkWidget();
       });
 
-      (function () {
+      var __tawkLoaded = false;
+      function loadTawkWidget() {
+        if (__tawkLoaded) return;
+        __tawkLoaded = true;
         var s1 = document.createElement("script"),
           s0 = document.getElementsByTagName("script")[0];
         s1.async = true;
@@ -86,7 +106,16 @@
         s1.charset = "UTF-8";
         s1.setAttribute("crossorigin", "*");
         s0.parentNode.insertBefore(s1, s0);
-      })();
+      }
+      window.__loadTawkWidget = loadTawkWidget;
+
+      window.addEventListener("load", function () {
+        if (typeof window.requestIdleCallback === "function") {
+          window.requestIdleCallback(loadTawkWidget, { timeout: 3500 });
+        } else {
+          setTimeout(loadTawkWidget, 3000);
+        }
+      });
     </script>
     <!--End of Tawk.to Script-->
     <script type="module" src="/src/main.jsx"></script>

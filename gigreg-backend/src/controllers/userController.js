@@ -1,11 +1,13 @@
 import User from "../models/User.js";
+import bcrypt from "bcryptjs";
 import sendEmail from "../utils/sendEmail.js";
 import crypto from "crypto";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs"
-import { generateToken } from "../utils/utils.js";
+import { buildAuthCookieOptions, generateToken } from "../utils/utils.js";
 import axios from "axios";
 import { normalizeCurrency, SUPPORTED_CURRENCIES } from "../services/currencyService.js";
+import { getFrontendUrl } from "../services/stripeService.js";
 
 
 // export const registerUser = async (req, res) => {
@@ -57,15 +59,57 @@ const resolveDisplayName = (user, role = user?.role) => {
   return user.buyerName || user.sellerName || user.name || "";
 };
 
+const MIN_PASSWORD_LENGTH = 8;
+const DEFAULT_GOOGLE_PROJECT_PREFIX = "192141687455-";
+
+const normalizeEmail = (value) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
+export const isAllowedGoogleAudience = (aud) => {
+  if (!aud || typeof aud !== "string") return false;
+  const configured = String(process.env.GOOGLE_CLIENT_IDS || process.env.GOOGLE_CLIENT_ID || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (configured.length > 0) {
+    return configured.includes(aud);
+  }
+  return aud.startsWith(DEFAULT_GOOGLE_PROJECT_PREFIX) && aud.endsWith(".apps.googleusercontent.com");
+};
+
+const hasUsablePassword = async (user) => {
+  if (!user?.password) return false;
+  // Detect legacy Google accounts that mistakenly stored a bcrypt hash of ""
+  try {
+    const isEmptyHash = await bcrypt.compare("", user.password);
+    if (isEmptyHash) return false;
+  } catch {
+    return false;
+  }
+  return true;
+};
+
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password, role, dateOfBirth, country } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!name?.trim() || !email?.trim() || !password) {
+    if (!name?.trim() || !normalizedEmail || typeof password !== "string" || !password) {
       return res.status(400).json({ status: false, message: "Name, email and password are required" });
     }
 
-    if (role === "teacher") {
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        status: false,
+        message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long`,
+      });
+    }
+
+    // Strictly whitelist public registration roles — NEVER allow self-registration as "admin"
+    const safeRole = role === "teacher" ? "teacher" : "user";
+    const isSeller = safeRole === "teacher";
+
+    if (isSeller) {
       if (!dateOfBirth || !country?.trim()) {
         return res.status(400).json({
           status: false,
@@ -80,12 +124,11 @@ export const registerUser = async (req, res) => {
       }
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser)
       return res.status(400).json({ status: false, message: "User already exists" });
 
     const trimmedName = name.trim();
-    const isSeller = role === "teacher";
 
     // Create user (email verification / nodemailer temporarily disabled)
     await User.create({
@@ -94,8 +137,8 @@ export const registerUser = async (req, res) => {
       sellerName: isSeller ? trimmedName : undefined,
       dateOfBirth: isSeller ? new Date(dateOfBirth) : undefined,
       country: isSeller ? country.trim() : undefined,
-      email,
-      role,
+      email: normalizedEmail,
+      role: safeRole,
       password,
       reverseRole: isSeller,
       // Make teacher profiles public by default, students private
@@ -135,15 +178,10 @@ export const verifyEmail = async (req, res) => {
     await user.save();
 
     // Generate token for auto login
-    const loginToken = generateToken(user._id);
+    const loginToken = generateToken(user._id, user.tokenVersion);
 
     // Set cookie (for website)
-    res.cookie("token", loginToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("token", loginToken, buildAuthCookieOptions(req));
 
     res.json({
       status: true,
@@ -167,7 +205,15 @@ export const loginUser = async (req, res) => {
       dateOfBirth,
       country,
     } = req.body;
-    const user = await User.findOne({ email });
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail || typeof password !== "string" || password.length === 0) {
+      return res.status(401).json({ status: false, message: "Invalid credentials" });
+    }
+
+    const user =
+      (await User.findOne({ email: normalizedEmail })) ||
+      (email && email !== normalizedEmail ? await User.findOne({ email: String(email).trim() }) : null);
 
     if (!user) {
       return res.status(401).json({ status: false, message: "Invalid credentials" });
@@ -240,14 +286,9 @@ export const loginUser = async (req, res) => {
 
     await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tokenVersion);
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("token", token, buildAuthCookieOptions(req));
 
     return res.json({
       status: true,
@@ -295,23 +336,41 @@ export const googleLogin = async (req, res) => {
       country,
     } = req.body;
 
-    if (!id_token) {
+    if (!id_token || typeof id_token !== "string") {
       return res.status(400).json({ status: false, message: "Missing Google token" });
     }
 
     // Verify Google token using Google Identity Services endpoint
-    const googleVerifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${id_token}`;
-    const { data: payload } = await axios.get(googleVerifyUrl);
+    const googleVerifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`;
+    const { data: payload } = await axios.get(googleVerifyUrl, { timeout: 8000 });
 
-    const googleId = payload.sub;
-    const email = payload.email;
-    const name = payload.name;
-    const picture = payload.picture;
+    if (!isAllowedGoogleAudience(payload?.aud)) {
+      return res.status(401).json({ status: false, message: "Invalid Google token audience" });
+    }
 
-    // Check if user already exists
-    let user = await User.findOne({ email });
+    const emailVerified = payload?.email_verified === true || payload?.email_verified === "true";
+    const googleId = payload?.sub;
+    const email = normalizeEmail(payload?.email);
+    const name = payload?.name;
+    const picture = payload?.picture;
 
-    // If new user, create account with Google profile image
+    if (!googleId || !email || !emailVerified) {
+      return res.status(401).json({ status: false, message: "Google account email is not verified" });
+    }
+
+    // Check if user already exists (case-normalized with legacy fallback)
+    let user =
+      (await User.findOne({ email })) ||
+      (payload?.email && payload.email !== email ? await User.findOne({ email: payload.email }) : null);
+
+    if (user && user.role === "admin") {
+      return res.status(403).json({
+        status: false,
+        message: "Admin accounts must sign in through the admin dashboard",
+      });
+    }
+
+    // If new user, create account with Google profile image (NO empty password stored!)
     if (!user) {
       const image = await buildGoogleProfileImage(picture);
 
@@ -326,7 +385,6 @@ export const googleLogin = async (req, res) => {
         isVerified: true,
         verifyEmailToken: null,
         verifyEmailExpires: null,
-        password: "", // no password for Google users
       });
     } else {
       // Backfill googleId / profile image for existing users when missing
@@ -409,15 +467,10 @@ export const googleLogin = async (req, res) => {
     await user.save();
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tokenVersion);
 
     // Set JWT cookie (for website)
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("token", token, buildAuthCookieOptions(req));
 
     res.status(200).json({
       status: true,
@@ -440,14 +493,26 @@ export const googleLogin = async (req, res) => {
 
 export const forgotPassword = async (req, res) => {
   try {
-    const user = await User.findOne({ email: req.body.email });
-    if (!user) return res.status(404).json({ status: false, message: "User not found" });
+    const normalizedEmail = normalizeEmail(req.body.email);
+    const genericResponse = {
+      status: true,
+      message: "If an account exists for this email, a password reset link has been sent.",
+    };
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ status: false, message: "Email is required" });
+    }
+
+    const user =
+      (await User.findOne({ email: normalizedEmail })) ||
+      (req.body.email !== normalizedEmail ? await User.findOne({ email: String(req.body.email).trim() }) : null);
+    if (!user) return res.json(genericResponse);
 
     const resetToken = user.getResetPasswordToken();
     await user.save();
 
-    const resetUrl = `${process.env.FRONTEND_URL}/new-password/${resetToken}`;
-    const message = `<p>You requested a password reset.</p><a href="${resetUrl}">Click here to reset password</a>`;
+    const resetUrl = `${getFrontendUrl()}/new-password/${resetToken}`;
+    const message = `<p>You requested a password reset for your GigMake account.</p><a href="${resetUrl}">Click here to reset password</a>`;
 
     const emailResult = await sendEmail({
       to: user.email,
@@ -466,7 +531,7 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    return res.json({ status: true, message: "Email sent successfully" });
+    return res.json(genericResponse);
   } catch (error) {
     console.error("forgotPassword error:", error);
     return res.status(500).json({ status: false, message: error.message || "Server error" });
@@ -475,42 +540,75 @@ export const forgotPassword = async (req, res) => {
 
 // Reset Password
 export const resetPassword = async (req, res) => {
-  const resetPasswordToken = crypto
-    .createHash("sha256")
-    .update(req.params.token)
-    .digest("hex");
+  try {
+    const newPassword = req.body?.password;
+    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        status: false,
+        message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long`,
+      });
+    }
 
-  const user = await User.findOne({
-    resetPasswordToken,
-    resetPasswordExpire: { $gt: Date.now() },
-  });
+    const resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(String(req.params.token || ""))
+      .digest("hex");
 
-  if (!user) return res.status(400).json({ status: false, message: "Invalid or expired token" });
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
 
-  user.password = req.body.password;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
-  await user.save();
+    if (!user) return res.status(400).json({ status: false, message: "Invalid or expired token" });
 
-  res.json({ status: true, message: "Password reset successful" });
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+    await user.save();
+
+    res.json({ status: true, message: "Password reset successful" });
+  } catch (error) {
+    console.error("resetPassword error:", error);
+    res.status(500).json({ status: false, message: "Server error" });
+  }
 };
 
 export const changePassword = async (req, res) => {
   try {
-    const { newPassword, confirmPassword } = req.body;
+    const { currentPassword, oldPassword, newPassword, confirmPassword } = req.body;
+    const suppliedCurrent = currentPassword ?? oldPassword;
+
+    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        status: false,
+        message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters long`,
+      });
+    }
 
     const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(404).json({ status: false, message: "User not found" });
     }
-    if (newPassword != confirmPassword) {
-      return res.status(404).json({ status: false, message: "Please enter confirm password" });
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ status: false, message: "Passwords do not match" });
     }
+
+    if (await hasUsablePassword(user)) {
+      if (!suppliedCurrent || !(await user.matchPassword(suppliedCurrent))) {
+        return res.status(400).json({ status: false, message: "Current password is incorrect" });
+      }
+    }
+
     user.password = newPassword;
+    user.tokenVersion = Number(user.tokenVersion || 0) + 1;
     await user.save();
 
-    res.json({ status: true, message: "Password changed successfully" });
+    const freshToken = generateToken(user._id, user.tokenVersion);
+    res.cookie("token", freshToken, buildAuthCookieOptions(req));
+
+    res.json({ status: true, token: freshToken, message: "Password changed successfully" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ status: false, message: "Server error" });
@@ -519,25 +617,33 @@ export const changePassword = async (req, res) => {
 
 //  Get User Profile
 export const getUserProfile = async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password -resetPasswordToken -resetPasswordExpire");
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(404).json({ status: true, message: "User not found" });
+    }
 
-  if (user) {
     const normalizedCurrency = normalizeCurrency(user.currency);
     if (user.currency !== normalizedCurrency) {
-      user.currency = normalizedCurrency;
-      await user.save();
+      await User.findByIdAndUpdate(user._id, { currency: normalizedCurrency });
+      return res.json({ ...user, currency: normalizedCurrency });
     }
+
     res.json(user);
-  } else {
-    res.status(404).json({ status: true, message: "User not found" });
+  } catch (error) {
+    res.status(500).json({ status: false, message: error.message });
   }
 };
 
-export const logoutUser = (req, res) => {
-  res.cookie("token", "", {
-    httpOnly: true,
-    expires: new Date(0),
-  });
+export const logoutUser = async (req, res) => {
+  try {
+    if (req.user?._id) {
+      await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+    }
+  } catch (error) {
+    console.error("logoutUser tokenVersion bump error:", error.message);
+  }
+  res.cookie("token", "", buildAuthCookieOptions(req, { clear: true }));
   res.json({ status: true, message: "Logged out successfully" });
 };
 
@@ -550,7 +656,7 @@ export const updateProfileImage = async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) {
       // remove uploaded temp file
-      fs.unlinkSync(req.file.path);
+      fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(404).json({ status: false, message: "User not found" });
     }
 
@@ -573,7 +679,7 @@ export const updateProfileImage = async (req, res) => {
     await user.save();
 
     // ✅ Delete the local file (temp)
-    fs.unlinkSync(req.file.path);
+    fs.promises.unlink(req.file.path).catch(() => {});
 
     res.json({
       status: true,
@@ -581,6 +687,9 @@ export const updateProfileImage = async (req, res) => {
       image: user.image.url,
     });
   } catch (error) {
+    if (req.file?.path) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+    }
     console.error("Error updating image:", error);
     res.status(500).json({ status: false, message: error.message });
   }
@@ -601,6 +710,8 @@ export const updateProfile = async (req, res) => {
       hideLesson,
       classHosted,
       publicType,
+      currentPassword,
+      oldPassword,
       confirmPassword,
       newPassword,
     } = req.body;
@@ -629,7 +740,9 @@ export const updateProfile = async (req, res) => {
       user.name = resolveDisplayName(user);
     }
 
-    if (bio) user.bio = bio;
+    if (bio !== undefined) {
+      user.bio = typeof bio === "string" ? bio.trim() : "";
+    }
     if (currency) {
       const normalizedCurrency = normalizeCurrency(currency, null);
       if (!SUPPORTED_CURRENCIES.includes(normalizedCurrency)) {
@@ -637,25 +750,57 @@ export const updateProfile = async (req, res) => {
       }
       user.currency = normalizedCurrency;
     }
-    if (youtube) user.youtube = youtube;
-    if (instagram) user.instagram = instagram;
+    if (youtube !== undefined) {
+      const nextYoutube = typeof youtube === "string" ? youtube.trim() : "";
+      if (/^(javascript|data|vbscript):/i.test(nextYoutube)) {
+        return res.status(400).json({ message: "Invalid YouTube link" });
+      }
+      user.youtube = nextYoutube;
+    }
+    if (instagram !== undefined) {
+      const nextInstagram = typeof instagram === "string" ? instagram.trim() : "";
+      if (/^(javascript|data|vbscript):/i.test(nextInstagram)) {
+        return res.status(400).json({ message: "Invalid Instagram link" });
+      }
+      user.instagram = nextInstagram;
+    }
     if (typeof hideLesson === "boolean") user.hideLesson = hideLesson;
     if (typeof publicType === "boolean") user.publicType = publicType;
     if (typeof classHosted === "boolean") user.classHosted = classHosted;
 
-    // 🔒 Change password (only if both old and new provided)
-    if (confirmPassword && newPassword) {
-
-      if (confirmPassword != newPassword) {
-        return res.status(400).json({ message: "Confirm password is incorrect" });
+    // 🔒 Change password (requires current password when account already has a password)
+    let passwordRotated = false;
+    if (confirmPassword || newPassword) {
+      if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+        return res.status(400).json({
+          message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters long`,
+        });
+      }
+      if (confirmPassword !== newPassword) {
+        return res.status(400).json({ message: "Confirm password does not match" });
+      }
+      const suppliedCurrent = currentPassword ?? oldPassword;
+      if (await hasUsablePassword(user)) {
+        if (!suppliedCurrent || !(await user.matchPassword(suppliedCurrent))) {
+          return res.status(400).json({ message: "Current password is required and must be correct" });
+        }
       }
       user.password = newPassword;
+      user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+      passwordRotated = true;
     }
 
     await user.save();
 
+    let freshToken;
+    if (passwordRotated) {
+      freshToken = generateToken(user._id, user.tokenVersion);
+      res.cookie("token", freshToken, buildAuthCookieOptions(req));
+    }
+
     res.json({
       message: "Profile updated successfully",
+      ...(freshToken ? { token: freshToken } : {}),
       user: {
         _id: user._id,
         name: user.name,
@@ -684,6 +829,13 @@ export const becomeTeacher = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ status: false, message: "User not found" });
+    }
+
+    if (user.role === "admin") {
+      return res.status(403).json({
+        status: false,
+        message: "Admin accounts cannot switch roles via this endpoint",
+      });
     }
 
     if (role === "teacher") {
@@ -798,12 +950,20 @@ export const isOnlineTeacher = async (req, res) => {
   }
 };
 
+export const PUBLIC_USER_PROFILE_FIELDS =
+  "_id name sellerName buyerName image bio country role youtube instagram averageRating totalRatings classesHost classesAttended publicType hideLesson createdAt";
+
 export const getUserById = async (req, res) => {
   try {
+    const isSelfOrAdmin =
+      String(req.user?._id || "") === String(req.params.id || "") ||
+      req.user?.role === "admin";
 
-    const user = await User.findById(req.params.id).select(
-      "-password -resetPasswordToken -resetPasswordExpire"
-    );
+    const selectFields = isSelfOrAdmin
+      ? "-password -resetPasswordToken -resetPasswordExpire -verificationToken -verificationTokenExpire"
+      : PUBLIC_USER_PROFILE_FIELDS;
+
+    const user = await User.findById(req.params.id).select(selectFields);
     if (!user) {
       return res.status(404).json({ status: false, message: "User not found" });
     }

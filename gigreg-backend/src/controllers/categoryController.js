@@ -4,18 +4,22 @@ import fs from "fs";
 import { slugify } from "../utils/utils.js";
 
 
+const unlinkAsync = (filePath) => {
+    if (filePath) fs.promises.unlink(filePath).catch(() => {});
+};
+
 export const createCategory = async (req, res) => {
     try {
         const { name } = req.body;
 
         if (!name) {
-            if (req.file) fs.unlinkSync(req.file.path);
+            unlinkAsync(req.file?.path);
             return res.status(400).json({status:false, message: "Category name is required" });
         }
 
         const existing = await Category.findOne({ name });
         if (existing) {
-            if (req.file) fs.unlinkSync(req.file.path);
+            unlinkAsync(req.file?.path);
             return res.status(400).json({status:false, message: "Category already exists" });
         }
 
@@ -25,7 +29,7 @@ export const createCategory = async (req, res) => {
                 folder: "categories",
             });
             imageData = { url: result.secure_url, public_id: result.public_id };
-            fs.unlinkSync(req.file.path);
+            unlinkAsync(req.file.path);
         }
      
         const slug = slugify(name);
@@ -42,6 +46,7 @@ export const createCategory = async (req, res) => {
             status:true,
         });
     } catch (error) {
+        unlinkAsync(req.file?.path);
         console.error("Create category error:", error);
         res.status(500).json({status:false, message: error.message });
     }
@@ -50,7 +55,8 @@ export const createCategory = async (req, res) => {
 
 export const getCategories = async (req, res) => {
     try {
-        const categories = await Category.find().sort({ createdAt: -1 });
+        const categories = await Category.find().sort({ createdAt: -1 }).lean();
+        res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
         res.json(categories);
     } catch (error) {
         res.status(500).json({status:false, message: error.message });
@@ -64,7 +70,7 @@ export const updateCategory = async (req, res) => {
         const category = await Category.findById(req.params.id);
 
         if (!category) {
-            if (req.file) fs.unlinkSync(req.file.path);
+            unlinkAsync(req.file?.path);
             return res.status(404).json({status:false, message: "Category not found" });
         }
 
@@ -81,7 +87,7 @@ export const updateCategory = async (req, res) => {
                 url: result.secure_url,
                 public_id: result.public_id,
             };
-            fs.unlinkSync(req.file.path);
+            unlinkAsync(req.file.path);
         }
 
         if (name) category.name = name;

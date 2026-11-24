@@ -1,7 +1,10 @@
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
-import { SUPPORTED_CURRENCIES } from "../services/currencyService.js";
+import { SUPPORTED_CURRENCIES, normalizeCurrency, toSmallestUnit } from "../services/currencyService.js";
 import { getFrontendUrl, getStripe } from "../services/stripeService.js";
+
+const COUNTRIES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+let countriesCache = { data: null, expiresAt: 0 };
 
 const isTeacher = (user) => user?.role === "teacher" || user?.reverseRole === true;
 
@@ -21,6 +24,18 @@ const sanitizeCountry = (value) => {
     throw error;
   }
   return country;
+};
+
+const assertSupportedConnectCountry = (countryCode) => {
+  const configured = String(process.env.STRIPE_CONNECT_COUNTRIES || "")
+    .split(",")
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean);
+  if (configured.length > 0 && !configured.includes(countryCode)) {
+    const error = new Error(`Payouts are not currently supported in ${countryCode}`);
+    error.status = 400;
+    throw error;
+  }
 };
 
 const accountSummary = (account) => {
@@ -56,36 +71,217 @@ const accountSummary = (account) => {
   };
 };
 
-const ensureConnectAccount = async (user, country) => {
-  if (user.stripeConnectAccountId) return user;
+const pendingConnectCreations = new Map();
+const pendingDisconnects = new Set();
 
-  const countryCode = sanitizeCountry(country);
-  const stripe = getStripe();
-  const account = await stripe.accounts.create({
-    type: "express",
-    country: countryCode,
-    email: user.email,
-    business_type: "individual",
-    capabilities: {
-      card_payments: { requested: true },
-      transfers: { requested: true },
+export const isMissingStripeAccountError = (err) => {
+  if (!err) return false;
+  if (err.code === "resource_missing" || err.code === "account_invalid") return true;
+  if (err.statusCode === 404) return true;
+  if (
+    err.statusCode === 403 &&
+    /No such account|does not have access to account|revoked/i.test(String(err.message || ""))
+  ) {
+    return true;
+  }
+  return false;
+};
+
+const clearStaleConnectAccount = async (user, staleAccountId) => {
+  const prev = user.stripeConnect?.toObject ? user.stripeConnect.toObject() : user.stripeConnect || {};
+  const clearedMeta = {
+    ...prev,
+    country: null,
+    defaultCurrency: null,
+    detailsSubmitted: false,
+    chargesEnabled: false,
+    payoutsEnabled: false,
+    payoutCurrencies: [],
+    requirementsCurrentlyDue: [],
+    disabledReason: null,
+    requirementCollection: null,
+    lastDisconnectedAccountId: staleAccountId || prev.lastDisconnectedAccountId || null,
+    lastSyncedAt: new Date(),
+  };
+  await User.findByIdAndUpdate(user._id, {
+    $set: {
+      stripeConnectAccountId: null,
+      stripeConnect: clearedMeta,
     },
-    metadata: { userId: String(user._id) },
   });
+  user.stripeConnectAccountId = null;
+  user.stripeConnect = clearedMeta;
+};
 
-  user.stripeConnectAccountId = account.id;
-  user.stripeConnect = { ...(user.stripeConnect || {}), country: countryCode };
-  await user.save();
+const ensureConnectAccount = async (user, country) => {
+  const normalizedExistingCountry = String(user.stripeConnect?.country || "").trim().toUpperCase();
+  if (user.stripeConnectAccountId && (!country || normalizedExistingCountry === sanitizeCountry(country))) {
+    return user;
+  }
+
+  const userId = String(user._id);
+  const countryCode = sanitizeCountry(country);
+  assertSupportedConnectCountry(countryCode);
+
+  let createPromise = pendingConnectCreations.get(userId);
+  if (!createPromise) {
+    createPromise = (async () => {
+      const stripe = getStripe();
+      const freshUser = await User.findById(user._id).select("stripeConnectAccountId stripeConnect email");
+      let replacedAccountId = null;
+
+      if (freshUser?.stripeConnectAccountId) {
+        const freshCountry = String(freshUser.stripeConnect?.country || "").trim().toUpperCase();
+        if (freshCountry === countryCode) {
+          return {
+            accountId: freshUser.stripeConnectAccountId,
+            stripeConnect: freshUser.stripeConnect,
+          };
+        }
+
+        const existingAccount = await stripe.accounts.retrieve(freshUser.stripeConnectAccountId);
+        if (String(existingAccount.country || "").toUpperCase() === countryCode) {
+          const existingMeta = {
+            ...(freshUser.stripeConnect || {}),
+            country: countryCode,
+            requirementCollection: existingAccount.controller?.requirement_collection || "stripe",
+          };
+          await User.findByIdAndUpdate(user._id, { $set: { stripeConnect: existingMeta } });
+          return {
+            accountId: existingAccount.id,
+            stripeConnect: existingMeta,
+          };
+        }
+
+        if (existingAccount.details_submitted || existingAccount.payouts_enabled || existingAccount.charges_enabled) {
+          const error = new Error("Country cannot be changed after payout setup has been submitted");
+          error.status = 409;
+          throw error;
+        }
+
+        const hasTransfers = await Booking.exists({ teacher: user._id, payoutStatus: "transferred" });
+        if (hasTransfers) {
+          const error = new Error("Country cannot be changed after payouts have been processed");
+          error.status = 409;
+          throw error;
+        }
+
+        try {
+          await stripe.accounts.del(existingAccount.id);
+        } catch (delErr) {
+          if (delErr?.code !== "resource_missing" && delErr?.statusCode !== 404) {
+            throw delErr;
+          }
+        }
+
+        replacedAccountId = existingAccount.id;
+        await User.findByIdAndUpdate(user._id, { $set: { stripeConnectAccountId: null } });
+      }
+
+      const frontendUrl = getFrontendUrl();
+      const marketplaceUrl =
+        frontendUrl.startsWith("https://") && !frontendUrl.toLowerCase().includes("gigreg.com")
+          ? frontendUrl
+          : "https://gigmake.com";
+
+      const account = await stripe.accounts.create(
+        {
+          type: "express",
+          country: countryCode,
+          email: freshUser?.email || user.email,
+          business_type: "individual",
+          business_profile: {
+            mcc: "8999",
+            product_description: "Freelance services, gigs and products on GigMake marketplace",
+            url: `${marketplaceUrl}/user-profile/${userId}`,
+          },
+          settings: {
+            payments: {
+              statement_descriptor: "GIGMAKE",
+            },
+            payouts: {
+              statement_descriptor: "GIGMAKE",
+            },
+          },
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          metadata: { userId },
+        },
+        {
+          idempotencyKey: `connect_express_${userId}_${countryCode}_${
+            replacedAccountId || freshUser?.stripeConnect?.lastDisconnectedAccountId || "initial"
+          }`,
+        }
+      );
+
+      const connectMeta = {
+        ...((freshUser?.stripeConnect || user.stripeConnect || {})),
+        country: countryCode,
+        defaultCurrency: String(account.default_currency || "").toUpperCase() || null,
+        detailsSubmitted: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        payoutCurrencies: [],
+        requirementsCurrentlyDue: account.requirements?.currently_due || [],
+        disabledReason: account.requirements?.disabled_reason || null,
+        requirementCollection: account.controller?.requirement_collection || "stripe",
+      };
+
+      const updated =
+        (await User.findOneAndUpdate(
+          {
+            _id: user._id,
+            $or: [
+              { stripeConnectAccountId: { $exists: false } },
+              { stripeConnectAccountId: null },
+              { stripeConnectAccountId: "" },
+            ],
+          },
+          { $set: { stripeConnectAccountId: account.id, stripeConnect: connectMeta } },
+          { new: true }
+        )) || (await User.findById(user._id));
+
+      return {
+        accountId: updated?.stripeConnectAccountId || account.id,
+        stripeConnect: updated?.stripeConnect || connectMeta,
+      };
+    })().finally(() => {
+      pendingConnectCreations.delete(userId);
+    });
+
+    pendingConnectCreations.set(userId, createPromise);
+  }
+
+  const resolved = await createPromise;
+  user.stripeConnectAccountId = resolved.accountId;
+  user.stripeConnect = resolved.stripeConnect;
   return user;
 };
 
 const syncAccount = async (user) => {
   if (!user.stripeConnectAccountId) return null;
-  const account = await getStripe().accounts.retrieve(user.stripeConnectAccountId, {
-    expand: ["external_accounts"],
-  });
+  let account;
+  try {
+    account = await getStripe().accounts.retrieve(user.stripeConnectAccountId, {
+      expand: ["external_accounts"],
+    });
+  } catch (err) {
+    if (isMissingStripeAccountError(err)) {
+      console.warn(
+        `Clearing stale/missing Stripe Connect account ${user.stripeConnectAccountId} for user ${user._id}: ${err.message}`
+      );
+      await clearStaleConnectAccount(user, user.stripeConnectAccountId);
+      return null;
+    }
+    throw err;
+  }
+
   const summary = accountSummary(account);
+  const prev = user.stripeConnect?.toObject ? user.stripeConnect.toObject() : user.stripeConnect || {};
   user.stripeConnect = {
+    ...prev,
     country: summary.country,
     defaultCurrency: summary.defaultCurrency,
     detailsSubmitted: summary.detailsSubmitted,
@@ -94,6 +290,7 @@ const syncAccount = async (user) => {
     payoutCurrencies: summary.payoutCurrencies,
     requirementsCurrentlyDue: summary.currentlyDue,
     disabledReason: summary.disabledReason,
+    requirementCollection: account.controller?.requirement_collection || null,
     lastSyncedAt: new Date(),
   };
   await user.save();
@@ -103,6 +300,9 @@ const syncAccount = async (user) => {
 export const getConnectCountries = async (req, res) => {
   try {
     requireTeacher(req.user);
+    if (countriesCache.data && countriesCache.expiresAt > Date.now()) {
+      return res.json({ status: true, countries: countriesCache.data });
+    }
     const stripe = getStripe();
     const platform = await stripe.accounts.retrieve();
     const configuredCountries = String(process.env.STRIPE_CONNECT_COUNTRIES || platform.country || "")
@@ -114,6 +314,10 @@ export const getConnectCountries = async (req, res) => {
       code: spec.id,
       defaultCurrency: String(spec.default_currency).toUpperCase(),
     }));
+    countriesCache = {
+      data: countries,
+      expiresAt: Date.now() + COUNTRIES_CACHE_TTL_MS,
+    };
     res.json({ status: true, countries });
   } catch (error) {
     res.status(error.status || 500).json({ status: false, message: error.message });
@@ -136,7 +340,7 @@ export const createConnectOnboardingLink = async (req, res) => {
     requireTeacher(req.user);
     const stripe = getStripe();
     const user = await User.findById(req.user._id);
-    await ensureConnectAccount(user, req.body.country);
+    await ensureConnectAccount(user, req.body.country || user.stripeConnect?.country);
 
     const frontendUrl = getFrontendUrl();
     const link = await stripe.accountLinks.create({
@@ -155,37 +359,111 @@ export const createConnectOnboardingLink = async (req, res) => {
 export const createConnectAccountSession = async (req, res) => {
   try {
     requireTeacher(req.user);
-    const mode = req.body.mode === "management" ? "management" : "onboarding";
+    const allowedModes = ["all", "onboarding", "management", "notification_banner", "payouts"];
     const user = await User.findById(req.user._id);
+    const defaultMode = user?.stripeConnectAccountId ? "all" : "onboarding";
+    const mode = allowedModes.includes(req.body.mode) ? req.body.mode : defaultMode;
 
     if (!user.stripeConnectAccountId) {
-      if (mode === "management") {
+      if (!["onboarding", "all"].includes(mode)) {
         return res.status(400).json({ status: false, message: "Complete Stripe setup first" });
       }
+      if (!req.body.country) {
+        return res.status(400).json({ status: false, message: "Select a payout country first" });
+      }
+      await ensureConnectAccount(user, req.body.country);
+    } else if (
+      mode === "onboarding" &&
+      req.body.country &&
+      String(req.body.country).trim().toUpperCase() !== String(user.stripeConnect?.country || "").toUpperCase()
+    ) {
       await ensureConnectAccount(user, req.body.country);
     }
 
-    const components =
-      mode === "management"
-        ? {
-            account_management: {
-              enabled: true,
-              features: { external_account_collection: true },
-            },
-          }
-        : {
-            account_onboarding: {
-              enabled: true,
-              features: { external_account_collection: true },
-            },
-          };
+    const stripe = getStripe();
+    let requirementCollection = user.stripeConnect?.requirementCollection;
+    let accountType = "express";
+    if (!requirementCollection) {
+      const account = await stripe.accounts.retrieve(user.stripeConnectAccountId);
+      requirementCollection = account.controller?.requirement_collection || "stripe";
+      accountType = account.type || "express";
+      user.stripeConnect = { ...(user.stripeConnect || {}), requirementCollection };
+      await user.save();
+    } else if (requirementCollection === "application") {
+      accountType = "custom";
+    }
 
-    const session = await getStripe().accountSessions.create({
+    const isAppCollected = requirementCollection === "application";
+    const authFeature = isAppCollected ? { disable_stripe_user_authentication: true } : {};
+
+    let components;
+    if (mode === "all") {
+      components = {
+        account_onboarding: {
+          enabled: true,
+          features: { external_account_collection: true, ...authFeature },
+        },
+        account_management: {
+          enabled: true,
+          features: { external_account_collection: true, ...authFeature },
+        },
+        notification_banner: {
+          enabled: true,
+          features: { external_account_collection: true, ...authFeature },
+        },
+        payouts: {
+          enabled: true,
+          features: {
+            external_account_collection: true,
+            edit_payout_schedule: true,
+            ...authFeature,
+          },
+        },
+      };
+    } else if (mode === "management") {
+      components = {
+        account_management: {
+          enabled: true,
+          features: { external_account_collection: true, ...authFeature },
+        },
+      };
+    } else if (mode === "notification_banner") {
+      components = {
+        notification_banner: {
+          enabled: true,
+          features: { external_account_collection: true, ...authFeature },
+        },
+      };
+    } else if (mode === "payouts") {
+      components = {
+        payouts: {
+          enabled: true,
+          features: {
+            external_account_collection: true,
+            edit_payout_schedule: true,
+            ...authFeature,
+          },
+        },
+      };
+    } else {
+      components = {
+        account_onboarding: {
+          enabled: true,
+          features: { external_account_collection: true, ...authFeature },
+        },
+      };
+    }
+
+    const session = await stripe.accountSessions.create({
       account: user.stripeConnectAccountId,
       components,
     });
 
-    res.json({ status: true, clientSecret: session.client_secret });
+    res.json({
+      status: true,
+      clientSecret: session.client_secret,
+      accountType,
+    });
   } catch (error) {
     res.status(error.status || 500).json({ status: false, message: error.message });
   }
@@ -195,49 +473,189 @@ export const createConnectDashboardLink = async (req, res) => {
   try {
     requireTeacher(req.user);
     const user = await User.findById(req.user._id);
-    if (!user.stripeConnectAccountId) return res.status(400).json({ status: false, message: "Complete Stripe setup first" });
-    const link = await getStripe().accounts.createLoginLink(user.stripeConnectAccountId);
+    if (!user.stripeConnectAccountId) {
+      return res.status(400).json({ status: false, message: "Complete Stripe setup first" });
+    }
+    const stripe = getStripe();
+    const account = await stripe.accounts.retrieve(user.stripeConnectAccountId);
+    if (account.controller?.stripe_dashboard?.type === "none") {
+      return res.status(400).json({
+        status: false,
+        message: "Manage your payout account directly using Account Management below.",
+      });
+    }
+    const link = await stripe.accounts.createLoginLink(user.stripeConnectAccountId);
     res.json({ status: true, url: link.url });
   } catch (error) {
     res.status(error.status || 500).json({ status: false, message: error.message });
   }
 };
 
+const groupBookingsToMinorEntries = (bookings) => {
+  const totals = new Map();
+  for (const booking of bookings) {
+    const curr = normalizeCurrency(
+      booking.teacherPayoutCurrency ||
+        booking.itemSnapshot?.currency ||
+        booking.lesson_currency ||
+        booking.currency ||
+        "USD",
+      "USD"
+    );
+    const rate = typeof booking.commissionRate === "number" ? booking.commissionRate : 0.05;
+    const rawAmount =
+      booking.teacherPayoutAmount != null
+        ? Number(booking.teacherPayoutAmount)
+        : Number(booking.amount || 0) * (1 - rate);
+    if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
+    totals.set(curr, (totals.get(curr) || 0) + rawAmount);
+  }
+  return Array.from(totals.entries())
+    .filter(([, amount]) => amount > 0)
+    .map(([currency, amount]) => ({
+      currency: currency.toLowerCase(),
+      amount: toSmallestUnit(amount, currency),
+    }));
+};
+
+export const evaluateDisconnectEligibility = ({ balance, payouts = [], paidBookings = [] }) => {
+  const reasons = [];
+
+  const balanceBuckets = [
+    ...(Array.isArray(balance?.available) ? balance.available : []),
+    ...(Array.isArray(balance?.pending) ? balance.pending : []),
+    ...(Array.isArray(balance?.connect_reserved) ? balance.connect_reserved : []),
+  ];
+  if (balanceBuckets.some((entry) => Number(entry?.amount || 0) !== 0)) {
+    reasons.push(
+      "Your Stripe balance must be zero before disconnecting (withdraw available funds or wait for pending funds to settle)."
+    );
+  }
+
+  if (payouts.some((p) => p?.status === "pending" || p?.status === "in_transit")) {
+    reasons.push("A payout is currently in transit to your bank. Wait until it completes.");
+  }
+
+  if (
+    paidBookings.some((b) =>
+      ["pending_completion", "pending_connect", "processing"].includes(b?.payoutStatus)
+    )
+  ) {
+    reasons.push("You have active or unsettled orders in escrow. Complete and settle all orders first.");
+  }
+
+  if (paidBookings.some((b) => ["pending", "disputed"].includes(b?.refundStatus))) {
+    reasons.push("You have an active dispute or refund in progress. Wait until it resolves before disconnecting.");
+  }
+
+  return { canDisconnect: reasons.length === 0, reasons };
+};
+
 export const getConnectBalance = async (req, res) => {
   try {
     requireTeacher(req.user);
     const user = await User.findById(req.user._id);
-    if (!user.stripeConnectAccountId) {
-      const availableEntries = Object.entries(user.balances?.available || {})
-        .filter(([, amt]) => Number(amt) > 0)
-        .map(([currency, amount]) => ({
-          currency: currency.toLowerCase(),
-          amount: Math.round(Number(amount) * 100),
-        }));
-      const pendingEntries = Object.entries(user.balances?.pending || {})
-        .filter(([, amt]) => Number(amt) > 0)
-        .map(([currency, amount]) => ({
-          currency: currency.toLowerCase(),
-          amount: Math.round(Number(amount) * 100),
-        }));
-      return res.json({ status: true, available: availableEntries, pending: pendingEntries, payouts: [] });
+
+    if (user.stripeConnectAccountId) {
+      try {
+        await processPendingTeacherPayouts(user._id);
+      } catch (payoutErr) {
+        console.warn("Auto process pending payouts check:", payoutErr.message);
+      }
     }
 
-    try {
-      await processPendingTeacherPayouts(user._id);
-    } catch (payoutErr) {
-      console.warn("Auto process pending payouts check:", payoutErr.message);
+    const paidBookings = await Booking.find({
+      teacher: user._id,
+      paymentStatus: "paid",
+      status: { $ne: "cancelled" },
+    })
+      .select("status payoutStatus refundStatus amount currency lesson_currency itemSnapshot teacherPayoutAmount teacherPayoutCurrency commissionRate")
+      .lean();
+
+    const activeNonDisputedBookings = paidBookings.filter(
+      (b) => !["refunded", "disputed"].includes(b.refundStatus)
+    );
+
+    const inProgressBookings = activeNonDisputedBookings.filter(
+      (b) => b.status !== "completed" && b.payoutStatus === "pending_completion"
+    );
+    const awaitingPayoutBookings = activeNonDisputedBookings.filter(
+      (b) => b.status === "completed" && ["pending_connect", "processing"].includes(b.payoutStatus)
+    );
+    const inProgress = groupBookingsToMinorEntries(inProgressBookings);
+    const awaitingPayout = groupBookingsToMinorEntries(awaitingPayoutBookings);
+    const allTimeRevenue = groupBookingsToMinorEntries(
+      activeNonDisputedBookings.filter((b) => b.status === "completed")
+    );
+
+    const disconnectedResponse = () => ({
+      status: true,
+      connected: false,
+      detailsSubmitted: false,
+      payoutsEnabled: false,
+      defaultCurrency: null,
+      available: [],
+      pending: [],
+      escrow: {
+        inProgress,
+        inProgressCount: inProgressBookings.length,
+        awaitingPayout,
+        awaitingPayoutCount: awaitingPayoutBookings.length,
+      },
+      allTimeRevenue,
+      payouts: [],
+      disconnectEligibility: { canDisconnect: false, reasons: [] },
+    });
+
+    if (!user.stripeConnectAccountId) {
+      return res.json(disconnectedResponse());
     }
 
     const stripe = getStripe();
-    const [balance, payouts] = await Promise.all([
-      stripe.balance.retrieve({}, { stripeAccount: user.stripeConnectAccountId }),
-      stripe.payouts.list({ limit: 25 }, { stripeAccount: user.stripeConnectAccountId }),
-    ]);
+    let balance;
+    let payouts;
+    let pendingPayouts;
+    let inTransitPayouts;
+    try {
+      [balance, payouts, pendingPayouts, inTransitPayouts] = await Promise.all([
+        stripe.balance.retrieve({}, { stripeAccount: user.stripeConnectAccountId }),
+        stripe.payouts.list({ limit: 25 }, { stripeAccount: user.stripeConnectAccountId }),
+        stripe.payouts.list({ status: "pending", limit: 1 }, { stripeAccount: user.stripeConnectAccountId }),
+        stripe.payouts.list({ status: "in_transit", limit: 1 }, { stripeAccount: user.stripeConnectAccountId }),
+      ]);
+    } catch (stripeErr) {
+      if (isMissingStripeAccountError(stripeErr)) {
+        console.warn(
+          `Clearing stale Stripe Connect account ${user.stripeConnectAccountId} during balance fetch: ${stripeErr.message}`
+        );
+        await clearStaleConnectAccount(user, user.stripeConnectAccountId);
+        return res.json(disconnectedResponse());
+      }
+      throw stripeErr;
+    }
+
+    const disconnectEligibility = evaluateDisconnectEligibility({
+      balance,
+      payouts: [...(pendingPayouts.data || []), ...(inTransitPayouts.data || []), ...(payouts.data || [])],
+      paidBookings,
+    });
+
     res.json({
       status: true,
+      connected: true,
+      detailsSubmitted: Boolean(user.stripeConnect?.detailsSubmitted),
+      payoutsEnabled: Boolean(user.stripeConnect?.payoutsEnabled),
+      defaultCurrency: user.stripeConnect?.defaultCurrency || null,
       available: balance.available,
       pending: balance.pending,
+      escrow: {
+        inProgress,
+        inProgressCount: inProgressBookings.length,
+        awaitingPayout,
+        awaitingPayoutCount: awaitingPayoutBookings.length,
+      },
+      allTimeRevenue,
+      disconnectEligibility,
       payouts: payouts.data.map((payout) => ({
         id: payout.id,
         amount: payout.amount,
@@ -246,6 +664,8 @@ export const getConnectBalance = async (req, res) => {
         arrivalDate: payout.arrival_date,
         created: payout.created,
         method: payout.method,
+        failureCode: payout.failure_code || null,
+        failureMessage: payout.failure_message || null,
       })),
     });
   } catch (error) {
@@ -253,266 +673,203 @@ export const getConnectBalance = async (req, res) => {
   }
 };
 
-export const createOrUpdateCustomAccount = async (req, res) => {
-  try {
-    requireTeacher(req.user);
-    const {
-      country = "US",
-      accountToken,
-      firstName,
-      lastName,
-      email,
-      phone,
-      dob,
-      address,
-      ssnLast4,
-      idNumber,
-      bankAccount,
-      bankToken,
-      website,
-    } = req.body;
-
-    if (!accountToken && (!firstName || !lastName)) {
-      return res.status(400).json({ status: false, message: "Legal first name and last name are required" });
-    }
-
-    const countryCode = sanitizeCountry(country);
-    const stripe = getStripe();
-    const user = await User.findById(req.user._id);
-
-    // Prepare external bank account payload
-    let externalAccountPayload = null;
-    if (bankToken) {
-      externalAccountPayload = bankToken;
-    } else if (bankAccount?.accountNumber) {
-      externalAccountPayload = {
-        object: "bank_account",
-        country: countryCode,
-        currency: (bankAccount.currency || "USD").toLowerCase(),
-        account_holder_name: (bankAccount.accountHolderName || `${firstName} ${lastName}`).trim(),
-        account_holder_type: "individual",
-        account_number: String(bankAccount.accountNumber).trim(),
-      };
-      if (bankAccount.routingNumber) {
-        externalAccountPayload.routing_number = String(bankAccount.routingNumber).trim();
-      }
-    }
-
-    let account;
-    if (!user.stripeConnectAccountId) {
-      if (accountToken) {
-        // Create Custom Account using token (required for platforms in France/EU)
-        const accountCreateParams = {
-          type: "custom",
-          country: countryCode,
-          account_token: accountToken,
-          capabilities: {
-            card_payments: { requested: true },
-            transfers: { requested: true },
-          },
-          business_profile: {
-            mcc: "5734",
-            url: website || "https://gigreg.com",
-            product_description: "Freelance services, gigs and builds on Gigreg marketplace",
-          },
-          metadata: { userId: String(user._id) },
-        };
-
-        if (externalAccountPayload) {
-          accountCreateParams.external_account = externalAccountPayload;
-        }
-
-        account = await stripe.accounts.create(accountCreateParams);
-        user.stripeConnectAccountId = account.id;
-        user.stripeConnect = { ...(user.stripeConnect || {}), country: countryCode };
-        await user.save();
-      } else {
-        // Direct creation fallback
-        const individualData = {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          email: (email || user.email).trim().toLowerCase(),
-        };
-
-        if (phone) individualData.phone = String(phone).trim();
-        if (dob?.day && dob?.month && dob?.year) {
-          individualData.dob = {
-            day: Number(dob.day),
-            month: Number(dob.month),
-            year: Number(dob.year),
-          };
-        }
-        if (address?.line1) {
-          individualData.address = {
-            line1: address.line1.trim(),
-            city: address.city?.trim() || "",
-            state: address.state?.trim() || "",
-            postal_code: address.postalCode?.trim() || "",
-            country: countryCode,
-          };
-        }
-        if (ssnLast4) individualData.ssn_last_4 = String(ssnLast4).trim();
-        if (idNumber) individualData.id_number = String(idNumber).trim();
-
-        const clientIp =
-          req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "127.0.0.1";
-        const tosAcceptance = {
-          date: Math.floor(Date.now() / 1000),
-          ip: clientIp === "::1" ? "127.0.0.1" : clientIp,
-          user_agent: req.headers["user-agent"] || "Gigreg Platform",
-        };
-
-        const accountCreateParams = {
-          type: "custom",
-          country: countryCode,
-          email: (email || user.email).trim().toLowerCase(),
-          business_type: "individual",
-          business_profile: {
-            mcc: "5734",
-            url: website || "https://gigreg.com",
-            product_description: "Freelance services, gigs and builds on Gigreg marketplace",
-          },
-          capabilities: {
-            card_payments: { requested: true },
-            transfers: { requested: true },
-          },
-          tos_acceptance: tosAcceptance,
-          individual: individualData,
-          metadata: { userId: String(user._id) },
-        };
-
-        if (externalAccountPayload) {
-          accountCreateParams.external_account = externalAccountPayload;
-        }
-
-        account = await stripe.accounts.create(accountCreateParams);
-        user.stripeConnectAccountId = account.id;
-        user.stripeConnect = { ...(user.stripeConnect || {}), country: countryCode };
-        await user.save();
-      }
-    } else {
-      // Update existing Custom Account
-      if (accountToken) {
-        account = await stripe.accounts.update(user.stripeConnectAccountId, {
-          account_token: accountToken,
-          business_profile: {
-            url: website || "https://gigreg.com",
-          },
-        });
-      } else {
-        const individualData = {
-          first_name: firstName?.trim(),
-          last_name: lastName?.trim(),
-        };
-        const accountUpdateParams = {
-          individual: individualData,
-          business_profile: {
-            url: website || "https://gigreg.com",
-          },
-        };
-        account = await stripe.accounts.update(user.stripeConnectAccountId, accountUpdateParams);
-      }
-
-      // Attach new external bank account if provided
-      if (externalAccountPayload) {
-        try {
-          await stripe.accounts.createExternalAccount(user.stripeConnectAccountId, {
-            external_account: externalAccountPayload,
-            default_for_currency: true,
-          });
-        } catch (bankErr) {
-          console.warn("External account attach warning:", bankErr.message);
-        }
-      }
-    }
-
-    const summary = await syncAccount(user);
-    try {
-      await processPendingTeacherPayouts(user._id);
-    } catch (payoutErr) {
-      console.warn("Auto process pending payouts check:", payoutErr.message);
-    }
-    res.json({
-      status: true,
-      message: "Custom payout account configured successfully",
-      account: summary,
+export const disconnectConnectAccount = async (req, res) => {
+  const userId = String(req.user?._id || "");
+  if (pendingDisconnects.has(userId) || pendingConnectCreations.has(userId)) {
+    return res.status(409).json({
+      status: false,
+      message: "A payout account operation is already in progress. Please wait a moment.",
     });
-  } catch (error) {
-    console.error("Custom account creation error:", error);
-    res.status(error.status || 500).json({ status: false, message: error.message });
   }
-};
 
-export const addCustomBankAccount = async (req, res) => {
+  pendingDisconnects.add(userId);
   try {
     requireTeacher(req.user);
     const user = await User.findById(req.user._id);
-    if (!user.stripeConnectAccountId) {
-      return res.status(400).json({ status: false, message: "No connected account found. Please create one first." });
+    const oldAccountId = user?.stripeConnectAccountId;
+
+    if (!oldAccountId) {
+      return res.status(400).json({ status: false, message: "No connected payout account to disconnect" });
     }
 
-    const { bankToken, bankAccount, country = "US" } = req.body;
-    const countryCode = sanitizeCountry(country);
     const stripe = getStripe();
-
-    let externalAccountPayload;
-    if (bankToken) {
-      externalAccountPayload = bankToken;
-    } else if (bankAccount?.accountNumber) {
-      externalAccountPayload = {
-        object: "bank_account",
-        country: countryCode,
-        currency: (bankAccount.currency || "USD").toLowerCase(),
-        account_holder_name: (bankAccount.accountHolderName || user.name || "Account Holder").trim(),
-        account_holder_type: "individual",
-        account_number: String(bankAccount.accountNumber).trim(),
-      };
-      if (bankAccount.routingNumber) {
-        externalAccountPayload.routing_number = String(bankAccount.routingNumber).trim();
+    let balance;
+    let pendingPayouts;
+    let inTransitPayouts;
+    let paidBookings;
+    try {
+      [balance, pendingPayouts, inTransitPayouts, paidBookings] = await Promise.all([
+        stripe.balance.retrieve({}, { stripeAccount: oldAccountId }),
+        stripe.payouts.list({ status: "pending", limit: 1 }, { stripeAccount: oldAccountId }),
+        stripe.payouts.list({ status: "in_transit", limit: 1 }, { stripeAccount: oldAccountId }),
+        Booking.find({
+          teacher: user._id,
+          paymentStatus: "paid",
+          status: { $ne: "cancelled" },
+          $or: [
+            { payoutStatus: { $in: ["pending_completion", "pending_connect", "processing"] } },
+            { refundStatus: { $in: ["pending", "disputed"] } },
+          ],
+        })
+          .select("payoutStatus refundStatus")
+          .lean(),
+      ]);
+    } catch (stripeErr) {
+      if (isMissingStripeAccountError(stripeErr)) {
+        await clearStaleConnectAccount(user, oldAccountId);
+        return res.json({
+          status: true,
+          message: "Payout account disconnected. Select your new country to set up payouts.",
+        });
       }
-    } else {
-      return res.status(400).json({ status: false, message: "Valid bank account details or bank token required" });
+      throw stripeErr;
     }
 
-    await stripe.accounts.createExternalAccount(user.stripeConnectAccountId, {
-      external_account: externalAccountPayload,
-      default_for_currency: true,
+    const eligibility = evaluateDisconnectEligibility({
+      balance,
+      payouts: [...(pendingPayouts.data || []), ...(inTransitPayouts.data || [])],
+      paidBookings,
     });
 
-    const summary = await syncAccount(user);
-    try {
-      await processPendingTeacherPayouts(user._id);
-    } catch (payoutErr) {
-      console.warn("Auto process pending payouts check:", payoutErr.message);
+    if (!eligibility.canDisconnect) {
+      return res.status(409).json({
+        status: false,
+        message: eligibility.reasons[0],
+        reasons: eligibility.reasons,
+      });
     }
+
+    try {
+      await stripe.accounts.del(oldAccountId);
+    } catch (delErr) {
+      if (!isMissingStripeAccountError(delErr)) {
+        return res.status(409).json({ status: false, message: delErr.message });
+      }
+    }
+
+    await clearStaleConnectAccount(user, oldAccountId);
+
     res.json({
       status: true,
-      message: "Bank account attached successfully",
-      account: summary,
+      message: "Payout account disconnected. Select your new country to set up payouts.",
     });
   } catch (error) {
-    console.error("Add bank account error:", error);
     res.status(error.status || 500).json({ status: false, message: error.message });
+  } finally {
+    pendingDisconnects.delete(userId);
   }
 };
 
 export const handleConnectAccountUpdate = async (account) => {
+  if (!account?.id) return;
   const userId = account.metadata?.userId;
   const user = userId
     ? await User.findById(userId)
     : await User.findOne({ stripeConnectAccountId: account.id });
-  if (user) {
-    await syncAccount(user);
-    try {
-      await processPendingTeacherPayouts(user._id);
-    } catch (payoutErr) {
-      console.warn("Auto process pending payouts check on webhook:", payoutErr.message);
-    }
+
+  // Ignore delayed webhooks from old, replaced, or already disconnected accounts
+  if (!user || !user.stripeConnectAccountId || String(user.stripeConnectAccountId) !== String(account.id)) {
+    return;
   }
+
+  await syncAccount(user);
+  try {
+    await processPendingTeacherPayouts(user._id);
+  } catch (payoutErr) {
+    console.warn("Auto process pending payouts check on webhook:", payoutErr.message);
+  }
+};
+
+export const handleConnectAccountDeauthorized = async (accountId) => {
+  if (!accountId || !String(accountId).startsWith("acct_")) return;
+  const user = await User.findOne({ stripeConnectAccountId: String(accountId) });
+  if (!user) return;
+  await clearStaleConnectAccount(user, String(accountId));
+};
+
+export const computeSafeTransferMinor = ({
+  charge = null,
+  balanceTransaction = null,
+  commissionRate = 0.05,
+  payoutAmount = 0,
+  earningCurrency = "USD",
+}) => {
+  if (charge?.disputed) {
+    return {
+      blocked: true,
+      reason: "disputed",
+      message: "Transfer blocked: Stripe charge is disputed",
+    };
+  }
+
+  const chargeAmount = Number(charge?.amount || 0);
+  const chargeRefunded = Number(charge?.amount_refunded || 0);
+  if (charge?.refunded || (chargeAmount > 0 && chargeRefunded >= chargeAmount)) {
+    return {
+      blocked: true,
+      reason: "refunded",
+      message: "Transfer blocked: Stripe charge was fully refunded",
+    };
+  }
+
+  const remainingRatio =
+    chargeAmount > 0 && chargeRefunded > 0 && chargeRefunded < chargeAmount
+      ? Math.max(0, (chargeAmount - chargeRefunded) / chargeAmount)
+      : 1;
+
+  let transferCurrency;
+  let transferAmountMinor;
+
+  if (
+    charge?.id &&
+    balanceTransaction &&
+    balanceTransaction.amount > 0 &&
+    balanceTransaction.currency
+  ) {
+    const netSettlementGross = Math.round(balanceTransaction.amount * remainingRatio);
+    transferCurrency = String(balanceTransaction.currency).toLowerCase();
+    transferAmountMinor = Math.max(0, Math.round(netSettlementGross * (1 - commissionRate)));
+  } else {
+    transferCurrency = earningCurrency.toLowerCase();
+    transferAmountMinor = toSmallestUnit(Number(payoutAmount || 0) * remainingRatio, earningCurrency);
+  }
+
+  return {
+    blocked: false,
+    transferCurrency,
+    transferAmountMinor,
+    remainingRatio,
+  };
+};
+
+export const STALE_PROCESSING_MS = 5 * 60 * 1000;
+
+export const buildClaimablePayoutQuery = (teacherId, now = new Date()) => {
+  const staleCutoff = new Date(now.getTime() - STALE_PROCESSING_MS);
+  return {
+    teacher: teacherId,
+    paymentStatus: "paid",
+    status: "completed",
+    refundStatus: { $nin: ["refunded", "disputed"] },
+    $or: [
+      { payoutStatus: "pending_connect" },
+      {
+        payoutStatus: "processing",
+        $or: [
+          { processingStartedAt: { $lte: staleCutoff } },
+          { processingStartedAt: { $exists: false } },
+          { processingStartedAt: null },
+        ],
+      },
+    ],
+  };
 };
 
 export const processPendingTeacherPayouts = async (teacherId) => {
   try {
+    if (pendingDisconnects.has(String(teacherId))) {
+      return { processed: 0, totalTransferred: 0, reason: "Disconnect in progress" };
+    }
     const stripe = getStripe();
     const teacher = await User.findById(teacherId);
     if (!teacher?.stripeConnectAccountId) {
@@ -525,13 +882,9 @@ export const processPendingTeacherPayouts = async (teacherId) => {
       return { processed: 0, totalTransferred: 0, reason: "Account not ready for payouts/transfers" };
     }
 
-    // Find all paid & completed bookings held on platform awaiting transfer for this teacher
-    const pendingBookings = await Booking.find({
-      teacher: teacher._id,
-      paymentStatus: "paid",
-      status: "completed",
-      payoutStatus: "pending_connect",
-    });
+    // Find all paid & completed bookings held on platform awaiting transfer (or stale stuck processing > 5m)
+    const claimableFilter = buildClaimablePayoutQuery(teacher._id);
+    const pendingBookings = await Booking.find(claimableFilter);
 
     if (!pendingBookings.length) {
       return { processed: 0, totalTransferred: 0 };
@@ -541,42 +894,150 @@ export const processPendingTeacherPayouts = async (teacherId) => {
     let totalTransferred = 0;
 
     for (const booking of pendingBookings) {
+      const claimNow = new Date();
+      const claimed = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          ...buildClaimablePayoutQuery(teacher._id, claimNow),
+        },
+        {
+          $set: {
+            payoutStatus: "processing",
+            processingStartedAt: claimNow,
+            transferError: null,
+          },
+        },
+        { new: true }
+      );
+      if (!claimed) continue;
+
       try {
-        const currency = String(booking.teacherPayoutCurrency || booking.currency || "USD").toLowerCase();
-        const payoutAmount = booking.teacherPayoutAmount != null ? booking.teacherPayoutAmount : booking.amount;
-        const zeroDecimalCurrencies = ["JPY", "KRW", "VND", "CLP"];
-        const isZeroDecimal = zeroDecimalCurrencies.includes(currency.toUpperCase());
-        const amountInMinor = isZeroDecimal ? Math.round(payoutAmount) : Math.round(payoutAmount * 100);
+        const commissionRate = typeof claimed.commissionRate === "number" ? claimed.commissionRate : 0.05;
+        const earningCurrency = normalizeCurrency(
+          claimed.teacherPayoutCurrency ||
+            claimed.itemSnapshot?.currency ||
+            claimed.lesson_currency ||
+            claimed.currency ||
+            "USD",
+          "USD"
+        );
+        const payoutAmount =
+          claimed.teacherPayoutAmount != null
+            ? Number(claimed.teacherPayoutAmount)
+            : Number(claimed.amount || 0) * (1 - commissionRate);
 
-        if (amountInMinor <= 0) continue;
+        let charge = null;
+        let balanceTransaction = null;
+        const paymentIntentId = claimed.stripePaymentIntentId || claimed.stripe_payment_intent_id;
 
-        const transfer = await stripe.transfers.create({
-          amount: amountInMinor,
-          currency,
-          destination: teacher.stripeConnectAccountId,
-          description: `Payout for order #${booking._id}`,
-          metadata: {
-            bookingId: String(booking._id),
-            teacherId: String(teacher._id),
-          },
+        if (paymentIntentId) {
+          const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+            expand: ["latest_charge.balance_transaction"],
+          });
+          if (paymentIntent.latest_charge && typeof paymentIntent.latest_charge !== "string") {
+            charge = paymentIntent.latest_charge;
+            if (charge.balance_transaction && typeof charge.balance_transaction !== "string") {
+              balanceTransaction = charge.balance_transaction;
+            }
+          }
+        } else if (claimed.stripeChargeId) {
+          charge = await stripe.charges.retrieve(claimed.stripeChargeId, {
+            expand: ["balance_transaction"],
+          });
+          if (charge.balance_transaction && typeof charge.balance_transaction !== "string") {
+            balanceTransaction = charge.balance_transaction;
+          }
+        }
+
+        const sourceTransaction = charge?.id || claimed.stripeChargeId || undefined;
+        const transferCalc = computeSafeTransferMinor({
+          charge,
+          balanceTransaction,
+          commissionRate,
+          payoutAmount,
+          earningCurrency,
         });
 
-        booking.payoutStatus = "transferred";
-        booking.stripeTransferId = transfer.id;
-        booking.transferredAt = new Date();
-        await booking.save();
+        if (transferCalc.blocked) {
+          await Booking.findByIdAndUpdate(claimed._id, {
+            $set: {
+              refundStatus: transferCalc.reason,
+              payoutStatus: "cancelled",
+              processingStartedAt: null,
+              ...(transferCalc.reason === "refunded"
+                ? { status: "cancelled", refundedAt: new Date() }
+                : {}),
+              transferError: transferCalc.message,
+            },
+          });
+          continue;
+        }
 
-        const earningCurrUpper = currency.toUpperCase();
-        await User.findByIdAndUpdate(teacher._id, {
-          $inc: {
-            [`balances.available.${earningCurrUpper}`]: -payoutAmount,
+        const { transferCurrency, transferAmountMinor } = transferCalc;
+
+        if (transferAmountMinor <= 0) {
+          await Booking.findByIdAndUpdate(claimed._id, {
+            $set: {
+              payoutStatus: "pending_connect",
+              processingStartedAt: null,
+              transferError: "Calculated transfer amount is zero",
+            },
+          });
+          continue;
+        }
+
+        const transfer = await stripe.transfers.create(
+          {
+            amount: transferAmountMinor,
+            currency: transferCurrency,
+            destination: teacher.stripeConnectAccountId,
+            ...(sourceTransaction ? { source_transaction: sourceTransaction } : {}),
+            transfer_group: `booking_${claimed._id}`,
+            description: `Payout for order #${claimed._id}`,
+            metadata: {
+              bookingId: String(claimed._id),
+              teacherId: String(teacher._id),
+            },
           },
-        });
+          { idempotencyKey: `transfer_booking_${claimed._id}` }
+        );
+
+        const finalizedTransfer = await Booking.findOneAndUpdate(
+          { _id: claimed._id, payoutStatus: "processing" },
+          {
+            $set: {
+              payoutStatus: "transferred",
+              processingStartedAt: null,
+              stripeTransferId: transfer.id,
+              stripeChargeId: sourceTransaction || claimed.stripeChargeId,
+              transferredAt: new Date(),
+              teacherSettlementAmount: transferAmountMinor,
+              teacherSettlementCurrency: transferCurrency.toUpperCase(),
+              transferError: null,
+            },
+          },
+          { new: true }
+        );
+
+        if (finalizedTransfer) {
+          await User.findByIdAndUpdate(teacher._id, {
+            $inc: {
+              [`balances.available.${earningCurrency}`]: -payoutAmount,
+            },
+          });
+        }
 
         processedCount++;
         totalTransferred += payoutAmount;
       } catch (transferErr) {
-        console.error(`Failed to transfer payout for booking ${booking._id}:`, transferErr.message);
+        console.error(`Failed to transfer payout for booking ${claimed._id}:`, transferErr.message);
+        await Booking.findByIdAndUpdate(claimed._id, {
+          $set: {
+            payoutStatus: "pending_connect",
+            processingStartedAt: null,
+            transferError: transferErr.message,
+          },
+        });
       }
     }
 

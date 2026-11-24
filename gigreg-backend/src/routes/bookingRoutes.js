@@ -1,6 +1,29 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
-import {  initiateBooking, confirmBooking, userBookings, teacherBookings, teacherListingOrders, userListingOrders, checkUserListingPurchase, userUpcomingBookings, userCancelBookings, userUnscheduledBookings, completeLessonByTeacher, rescheduleBooking, cancelBooking, upcomingBookingsByUserId, getBookingById, userMainUpcomingBookings, teacherMainUpcomingBookings, teacherPastLessons, userPastLessons } from "../controllers/bookingController.js";
+import {
+  initiateBooking,
+  confirmBooking,
+  userBookings,
+  teacherBookings,
+  teacherListingOrders,
+  userListingOrders,
+  checkUserListingPurchase,
+  userUpcomingBookings,
+  userCancelBookings,
+  userUnscheduledBookings,
+  completeLessonByTeacher,
+  deliverListingOrder,
+  confirmListingDelivery,
+  requestListingRevision,
+  rescheduleBooking,
+  cancelBooking,
+  upcomingBookingsByUserId,
+  getBookingById,
+  userMainUpcomingBookings,
+  teacherMainUpcomingBookings,
+  teacherPastLessons,
+  userPastLessons,
+} from "../controllers/bookingController.js";
 
 const router = express.Router();
 // Initiate booking -> returns client_secret to confirm payment on frontend
@@ -18,7 +41,10 @@ router.get("/user-upcoming-lesson", protect, userUpcomingBookings);//scheduledAt
 router.get("/user-cancel-lesson", protect, userCancelBookings);
 router.get("/user-unscheduled-lesson", protect, userUnscheduledBookings);
 router.post("/complete-lesson/:bookingId", protect, completeLessonByTeacher);
-router.get("/upcoming-lesson-by-user/:id", upcomingBookingsByUserId);
+router.post("/deliver-order/:bookingId", protect, deliverListingOrder);
+router.post("/confirm-delivery/:bookingId", protect, confirmListingDelivery);
+router.post("/request-revision/:bookingId", protect, requestListingRevision);
+router.get("/upcoming-lesson-by-user/:id", protect, upcomingBookingsByUserId);
 router.post("/cancel-booking/:bookingId",protect, cancelBooking);
 router.get("/get-booking/:id",protect, getBookingById);
 router.get("/user-main-upcoming",protect, userMainUpcomingBookings);

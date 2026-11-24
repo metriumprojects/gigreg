@@ -10,11 +10,25 @@ dist/
 .env
 */.env
 *.env.local
+!.env.example
+!*/*.env.example
 
-# Logs
+# Signing keys & credentials
+*.keystore
+*.jks
+*.p12
+*.key
+
+# Logs & debug dumps
 *.log
 logs/
 */logs/
+*logcat*.txt
+*_log.txt
+*_log_utf8.txt
+build_error.txt
+app_console.txt
+eas_help.txt
 
 # OS / Editor files
 .DS_Store

@@ -40,17 +40,18 @@ jobs:
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
           IOS_DIST_PRIVATE_KEY: ${{ secrets.IOS_DIST_PRIVATE_KEY }}
+          VITE_STRIPE_PUBLIC_KEY: ${{ secrets.VITE_STRIPE_PUBLIC_KEY }}
         run: |
           missing=0
-          for v in APPSTORE_KEY_ID APPSTORE_ISSUER_ID APPSTORE_PRIVATE_KEY IOS_DIST_PRIVATE_KEY; do
+          for v in APPSTORE_KEY_ID APPSTORE_ISSUER_ID APPSTORE_PRIVATE_KEY IOS_DIST_PRIVATE_KEY VITE_STRIPE_PUBLIC_KEY; do
             if [ -z "${!v}" ]; then echo "::error::Missing GitHub secret: $v"; missing=1; fi
           done
           exit $missing
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: gigreg/package-lock.json
 
@@ -58,14 +59,14 @@ jobs:
         working-directory: gigreg
         run: npm ci
 
-      # gigreg/.env is git-ignored, so production values must be provided here.
+      # gigreg/.env is git-ignored, so production values must be provided via GitHub Secrets/Variables.
       # Without them the app falls back to http://localhost:5001 and cannot reach the backend.
       - name: Build web application
         working-directory: gigreg
         env:
-          VITE_API_URL: https://gigreg-backend.onrender.com/api
-          VITE_SOCKET_URL: https://gigreg-backend.onrender.com
-          VITE_STRIPE_PUBLIC_KEY: pk_test_51U0o0ALvi6WtcqJQM9brltbAOIsuQK8QMKfchm1SuAQcdpF4cm66f34LtqzpHW0PgkWCJgdMMGim5i8XL44qCMgN00raojl0R4
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://gigreg-backend.onrender.com/api' }}
+          VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL || 'https://gigreg-backend.onrender.com' }}
+          VITE_STRIPE_PUBLIC_KEY: ${{ secrets.VITE_STRIPE_PUBLIC_KEY }}
         run: npm run build
 
       - name: Install Fastlane & CocoaPods (if not preinstalled)
@@ -90,6 +91,7 @@ jobs:
           echo "$IOS_DIST_PRIVATE_KEY" > "$RUNNER_TEMP/dist.key"
           curl -fsSL -o "$RUNNER_TEMP/AppleWWDRCAG3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
           P12_PASS=$(openssl rand -hex 16)
+          echo "::add-mask::$P12_PASS"
           echo "IOS_DIST_P12_PASSWORD=$P12_PASS" >> $GITHUB_ENV
           
           # Force legacy 3DES/SHA1 cipher suite required by macOS Security.framework

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { ArrowRight, Check, ChevronDown, Plus } from "lucide-react";
 import { toast } from "react-toastify";
@@ -22,11 +22,14 @@ import UserAvatarPlaceholder from "../../components/UserAvatarPlaceholder";
 export default function SendProposal() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const requestId = searchParams.get("requestId");
+  const switchedFromBuyer = Boolean(location.state?.switchedFromBuyer);
   const { listings = [], loading: listingsLoading } = useSelector((state) => state.listing);
 
   const [request, setRequest] = useState(() => {
+    if (location.state?.request?._id) return location.state.request;
     const cached = loadProposalRequest();
     if (cached && (!requestId || String(cached._id) === String(requestId))) return cached;
     return null;
@@ -115,20 +118,19 @@ export default function SendProposal() {
       <div className="mx-auto w-full max-w-3xl px-2 py-10 space-y-6">
         <Logo variant="auth" />
 
-        <div className="flex items-start gap-3">
-          <span className=" flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-white">
-            <Check size={18} strokeWidth={3} />
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-white">
+            <Check size={16} strokeWidth={3} />
           </span>
-          <div>
-            <h1 className="text-[28px] font-semibold leading-tight text-black">
-              Send a proposal
-            </h1>
-          </div>
+          <h1 className="text-[28px] font-semibold leading-none text-black">
+            Send a proposal
+          </h1>
         </div>
 
         <p className=" text-[16px] text-gray-500">
-          You&apos;re now on your seller profile, please select or create a new listing to send as a
-          proposal!
+          {switchedFromBuyer
+            ? "You're now on your seller profile — select an existing listing or create a new one to send as a proposal."
+            : "Select one of your active listings or create a new listing to send as a proposal."}
         </p>
 
         {request && (
@@ -185,62 +187,77 @@ export default function SendProposal() {
           </div>
         )}
 
-        <div className="relative">
-          <select
-            value={selectedListingId}
-            onChange={(e) => setSelectedListingId(e.target.value)}
-            className="w-full appearance-none rounded-lg border border-gray-900 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none"
-          >
-            <option value="">
-              {listingsLoading ? "Loading listings..." : "Select one of your listing"}
-            </option>
-            {activeListings.map((listing) => (
-              <option key={listing._id} value={listing._id}>
-                {listing.title}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={18}
-            className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
-          />
-        </div>
+        {!listingsLoading && activeListings.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-[#F7F7F7] p-4 text-sm text-gray-700">
+            You don&apos;t have any active listings yet. Create a new listing to send as a proposal
+            for this request.
+          </div>
+        ) : (
+          <>
+            <div className="relative">
+              <select
+                value={selectedListingId}
+                onChange={(e) => setSelectedListingId(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-gray-900 bg-white px-4 py-3 pr-10 text-sm text-gray-900 outline-none"
+              >
+                <option value="">
+                  {listingsLoading ? "Loading listings..." : "Select one of your listings"}
+                </option>
+                {activeListings.map((listing) => (
+                  <option key={listing._id} value={listing._id}>
+                    {listing.title}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={18}
+                className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
+              />
+            </div>
 
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Add custom message"
-          rows={5}
-          className=" w-full resize-none rounded-lg border border-gray-900 bg-white px-4 py-3 text-sm outline-none"
-        />
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Add custom message"
+              rows={5}
+              className=" w-full resize-none rounded-lg border border-gray-900 bg-white px-4 py-3 text-sm outline-none"
+            />
+          </>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => navigate(createListingProposalUrl(requestId || request?._id))}
-            className="inline-flex items-center gap-2 rounded-full bg-[#CCCCCC] px-5 py-3 text-sm  text-black"
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition-colors cursor-pointer ${
+              !listingsLoading && activeListings.length === 0
+                ? "bg-primary text-white hover:bg-primary/90"
+                : "bg-[#CCCCCC] text-black hover:bg-gray-300"
+            }`}
           >
             <Plus size={16} />
             Create a new listing
           </button>
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={sending}
-            className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm  text-white disabled:opacity-60"
-          >
-            {sending ? "Sending..." : "Send this proposal"}
-            <ArrowRight size={16} />
-          </button>
+          {(listingsLoading || activeListings.length > 0) && (
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={sending || listingsLoading}
+              className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm text-white disabled:opacity-60 cursor-pointer"
+            >
+              {sending ? "Sending..." : "Send this proposal"}
+              <ArrowRight size={16} />
+            </button>
+          )}
         </div>
 
         <div className="text-left text-base text-gray-700">
-          <button type="button" onClick={handleBuyerProfile} className="underline underline-offset-2 text-black">
+          <button type="button" onClick={handleBuyerProfile} className="underline underline-offset-2 text-black cursor-pointer">
             Cancel and go back to buyer profile
           </button>
           <span className="mx-2">or</span>
           <Link to="/profile?tab=My Listings" className="underline underline-offset-2 text-black ">
-            Cancel and see your newly created listing
+            Cancel and go to my listings
           </Link>
         </div>
       </div>

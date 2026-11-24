@@ -1,5 +1,5 @@
 import axios from "axios";
-import { requireCurrency, requirePositivePrice, roundMoney, SUPPORTED_CURRENCIES } from "./currencyService.js";
+import { getExchangeRate, requireCurrency, requirePositivePrice, roundMoney, SUPPORTED_CURRENCIES } from "./currencyService.js";
 
 const STRIPE_FX_URL = "https://api.stripe.com/v1/fx_quotes";
 const DEFAULT_API_VERSION = "2025-07-30.preview";
@@ -68,6 +68,32 @@ export const getStripeFxRates = async (targetValue, { forceRefresh = false } = {
     return result;
   } catch (error) {
     if (cached) return { ...cached, stale: true };
+    try {
+      const rates = { [target]: 1 };
+      const entries = await Promise.all(
+        sources.map(async (source) => {
+          const data = await getExchangeRate(source, target);
+          return [source, Number(data?.rate)];
+        })
+      );
+      for (const [source, rate] of entries) {
+        if (Number.isFinite(rate) && rate > 0) rates[source] = rate;
+      }
+      if (Object.keys(rates).length === SUPPORTED_CURRENCIES.length) {
+        const now = new Date();
+        const fallbackResult = {
+          id: null,
+          rates,
+          createdAt: now,
+          expiresAt: new Date(now.getTime() + CACHE_TTL_MS),
+          stale: true,
+        };
+        cache.set(target, fallbackResult);
+        return fallbackResult;
+      }
+    } catch {
+      // Fall through to throw original Stripe error if fallback also fails.
+    }
     throw stripeError(error);
   }
 };

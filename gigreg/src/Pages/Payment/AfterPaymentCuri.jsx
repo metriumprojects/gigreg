@@ -1,7 +1,7 @@
-import { Calendar, CircleCheck, MessageCircle } from "lucide-react";
+import { AlertCircle, Calendar, CircleCheck, MessageCircle } from "lucide-react";
 import MainLayout from "../../components/MainLayout";
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { confirmBooking, getcuriBooking, ReShaduleCurriLessonBooking } from "../../redux/reducers/BookingReducer";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getLessonAvailability, getTeacherAvailability, getTeacherUnAvailability } from "../../redux/reducers/AvailabilityReducer";
@@ -35,6 +35,8 @@ export default function AfterPaymentCurri() {
 
   const [submitting, setSubmitting] = useState(false);
   const [bookingConfirmInProgress, setBookingConfirmInProgress] = useState(true);
+  const [confirmStatus, setConfirmStatus] = useState("loading"); // "loading" | "confirmed" | "failed"
+  const [confirmError, setConfirmError] = useState(null);
   
   // Ref to track if confirmBooking has been called
   const confirmBookingCalled = useRef(false);
@@ -151,9 +153,9 @@ export default function AfterPaymentCurri() {
 
     const params = new URLSearchParams({
       action: "TEMPLATE",
-      text: `Skillslide lesson: ${bounds.lessonTitle}`,
+      text: `GigMake lesson: ${bounds.lessonTitle}`,
       dates: `${formatIcsDate(bounds.start)}/${formatIcsDate(bounds.end)}`,
-      details: `Your Skillslide lesson with ${bounds.teacherName}.`,
+      details: `Your GigMake lesson with ${bounds.teacherName}.`,
     });
 
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -166,11 +168,11 @@ export default function AfterPaymentCurri() {
       return;
     }
 
-    const uid = `${lesson?._id || bookId || "skillslide"}@skillslide.com`;
+    const uid = `${lesson?._id || bookId || "gigmake"}@gigmake.com`;
     const icsContent = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Skillslide//Lesson Booking//EN",
+      "PRODID:-//GigMake//Lesson Booking//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
       "BEGIN:VEVENT",
@@ -178,8 +180,8 @@ export default function AfterPaymentCurri() {
       `DTSTAMP:${formatIcsDate(new Date())}`,
       `DTSTART:${formatIcsDate(bounds.start)}`,
       `DTEND:${formatIcsDate(bounds.end)}`,
-      `SUMMARY:${escapeIcsText(`Skillslide lesson: ${bounds.lessonTitle}`)}`,
-      `DESCRIPTION:${escapeIcsText(`Your Skillslide lesson with ${bounds.teacherName}.`)}`,
+      `SUMMARY:${escapeIcsText(`GigMake lesson: ${bounds.lessonTitle}`)}`,
+      `DESCRIPTION:${escapeIcsText(`Your GigMake lesson with ${bounds.teacherName}.`)}`,
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
@@ -189,7 +191,7 @@ export default function AfterPaymentCurri() {
     const link = document.createElement("a");
     const safeTitle = String(bounds.lessonTitle).replace(/[^\w\-]+/g, "_").slice(0, 40) || "lesson";
     link.href = url;
-    link.download = `skillslide-${safeTitle}.ics`;
+    link.download = `gigmake-${safeTitle}.ics`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -219,61 +221,122 @@ export default function AfterPaymentCurri() {
     });
   };
 
-  useEffect(() => {
-    // Prevent multiple calls using ref - only call once on component mount
-    if (confirmBookingCalled.current) {
-      return;
-    }
-    
-    // Get booking data from localStorage
-    const bookingDateTimeData = localStorage.getItem('bookingDateTime');
-    
-    let bookingData = {
+  const buildConfirmPayload = useCallback(() => {
+    const bookingDateTimeData = localStorage.getItem("bookingDateTime");
+    const bookingData = {
       bookingId: bookId,
-      type: "succeeded"
+      type: "succeeded",
+      group: false,
     };
 
-    // Parse and include booking metadata if available
     if (bookingDateTimeData) {
       try {
         const parsedData = JSON.parse(bookingDateTimeData);
-        
-        // Add all relevant fields from localStorage
-        if (parsedData.group !== undefined) {
-          bookingData.group = parsedData.group;
-        } else {
-          bookingData.group = false;
-        }
-        
-        // Add usecapacity if it exists
+        bookingData.group = parsedData.group !== undefined ? parsedData.group : false;
         if (parsedData.usecapacity !== undefined) {
           bookingData.usecapacity = parsedData.usecapacity;
         }
-        
-        // Also add other useful fields if they exist
         if (parsedData.slotId) {
           bookingData.slotId = parsedData.slotId;
         }
-        
         if (parsedData.discount !== undefined) {
           bookingData.discount = parsedData.discount;
         }
-        
-      } catch (error) {
+      } catch {
         bookingData.group = false;
       }
-    } else {
-      bookingData.group = false;
     }
+    return bookingData;
+  }, [bookId]);
 
+  const verifyPayment = useCallback(async () => {
+    setBookingConfirmInProgress(true);
+    setConfirmStatus("loading");
+    setConfirmError(null);
+
+    const maxAttempts = 3;
+    const retryDelaysMs = [1500, 3000];
+    let lastError = "Payment could not be verified yet.";
+
+    try {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const confirmRes = await dispatch(confirmBooking(buildConfirmPayload()));
+        const refreshedRes = await dispatch(getcuriBooking(bookId));
+        const refreshedBooking = refreshedRes?.payload?.booking;
+        const isConfirmed =
+          Boolean(confirmRes?.payload?.status) ||
+          (String(refreshedBooking?._id) === String(bookId) &&
+            refreshedBooking?.paymentStatus === "paid" &&
+            refreshedBooking?.status !== "cancelled");
+
+        if (isConfirmed) {
+          setConfirmStatus("confirmed");
+          return;
+        }
+
+        const payload = confirmRes?.payload;
+        lastError =
+          typeof payload === "string"
+            ? payload
+            : payload?.message || "Payment could not be verified yet.";
+
+        // Stop retrying immediately on permanent errors (refunded slot conflict, auth, not found)
+        const isPermanentFailure =
+          Boolean(payload?.refunded) ||
+          /refunded|cannot confirm another|not found|type mismatch/i.test(lastError);
+
+        if (isPermanentFailure || attempt >= maxAttempts) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt - 1] || 3000));
+      }
+
+      setConfirmStatus("failed");
+      setConfirmError(lastError);
+    } catch (err) {
+      setConfirmStatus("failed");
+      setConfirmError(err?.message || "Payment verification failed.");
+    } finally {
+      setBookingConfirmInProgress(false);
+    }
+  }, [bookId, buildConfirmPayload, dispatch]);
+
+  useEffect(() => {
+    confirmBookingCalled.current = false;
+  }, [bookId]);
+
+  useEffect(() => {
+    if (confirmBookingCalled.current) {
+      return;
+    }
     confirmBookingCalled.current = true;
-    dispatch(confirmBooking(bookingData)).then(async () => {
-      await dispatch(getcuriBooking(bookId));
+    verifyPayment();
+  }, [verifyPayment]);
+
+  useEffect(() => {
+    if (
+      String(getcuridata?._id) === String(bookId) &&
+      getcuridata?.paymentStatus === "paid" &&
+      getcuridata?.status !== "cancelled"
+    ) {
+      setConfirmStatus("confirmed");
+      setConfirmError(null);
       setBookingConfirmInProgress(false);
-    }).catch(() => {
-      setBookingConfirmInProgress(false);
-    });
-  }, [bookId, dispatch]); // Added dispatch to dependencies
+    }
+  }, [bookId, getcuridata?._id, getcuridata?.paymentStatus, getcuridata?.status]);
+
+  // Auto-retry verification automatically if the user's connection drops and reconnects
+  useEffect(() => {
+    if (confirmStatus !== "failed") return undefined;
+    const handleOnline = () => {
+      if (!bookingConfirmInProgress) {
+        verifyPayment();
+      }
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [confirmStatus, bookingConfirmInProgress, verifyPayment]);
 
   // message
     const handleSend = async () => {
@@ -321,35 +384,81 @@ export default function AfterPaymentCurri() {
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-8 min-h-[77vh]">
-        {/* Success Message Card */}
-        <div className="w-full bg-[#f5f5f5] rounded-2xl p-6 mb-8 space-y-2">
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            <div className="flex-shrink-0">
-              <CircleCheck size={30} className="fill-green-500 text-[#f5f5f5]" />
+        {/* Verification / Success / Failure Card */}
+        {confirmStatus === "loading" ? (
+          <div className="w-full bg-[#f5f5f5] rounded-2xl p-8 mb-8 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="w-7 h-7 border-2 border-[#051842] border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-700 font-medium">Verifying your payment with Stripe...</p>
+          </div>
+        ) : confirmStatus === "failed" ? (
+          <div className="w-full bg-red-50 border border-red-200 rounded-2xl p-6 mb-8 space-y-4">
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <div className="flex-shrink-0 text-red-600">
+                <AlertCircle size={30} />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h2 className="text-base font-semibold text-red-900">Payment not verified</h2>
+                <p className="text-sm text-red-800 mt-1">
+                  {confirmError || "We could not confirm this payment yet. If you completed checkout, please retry verification."}
+                </p>
+              </div>
             </div>
-            
-            <div className="flex-1 text-center md:text-left">
-              <p className="text-gray-700 leading-snug">
-                Thank you! Payment is successful.{" "}
-                {isListingBooking ? (
-                  <>
-                    Your seller will begin working on your order shortly and will notify you once it
-                    has been completed. You can also contact them at any time through the chat!
-                  </>
-                ) : (
-                  <>
-                    Your teacher will be in touch with you shortly but you can reach out now if you
-                    have any queries regarding your lesson!
-                  </>
-                )}
-              </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                disabled={bookingConfirmInProgress}
+                onClick={verifyPayment}
+                className="bg-[#051842] text-white px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bookingConfirmInProgress ? "Retrying..." : "Retry Verification"}
+              </button>
+              <Link
+                to="/"
+                className="bg-white border border-gray-300 text-gray-800 px-5 py-2.5 rounded-full text-sm font-medium"
+              >
+                Back to Home
+              </Link>
             </div>
           </div>
+        ) : (
+          <div className="w-full bg-[#f5f5f5] rounded-2xl p-6 mb-8 space-y-2">
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <div className="flex-shrink-0">
+                <CircleCheck size={30} className="fill-green-500 text-[#f5f5f5]" />
+              </div>
+
+              <div className="flex-1 text-center md:text-left">
+                <p className="text-gray-700 leading-snug">
+                  Thank you! Payment is successful.{" "}
+                  {isListingBooking ? (
+                    <>
+                      Your seller will begin working on your order shortly and will notify you once it
+                      has been completed. You can also contact them at any time through the chat!
+                    </>
+                  ) : (
+                    <>
+                      Your teacher will be in touch with you shortly but you can reach out now if you
+                      have any queries regarding your lesson!
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
 
             <div className="flex flex-col md:flex-row w-full justify-center gap-3 mt-4 md:mt-0 mx-auto">
-              <button disabled={submitting || bookingConfirmInProgress} onClick={handleSend} className="bg-[#051842] text-white px-5 py-2.5 rounded-full text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button
+                disabled={submitting || bookingConfirmInProgress}
+                onClick={handleSend}
+                className="bg-[#051842] text-white px-5 py-2.5 rounded-full text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <MessageCircle size={20} />
-                {bookingConfirmInProgress ? "Setting up..." : submitting ? "Sending..." : "Message teacher"}
+                {bookingConfirmInProgress
+                  ? "Setting up..."
+                  : submitting
+                  ? "Sending..."
+                  : isListingBooking
+                  ? "Message seller"
+                  : "Message teacher"}
               </button>
               {googleCalendarUrl && (
                 <a
@@ -383,9 +492,10 @@ export default function AfterPaymentCurri() {
                 </button>
               )}
             </div>
-        </div>
+          </div>
+        )}
 
-        {isListingBooking && (
+        {confirmStatus === "confirmed" && isListingBooking && (
           <div className="w-full bg-white rounded-2xl p-6 shadow border border-gray-100">
             <h2 className="text-xl font-semibold mb-3">Order confirmed</h2>
             <p className="text-gray-700 text-sm mb-4">

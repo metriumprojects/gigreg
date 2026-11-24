@@ -6,12 +6,8 @@ export const createPropose = createAsyncThunk(
   "propose/create",
   async (formData, { rejectWithValue }) => {
     try {
-      const res = await api.post(`/propose/create`, formData,{
+      const res = await api.post(`/propose/create`, formData, {
         withCredentials: true,
-      }, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
       });
       return res.data;
     } catch (err) {
@@ -83,9 +79,6 @@ export const updatePropose = createAsyncThunk(
   async ({ id, data }, { rejectWithValue }) => {
     try {
       const res = await api.put(`/propose/update-propose/${id}`, data, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
         withCredentials: true,
       });
       return res.data;
@@ -149,7 +142,10 @@ const proposeSlice = createSlice({
       })
       .addCase(createPropose.fulfilled, (state, action) => {
         state.loading = false;
-        state.proposesvalue = action.payload.data;
+        const created = action.payload?.propose || action.payload?.data;
+        if (created?._id) {
+          state.userProposes = [created, ...(state.userProposes || []).filter((p) => p._id !== created._id)];
+        }
       })
       .addCase(createPropose.rejected, (state, action) => {
         state.loading = false;
@@ -188,10 +184,16 @@ const proposeSlice = createSlice({
       })
       .addCase(updatePropose.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.proposes.findIndex((p) => p._id === action.payload.propose._id);
-        if (index !== -1) state.proposes[index] = action.payload.propose;
-        if (state.propose && state.propose._id === action.payload.propose._id) {
-          state.propose = action.payload.propose;
+        const updated = action.payload?.propose;
+        if (!updated?._id) return;
+        const index = state.proposes.findIndex((p) => p._id === updated._id);
+        if (index !== -1) state.proposes[index] = updated;
+        const userIndex = (state.userProposes || []).findIndex((p) => p._id === updated._id);
+        if (userIndex !== -1) {
+          state.userProposes[userIndex] = updated;
+        }
+        if (state.propose && state.propose._id === updated._id) {
+          state.propose = updated;
         }
       })
       .addCase(updatePropose.rejected, (state, action) => {
@@ -206,6 +208,7 @@ const proposeSlice = createSlice({
       .addCase(deletePropose.fulfilled, (state, action) => {
         state.loading = false;
         state.proposes = state.proposes.filter((p) => p._id !== action.payload.id);
+        state.userProposes = (state.userProposes || []).filter((p) => p._id !== action.payload.id);
         if (state.propose && state.propose._id === action.payload.id) {
           state.propose = null;
         }

@@ -32,6 +32,7 @@ export default function EditProfile() {
     hideLesson: false,
     classHosted: false,
     publicType: true,
+    currentPassword: "",
     confirmPassword: "",
     newPassword: "",
   });
@@ -54,6 +55,7 @@ export default function EditProfile() {
         hideLesson: userInfo.hideLesson || false,
         classHosted: userInfo.classHosted || false,
         publicType: userInfo.publicType !== undefined ? userInfo.publicType : true,
+        currentPassword: "",
         confirmPassword: "",
         newPassword: "",
       });
@@ -85,7 +87,11 @@ export default function EditProfile() {
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (formData.newPassword && formData.confirmPassword) {
+    if (formData.newPassword || formData.confirmPassword) {
+      if (formData.newPassword.length < 8) {
+        setErrorMessage("New password must be at least 8 characters long.");
+        return;
+      }
       if (formData.newPassword !== formData.confirmPassword) {
         setErrorMessage("Passwords do not match!");
         return;
@@ -94,10 +100,14 @@ export default function EditProfile() {
 
     try {
       const result = await dispatch(updateProfile(formData)).unwrap();
+      if (result?.token) {
+        localStorage.setItem("token", result.token);
+      }
       setSuccessMessage(result.message || "Profile updated successfully!");
       dispatch(getUser());
       setFormData((prev) => ({
         ...prev,
+        currentPassword: "",
         confirmPassword: "",
         newPassword: "",
       }));
@@ -285,6 +295,18 @@ export default function EditProfile() {
               />
               <label className="font-medium">Hide Classes Hosted</label>
             </div>
+          </div>
+
+          <div className="rounded-2xl p-4 bg-[#F7F7F7]">
+            <label className="block mb-3 font-medium">Current Password</label>
+            <input
+              type="password"
+              name="currentPassword"
+              placeholder="Required when changing password"
+              value={formData.currentPassword}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-0 bg-white"
+            />
           </div>
 
           <div className="rounded-2xl p-4 bg-[#F7F7F7]">

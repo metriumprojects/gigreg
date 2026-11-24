@@ -18,6 +18,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { GrUpload } from "react-icons/gr";
 import useTeacherPayoutCurrencies from "../../hooks/useTeacherPayoutCurrencies";
 import { getProposeById } from "../../redux/reducers/ProposeReducer";
+import { DEFAULT_AVATAR_IMAGE } from "../../utils/defaultImages";
 import {
   clearProposalRequest,
   formatRequestDate,
@@ -26,6 +27,10 @@ import {
   saveProposalMessage,
   saveProposalRequest,
 } from "../../utils/proposalRequest";
+import {
+  getCalendarSlotValidationError,
+  hasAnyCalendarTimeSlot,
+} from "../../utils/calendarValidation";
 
 const CreateListing = () => {
   const { currency } = useCurrency();
@@ -146,10 +151,24 @@ const CreateListing = () => {
   // Memoized callback for calendar changes to prevent infinite loops
   const handleCalendarChange = useCallback((data) => {
     setCalendarData(data);
+    if (hasAnyCalendarTimeSlot(data)) {
+      setErrors((prev) => {
+        if (!prev.calendar) return prev;
+        const next = { ...prev };
+        delete next.calendar;
+        return next;
+      });
+    }
   }, []);
 
   const handleCalendarSelectionChange = useCallback((selection) => {
     setCalendarSelection(selection);
+    setErrors((prev) => {
+      if (!prev.calendar) return prev;
+      const next = { ...prev };
+      delete next.calendar;
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -326,11 +345,12 @@ const CreateListing = () => {
 
   const handlePricingTypeChange = (type) => {
     setPricingType(type);
-    if (errors.price || errors.duration) {
+    if (errors.price || errors.duration || errors.calendar) {
       setErrors((prev) => {
         const next = { ...prev };
         delete next.price;
         delete next.duration;
+        delete next.calendar;
         return next;
       });
     }
@@ -389,6 +409,16 @@ const CreateListing = () => {
       newErrors.category = "Please select a category";
     }
 
+    const calendarError = getCalendarSlotValidationError({
+      enableCalendar,
+      calendarSelection,
+      calendarData,
+      fallbackAvailability: { weeklyAvailability, dateAvailability },
+    });
+    if (calendarError) {
+      newErrors.calendar = calendarError;
+    }
+
     return newErrors;
   };
 
@@ -399,8 +429,15 @@ const CreateListing = () => {
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error("Please fill in the required fields marked in red");
-      const firstField = Object.keys(newErrors)[0];
+      const errorKeys = Object.keys(newErrors);
+      toast.error(
+        errorKeys.length === 1 && newErrors.calendar
+          ? newErrors.calendar
+          : newErrors.calendar
+          ? "Please complete required fields and add at least one available time slot in your calendar"
+          : "Please fill in the required fields marked in red"
+      );
+      const firstField = errorKeys[0];
       const el = document.getElementById(`field-${firstField}`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -769,7 +806,7 @@ const CreateListing = () => {
                           <img
                             src={
                               proposalRequest?.user?.image?.url ||
-                              "https://i.ibb.co/tpV3m2GW/no-image.png"
+                              DEFAULT_AVATAR_IMAGE
                             }
                             alt=""
                             className="h-8 w-8 rounded-sm object-cover"
@@ -1259,12 +1296,27 @@ const CreateListing = () => {
 
             {/* RIGHT COLUMN: CALENDAR - Like Profile Page */}
             {enableCalendar ? (
-              <div className="hidden lg:block">
+              <div
+                id={isLargeScreen ? "field-calendar" : undefined}
+                className={`hidden lg:block rounded-2xl transition-colors ${
+                  errors.calendar ? "border border-red-500 ring-1 ring-red-500 bg-red-50/20 p-4" : ""
+                }`}
+              >
                 <div className=" sticky top-10 h-fit">
-                  <div className="flex items-center gap-1 mb-4">
-                    <h3 className="text-base font-semibold text-gray-900">My Availability</h3>
+                  <div className="flex items-center gap-1 mb-2">
+                    <h3 className="text-base font-semibold text-gray-900">My Availability *</h3>
                   </div>
-                  <p className="text-gray-500 text-sm mb-6">Set your availability schedule for this listing</p>
+                  <p className="text-gray-500 text-sm mb-4">Set your availability schedule for this listing (minimum 1 time slot required)</p>
+
+                  {errors.calendar ? (
+                    <div className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium">
+                      {errors.calendar}
+                    </div>
+                  ) : !hasAnyCalendarTimeSlot(calendarData || (calendarSelection.mode === "default" ? { weeklyAvailability, dateAvailability } : null)) ? (
+                    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                      Add at least one available time slot below so buyers can book this service.
+                    </div>
+                  ) : null}
 
                   <div onClick={(e) => e.stopPropagation()} className="space-y-4">
                     {isLargeScreen && (
@@ -1286,11 +1338,28 @@ const CreateListing = () => {
 
           {/* Mobile Calendar Section */}
           {enableCalendar && (
-          <div className="lg:hidden mt-12">
+          <div
+            id={!isLargeScreen ? "field-calendar" : undefined}
+            className={`lg:hidden mt-12 rounded-2xl transition-colors ${
+              errors.calendar ? "border border-red-500 ring-1 ring-red-500 bg-red-50/20 p-4" : ""
+            }`}
+          >
             <div className=" space-y-4">
-              <div className="flex items-center gap-1 mb-2">
-                <h3 className="text-base font-semibold text-gray-900">My Availability</h3>
+              <div className="flex items-center gap-1 mb-1">
+                <h3 className="text-base font-semibold text-gray-900">My Availability *</h3>
               </div>
+              <p className="text-gray-500 text-sm">Set your availability schedule for this listing (minimum 1 time slot required)</p>
+
+              {errors.calendar ? (
+                <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium">
+                  {errors.calendar}
+                </div>
+              ) : !hasAnyCalendarTimeSlot(calendarData || (calendarSelection.mode === "default" ? { weeklyAvailability, dateAvailability } : null)) ? (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  Add at least one available time slot below so buyers can book this service.
+                </div>
+              ) : null}
+
               <div onClick={(e) => e.stopPropagation()}>
                 {!isLargeScreen && (
                   <MakeAvailability

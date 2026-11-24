@@ -18,15 +18,19 @@ const sendEmail = async (options = {}) => {
     }
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      service: process.env.SMTP_SERVICE || "gmail",
       auth: {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
 
+    const fromName = process.env.SMTP_FROM_NAME || "GigMake";
     const mailOptions = {
-      from: options.from || `"Help from SkillSlide" <${process.env.SMTP_EMAIL}>`,
+      from: options.from || `"${fromName}" <${process.env.SMTP_EMAIL}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,

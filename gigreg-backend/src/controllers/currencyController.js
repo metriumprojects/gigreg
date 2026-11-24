@@ -5,6 +5,7 @@ export const getRates = async (req, res) => {
   try {
     const targetCurrency = requireCurrency(req.query.to || "USD");
     const quote = await getStripeFxRates(targetCurrency);
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
     res.json({
       base: targetCurrency,
       supportedCurrencies: SUPPORTED_CURRENCIES,

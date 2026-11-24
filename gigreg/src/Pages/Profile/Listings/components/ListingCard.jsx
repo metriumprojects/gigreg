@@ -4,6 +4,11 @@ import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useCurrency } from "../../../../currency/CurrencyContext";
 import { shareNativeContent } from "../../../../utils/nativeShare";
+import {
+  DEFAULT_AVATAR_IMAGE,
+  DEFAULT_LISTING_IMAGE,
+  optimizeCloudinaryUrl,
+} from "../../../../utils/defaultImages";
 
 const pricingLabelMap = {
   hourly_calendar: "Hourly calendar",
@@ -24,9 +29,9 @@ const ListingCard = ({ listing }) => {
   const { formatPrice } = useCurrency();
   const cardPriceOptions = { currencyDisplay: "narrowSymbol" };
   const imageUrl =
-    listing?.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png";
+    optimizeCloudinaryUrl(listing?.coverImage?.url, { width: 600 }) || DEFAULT_LISTING_IMAGE;
   const profileImage =
-    listing?.createdBy?.image?.url || "https://i.ibb.co/tpV3m2GW/no-image.png";
+    optimizeCloudinaryUrl(listing?.createdBy?.image?.url, { width: 96 }) || DEFAULT_AVATAR_IMAGE;
   const pricingLabel = pricingLabelMap[listing?.pricingType] || "Listing";
   const priceDuration = formatDurationForPrice(listing?.duration);
   const isOnDemandPricing = listing?.pricingType === "fixed_on_demand";

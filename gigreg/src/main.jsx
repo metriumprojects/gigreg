@@ -9,6 +9,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { Elements } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import { CurrencyProvider } from './currency/CurrencyContext.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 const stripePromise = import.meta.env.VITE_STRIPE_PUBLIC_KEY
   ? loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
@@ -17,12 +18,14 @@ const stripePromise = import.meta.env.VITE_STRIPE_PUBLIC_KEY
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <Elements stripe={stripePromise}>
-     <Provider store={store}>
-      <CurrencyProvider>
-        <App />
-      </CurrencyProvider>
-    </Provider>
-    </Elements>
+    <ErrorBoundary>
+      <Elements stripe={stripePromise}>
+        <Provider store={store}>
+          <CurrencyProvider>
+            <App />
+          </CurrencyProvider>
+        </Provider>
+      </Elements>
+    </ErrorBoundary>
   </StrictMode>,
 )

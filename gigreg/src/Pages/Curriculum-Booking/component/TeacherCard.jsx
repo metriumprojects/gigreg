@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { startChat } from '../../../redux/reducers/ChatReducer';
 import { toast } from 'react-toastify';
 import { getLoginUrl, getSafeRedirectPath } from '../../../utils/authRedirect';
+import { DEFAULT_AVATAR_IMAGE } from '../../../utils/defaultImages';
 
 
 const TeacherCard = ({
@@ -86,7 +87,7 @@ const TeacherCard = ({
         className={imageClassName}
       >
         <img
-          src={displayImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+          src={displayImage?.url || DEFAULT_AVATAR_IMAGE}
           alt={displayName}
           className="h-full w-full object-cover"
         />

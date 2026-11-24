@@ -48,4 +48,6 @@ const LessonCalenderSchema = new mongoose.Schema({
   timeZone: { type: String, default: "UTC" }
 }, { timestamps: true });
 
+LessonCalenderSchema.index({ user: 1, createdAt: -1 });
+
 export default mongoose.model("LessonCalender", LessonCalenderSchema);

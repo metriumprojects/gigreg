@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 import {
   createReview,
@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.post("/add-review", protect, upload.single("image"), createReview);
 router.get("/approved", getApprovedReviews);
-router.get("/all", protect,  getAllReviews);
-router.patch("/update-review/:id", protect, updateReviewStatus);
+router.get("/all", protect, adminOnly, getAllReviews);
+router.patch("/update-review/:id", protect, adminOnly, updateReviewStatus);
 
 export default router;

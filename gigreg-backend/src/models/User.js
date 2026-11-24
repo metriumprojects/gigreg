@@ -38,6 +38,8 @@ const userSchema = new mongoose.Schema(
       payoutCurrencies: [{ type: String, uppercase: true }],
       requirementsCurrentlyDue: [String],
       disabledReason: String,
+      requirementCollection: String,
+      lastDisconnectedAccountId: String,
       lastSyncedAt: Date,
     },
 
@@ -57,6 +59,8 @@ isVerified: { type: Boolean, default: false },
 
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    passwordChangedAt: Date,
+    tokenVersion: { type: Number, default: 0 },
     averageRating:{type:Number,default:0},
     totalRatings:{type:Number,default:0},
     fcmTokens: [
@@ -73,13 +77,23 @@ isVerified: { type: Boolean, default: false },
 // Hash password before saving
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
+  if (typeof this.password !== "string" || this.password.length === 0) {
+    this.password = undefined;
+    return next();
+  }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  if (!this.isNew) {
+    this.passwordChangedAt = new Date(Date.now() - 1000);
+  }
   next();
 });
 
 // Compare passwords
 userSchema.methods.matchPassword = async function (enteredPassword) {
+  if (!enteredPassword || typeof enteredPassword !== "string" || !this.password) {
+    return false;
+  }
   return await bcrypt.compare(enteredPassword, this.password);
 };
 

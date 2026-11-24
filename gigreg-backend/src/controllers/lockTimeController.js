@@ -28,6 +28,77 @@ const isSlotOverlapping = (startA, endA, startB, endB) => {
 };
 
 
+const parseSlotWindowUTC = (bookingDate, slotStart, slotEnd, timezone) => {
+  const start = moment.tz(`${bookingDate} ${slotStart}`, "YYYY-MM-DD HH:mm", timezone).utc().toDate();
+  let end = moment.tz(`${bookingDate} ${slotEnd}`, "YYYY-MM-DD HH:mm", timezone).utc().toDate();
+  if (end <= start) {
+    end = moment(end).add(1, "day").toDate();
+  }
+  return { start, end };
+};
+
+export const isSlotAvailable = async ({
+  teacher,
+  scheduledAtUTC,
+  timezone,
+  duration,
+  lessonId = null,
+  group = false,
+  capacity = 0,
+}) => {
+  if (!teacher || !scheduledAtUTC || !timezone) return { available: true };
+
+  const durationMinutes = parseDurationToMinutes(duration);
+  const startUTC = new Date(scheduledAtUTC);
+  const endUTC = calculateEndTime(startUTC, durationMinutes);
+  const bookingDate = moment(startUTC).tz(timezone).format("YYYY-MM-DD");
+  const startTime = formatTime(startUTC, timezone);
+  const endTime = formatTime(endUTC, timezone);
+
+  const lockTime = await LockTime.findOne({ user: teacher }).lean();
+  if (!lockTime) return { available: true };
+
+  const dateEntry = (lockTime.dateSpecificHours || []).find((d) => d.date === bookingDate);
+  if (!dateEntry) return { available: true };
+  if (dateEntry.available === false) {
+    return { available: false, reason: "Seller not available on selected date" };
+  }
+
+  const existingSlot = (dateEntry.slots || []).find(
+    (s) => s.start === startTime && s.end === endTime
+  );
+  const normalizedLessonId = lessonId ? String(lessonId) : null;
+
+  for (const slot of dateEntry.slots || []) {
+    const sameLesson =
+      !normalizedLessonId || !slot.lessonId || String(slot.lessonId) === normalizedLessonId;
+    const canShareGroupSlot =
+      (group || slot.group) && existingSlot && slot === existingSlot && sameLesson;
+
+    if (canShareGroupSlot) continue;
+
+    const { start: slotStart, end: slotEnd } = parseSlotWindowUTC(
+      bookingDate,
+      slot.start,
+      slot.end,
+      timezone
+    );
+
+    if (isSlotOverlapping(startUTC, endUTC, slotStart, slotEnd)) {
+      return { available: false, reason: "Selected time slot is already booked" };
+    }
+  }
+
+  if ((group || existingSlot?.group) && existingSlot) {
+    const maxCapacity = Number(capacity || 0);
+    if (maxCapacity > 0 && (existingSlot.usecapacity || 0) >= maxCapacity) {
+      return { available: false, reason: "Selected time slot is fully booked" };
+    }
+  }
+
+  return { available: true };
+};
+
 export const checkAndSaveSlot = async ({
   teacher,
   scheduledAtUTC,
@@ -92,13 +163,12 @@ export const checkAndSaveSlot = async ({
     // allow reusing the exact same slot window when grouping
     if (canShareGroupSlot) continue;
 
-    const slotStart = moment(`${bookingDate} ${slot.start}`, "YYYY-MM-DD HH:mm")
-      .tz(timezone)
-      .toDate();
-
-    const slotEnd = moment(`${bookingDate} ${slot.end}`, "YYYY-MM-DD HH:mm")
-      .tz(timezone)
-      .toDate();
+    const { start: slotStart, end: slotEnd } = parseSlotWindowUTC(
+      bookingDate,
+      slot.start,
+      slot.end,
+      timezone
+    );
 
     if (isSlotOverlapping(startUTC, endUTC, slotStart, slotEnd)) {
       throw new Error("Selected time slot already booked");

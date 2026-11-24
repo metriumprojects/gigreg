@@ -294,6 +294,54 @@ export const CompleteLessons = createAsyncThunk(
     }
   }
 );
+
+export const DeliverOrder = createAsyncThunk(
+  "booking/DeliverOrder",
+  async ({ bookId, deliveryNote = "" }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(
+        `/book/deliver-order/${bookId}`,
+        { deliveryNote },
+        { withCredentials: true }
+      );
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Failed to mark order as delivered");
+    }
+  }
+);
+
+export const ConfirmDelivery = createAsyncThunk(
+  "booking/ConfirmDelivery",
+  async ({ bookId }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(
+        `/book/confirm-delivery/${bookId}`,
+        {},
+        { withCredentials: true }
+      );
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Failed to confirm order delivery");
+    }
+  }
+);
+
+export const RequestRevision = createAsyncThunk(
+  "booking/RequestRevision",
+  async ({ bookId, revisionNote = "" }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(
+        `/book/request-revision/${bookId}`,
+        { revisionNote },
+        { withCredentials: true }
+      );
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || "Failed to request revision");
+    }
+  }
+);
 // 14. User aval
 export const checkAvailablity = createAsyncThunk(
   "booking/CompleteLessons",

@@ -466,6 +466,16 @@ export const updateCalender = async (req, res) => {
       });
     }
 
+    if (
+      String(availability.user) !== String(req.user?._id) &&
+      req.user?.role !== "admin"
+    ) {
+      return res.status(403).json({
+        status: false,
+        message: "You are not authorized to update this calendar",
+      });
+    }
+
     // Helper: merge incoming slots with existing ones, preserving lessons array
     // and syncing lessonGroup in each lesson to match the incoming slot's group value
     const mergeSlots = (incomingSlots, existingSlots) => {

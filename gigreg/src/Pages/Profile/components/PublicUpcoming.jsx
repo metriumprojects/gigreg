@@ -7,6 +7,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { publicUpcomingBookings } from "../../../redux/reducers/BookingReducer";
 import { Calendar, Star } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  DEFAULT_AVATAR_IMAGE,
+  DEFAULT_LISTING_IMAGE,
+} from "../../../utils/defaultImages";
 
 export default function PublicUpcoming({ id }) {
   const dispatch = useDispatch();
@@ -84,7 +88,7 @@ export default function PublicUpcoming({ id }) {
                 <div className="relative overflow-hidden h-[335px]">
                   <Link to={``}>
                     <img
-                      src={details.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+                      src={details.coverImage?.url || DEFAULT_LISTING_IMAGE}
                       alt={details.title}
                       className="w-full h-full object-cover rounded-[20px]"
                     />
@@ -108,7 +112,7 @@ export default function PublicUpcoming({ id }) {
                         <img
                           src={
                             course?.teacher?.image?.url ||
-                            "https://i.ibb.co/tpV3m2GW/no-image.png"
+                            DEFAULT_AVATAR_IMAGE
                           }
                           alt={course.teacher?.name}
                           className="w-full h-[40px] object-cover"

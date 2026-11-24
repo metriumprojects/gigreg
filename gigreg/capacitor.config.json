@@ -6,11 +6,12 @@
     "allowNavigation": [
       "gigmake.com",
       "*.gigmake.com",
-      "*.onrender.com"
+      "gigreg-backend.onrender.com",
+      "gigreg-frontend.onrender.com"
     ]
   },
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": false
   },
   "ios": {
     "contentInset": "automatic",

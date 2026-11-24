@@ -1,9 +1,12 @@
 import fs from "fs";
 import Listing from "../models/Listing.js";
+import Availability from "../models/availabilityModel.js";
+import LessonCalender from "../models/LessonCalender.js";
 import cloudinary from "../config/cloudinary.js";
 import { geocodeAddress } from "../utils/geocodeAddress.js";
 import { getPlaceDetails } from "../utils/getPlaceDetails.js";
 import { slugify } from "../utils/utils.js";
+import { escapeRegex, sanitizeRichHtml } from "../utils/sanitize.js";
 import {
   SUPPORTED_CURRENCIES,
   convertCurrency,
@@ -38,10 +41,122 @@ const parseJsonField = (value) => {
 
 const isOnDemandPrice = (pricingType) => pricingType === "fixed_on_demand";
 
+const hasValidTimeSlot = (slots) =>
+  Array.isArray(slots) &&
+  slots.some(
+    (slot) =>
+      slot &&
+      typeof slot.start === "string" &&
+      typeof slot.end === "string" &&
+      slot.start.trim() !== "" &&
+      slot.end.trim() !== "" &&
+      slot.start.trim() !== slot.end.trim()
+  );
+
+export const hasAnyCalendarTimeSlot = (weeklyHours, dateSpecificHours) => {
+  const parsedWeekly = parseJsonField(weeklyHours);
+  const parsedDates = parseJsonField(dateSpecificHours);
+
+  const weeklyList = Array.isArray(parsedWeekly)
+    ? parsedWeekly
+    : parsedWeekly && typeof parsedWeekly === "object"
+    ? Object.values(parsedWeekly)
+    : [];
+
+  if (
+    weeklyList.some(
+      (day) =>
+        day &&
+        day.available !== false &&
+        day.unavailable !== true &&
+        hasValidTimeSlot(day.slots)
+    )
+  ) {
+    return true;
+  }
+
+  const dateList = Array.isArray(parsedDates) ? parsedDates : [];
+  return dateList.some(
+    (entry) =>
+      entry &&
+      entry.available !== false &&
+      entry.unavailable !== true &&
+      hasValidTimeSlot(entry.slots)
+  );
+};
+
+export const ensureCalendarHasTimeSlots = async ({
+  userId,
+  calendarFlag,
+  calenderId,
+  weeklyHours,
+  dateSpecificHours,
+  allowPayloadOverride = false,
+}) => {
+  if (calendarFlag) {
+    const availability = await Availability.findOne({ user: userId }).lean();
+    const hasDefaultSlots = hasAnyCalendarTimeSlot(
+      availability?.weeklyHours,
+      availability?.dateSpecificHours
+    );
+    if (!hasDefaultSlots) {
+      return {
+        ok: false,
+        message:
+          "Your default availability has no time slots. Please add at least one time slot in your calendar before creating a calendar-based listing.",
+      };
+    }
+    return { ok: true };
+  }
+
+  if (calenderId) {
+    const existingCalendar = await LessonCalender.findOne({
+      _id: calenderId,
+      user: userId,
+    }).lean();
+    if (!existingCalendar) {
+      return {
+        ok: false,
+        message:
+          "Selected availability calendar was not found. Please select a valid calendar with at least one time slot.",
+      };
+    }
+
+    const payloadProvided =
+      allowPayloadOverride &&
+      (weeklyHours !== undefined || dateSpecificHours !== undefined);
+    const hasSlots = payloadProvided
+      ? hasAnyCalendarTimeSlot(weeklyHours, dateSpecificHours)
+      : hasAnyCalendarTimeSlot(
+          existingCalendar.weeklyHours,
+          existingCalendar.dateSpecificHours
+        );
+
+    if (!hasSlots) {
+      return {
+        ok: false,
+        message:
+          "The selected calendar has no available time slots. Please add at least one time slot before saving this listing.",
+      };
+    }
+    return { ok: true };
+  }
+
+  if (!hasAnyCalendarTimeSlot(weeklyHours, dateSpecificHours)) {
+    return {
+      ok: false,
+      message:
+        "Please add at least one available time slot in your calendar before creating a calendar-based listing.",
+    };
+  }
+
+  return { ok: true };
+};
+
 const cleanupFiles = (files = []) => {
   files.forEach((file) => {
-    if (file?.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
+    if (file?.path) {
+      fs.promises.unlink(file.path).catch(() => {});
     }
   });
 };
@@ -145,11 +260,28 @@ export const createListing = async (req, res) => {
       });
     }
 
+    if (usesAvailabilityCalendar) {
+      const calendarValidation = await ensureCalendarHasTimeSlots({
+        userId: req.user._id,
+        calendarFlag,
+        calenderId: resolvedCalenderId,
+        weeklyHours,
+        dateSpecificHours,
+      });
+      if (!calendarValidation.ok) {
+        cleanupFiles(req.files);
+        return res.status(400).json({
+          status: false,
+          message: calendarValidation.message,
+        });
+      }
+    }
+
     const uploadListingImage = async (file) => {
       const result = await cloudinary.uploader.upload(file.path, {
         folder: "listings",
       });
-      fs.unlinkSync(file.path);
+      fs.promises.unlink(file.path).catch(() => {});
       return {
         url: result.secure_url,
         public_id: result.public_id,
@@ -176,11 +308,19 @@ export const createListing = async (req, res) => {
       address = place.address || location || "";
     }
 
+    const allowedSellerStatuses = ["Active", "Inactive", "Draft"];
+    const resolvedCreateStatus =
+      req.user?.role === "admin"
+        ? status || "Active"
+        : allowedSellerStatuses.includes(status)
+        ? status
+        : "Active";
+
     const listing = await Listing.create({
       title,
       slug: await generateUniqueListingSlug(title),
       category,
-      description,
+      description: sanitizeRichHtml(description),
       message,
       duration,
       price: canonicalPrice,
@@ -194,7 +334,7 @@ export const createListing = async (req, res) => {
       placeId: supportsInPersonFlag ? resolvedPlaceId : null,
       lat,
       lng,
-      status: status || "Active",
+      status: resolvedCreateStatus,
       usecapacity: usecapacity ?? 0,
       discount: discount ?? 0,
       isGroupAvailable: isGroupAvailableFlag,
@@ -257,8 +397,8 @@ export const createListing = async (req, res) => {
 
 export const getMyListings = async (req, res) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10));
     const skip = (page - 1) * limit;
 
     const query = { createdBy: req.user._id };
@@ -288,8 +428,8 @@ export const getMyListings = async (req, res) => {
 
 export const getActiveListings = async (req, res) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const skip = (page - 1) * limit;
     const {
       search = "",
@@ -308,17 +448,17 @@ export const getActiveListings = async (req, res) => {
     const query = { status: "Active" };
     const andFilters = [];
 
-    if (pricingType) {
+    if (pricingType && typeof pricingType === "string") {
       if (pricingType === "fixed_on_demand") {
         query.pricingType = "fixed_on_demand";
       } else if (pricingType === "fixed" || pricingType === "fixed_pricing") {
         query.pricingType = { $ne: "fixed_on_demand" };
-      } else {
+      } else if (["hourly_calendar", "hourly"].includes(pricingType)) {
         query.pricingType = pricingType;
       }
     }
 
-    if (createdBy?.trim()) {
+    if (typeof createdBy === "string" && createdBy.trim()) {
       query.createdBy = createdBy.trim();
     }
 
@@ -349,12 +489,13 @@ export const getActiveListings = async (req, res) => {
       });
     }
 
-    if (search.trim()) {
+    const safeSearch = typeof search === "string" ? escapeRegex(search) : "";
+    if (safeSearch) {
       andFilters.push({
         $or: [
-          { title: { $regex: search, $options: "i" } },
-          { category: { $regex: search, $options: "i" } },
-          { description: { $regex: search, $options: "i" } },
+          { title: { $regex: safeSearch, $options: "i" } },
+          { category: { $regex: safeSearch, $options: "i" } },
+          { description: { $regex: safeSearch, $options: "i" } },
         ],
       });
     }
@@ -369,14 +510,14 @@ export const getActiveListings = async (req, res) => {
 
     if (category) {
       if (Array.isArray(category)) {
-        const cleanCats = category.map((c) => String(c).trim()).filter(Boolean);
+        const cleanCats = category.map((c) => escapeRegex(c)).filter(Boolean);
         if (cleanCats.length > 1) {
           query.category = { $in: cleanCats.map((c) => new RegExp(`^${c}$`, "i")) };
         } else if (cleanCats.length === 1) {
           query.category = { $regex: cleanCats[0], $options: "i" };
         }
       } else if (typeof category === "string" && category.trim()) {
-        const cats = category.split(",").map((c) => c.trim()).filter(Boolean);
+        const cats = category.split(",").map((c) => escapeRegex(c)).filter(Boolean);
         if (cats.length > 1) {
           query.category = { $in: cats.map((c) => new RegExp(`^${c}$`, "i")) };
         } else if (cats.length === 1) {
@@ -385,11 +526,12 @@ export const getActiveListings = async (req, res) => {
       }
     }
 
-    if (location?.trim()) {
+    const safeLocation = typeof location === "string" ? escapeRegex(location) : "";
+    if (safeLocation) {
       andFilters.push({
         $or: [
-          { location: { $regex: location, $options: "i" } },
-          { address: { $regex: location, $options: "i" } },
+          { location: { $regex: safeLocation, $options: "i" } },
+          { address: { $regex: safeLocation, $options: "i" } },
         ],
       });
     }
@@ -408,11 +550,12 @@ export const getActiveListings = async (req, res) => {
         .sort(sortQuery)
         .skip(skip)
         .limit(limit)
-        .populate("createdBy", "name email image averageRating totalRatings"),
+        .populate("createdBy", "name image averageRating totalRatings"),
       Listing.countDocuments(query),
     ]);
     const listingsWithSlugs = await Promise.all(listings.map(ensureListingSlug));
 
+    res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
     res.json({
       status: true,
       page,
@@ -430,31 +573,37 @@ export const getActiveListings = async (req, res) => {
 // New: admin / all listings endpoint
 export const getAllListings = async (req, res) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    if (req.user?.role !== "admin") {
+      return res.status(403).json({ status: false, message: "Admin access required" });
+    }
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const skip = (page - 1) * limit;
     const { search = "", category, createdBy, status } = req.query;
 
     const query = {};
 
-    if (typeof status !== "undefined") {
-      query.status = status;
+    if (typeof status === "string" && status.trim()) {
+      query.status = status.trim();
     }
 
-    if (createdBy?.trim()) {
+    if (typeof createdBy === "string" && createdBy.trim()) {
       query.createdBy = createdBy.trim();
     }
 
-    if (search.trim()) {
+    const safeSearch = typeof search === "string" ? escapeRegex(search) : "";
+    if (safeSearch) {
       query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+        { title: { $regex: safeSearch, $options: "i" } },
+        { category: { $regex: safeSearch, $options: "i" } },
+        { description: { $regex: safeSearch, $options: "i" } },
       ];
     }
 
-    if (category?.trim()) {
-      query.category = { $regex: category, $options: "i" };
+    const safeCategory = typeof category === "string" ? escapeRegex(category) : "";
+    if (safeCategory) {
+      query.category = { $regex: safeCategory, $options: "i" };
     }
 
     const [listings, total] = await Promise.all([
@@ -486,10 +635,18 @@ export const getListingById = async (req, res) => {
   try {
     const listing = await Listing.findById(req.params.id).populate(
       "createdBy",
-      "name email image averageRating totalRatings"
+      "name image averageRating totalRatings"
     );
 
     if (!listing) {
+      return res.status(404).json({ status: false, message: "Listing not found" });
+    }
+
+    const ownerId = String(listing.createdBy?._id || listing.createdBy || "");
+    const requesterId = String(req.user?._id || "");
+    const isOwner = Boolean(requesterId && ownerId && requesterId === ownerId);
+    const isAdmin = req.user?.role === "admin";
+    if (listing.status !== "Active" && !isOwner && !isAdmin) {
       return res.status(404).json({ status: false, message: "Listing not found" });
     }
 
@@ -507,7 +664,7 @@ export const getListingBySlug = async (req, res) => {
     const listing = await Listing.findOne({
       slug: req.params.slug,
       status: "Active",
-    }).populate("createdBy", "name email image averageRating totalRatings bio classHosted classesHosted classesAttended hideLesson");
+    }).populate("createdBy", "name image averageRating totalRatings bio classHosted classesHosted classesAttended hideLesson");
 
     if (!listing) {
       return res.status(404).json({ status: false, message: "Listing not found" });
@@ -547,7 +704,7 @@ export const updateListing = async (req, res) => {
       calendarName,
       existingImages,
       existingCoverImageId,
-      inputCurrency = "USD",
+      inputCurrency,
     } = req.body;
 
     const listing = await Listing.findById(req.params.id);
@@ -560,6 +717,32 @@ export const updateListing = async (req, res) => {
     if (listing.createdBy.toString() !== req.user._id.toString() && req.user.role !== "admin") {
       cleanupFiles(req.files);
       return res.status(403).json({ status: false, message: "Not authorized to update this listing" });
+    }
+
+    const nextPricingType = pricingType !== undefined ? pricingType : listing.pricingType;
+    const isSwitchingToCalendar =
+      nextPricingType === "hourly_calendar" && listing.pricingType !== "hourly_calendar";
+    if (nextPricingType === "hourly_calendar" && (calender !== undefined || isSwitchingToCalendar)) {
+      const nextCalendarFlag =
+        calender !== undefined ? parseBoolean(calender) : Boolean(listing.calender);
+      const nextCalenderId = nextCalendarFlag
+        ? null
+        : calenderId || listing.calenderId || null;
+      const calendarValidation = await ensureCalendarHasTimeSlots({
+        userId: listing.createdBy,
+        calendarFlag: nextCalendarFlag,
+        calenderId: nextCalenderId,
+        weeklyHours,
+        dateSpecificHours,
+        allowPayloadOverride: true,
+      });
+      if (!calendarValidation.ok) {
+        cleanupFiles(req.files);
+        return res.status(400).json({
+          status: false,
+          message: calendarValidation.message,
+        });
+      }
     }
 
     let coverImageFile = null;
@@ -577,7 +760,7 @@ export const updateListing = async (req, res) => {
       const result = await cloudinary.uploader.upload(coverImageFile.path, {
         folder: "listings",
       });
-      fs.unlinkSync(coverImageFile.path);
+      fs.promises.unlink(coverImageFile.path).catch(() => {});
 
       if (listing.coverImage?.public_id) {
         await cloudinary.uploader.destroy(listing.coverImage.public_id);
@@ -598,7 +781,7 @@ export const updateListing = async (req, res) => {
         const result = await cloudinary.uploader.upload(file.path, {
           folder: "listings",
         });
-        fs.unlinkSync(file.path);
+        fs.promises.unlink(file.path).catch(() => {});
         uploadedImages.push({
           url: result.secure_url,
           public_id: result.public_id,
@@ -640,7 +823,7 @@ export const updateListing = async (req, res) => {
       listing.slug = await generateUniqueListingSlug(title, listing._id);
     }
     if (category !== undefined) listing.category = category;
-    if (description !== undefined) listing.description = description;
+    if (description !== undefined) listing.description = sanitizeRichHtml(description);
     if (duration !== undefined) listing.duration = duration;
     if (message !== undefined) listing.message = message;
     if (price !== undefined && price !== "") {
@@ -655,7 +838,20 @@ export const updateListing = async (req, res) => {
       listing.allowMessageWithoutPayment = parseBoolean(allowMessageWithoutPayment);
     }
     if (isOnline !== undefined) listing.isOnline = parseBoolean(isOnline);
-    if (status !== undefined) listing.status = status;
+    if (status !== undefined) {
+      const isModerated = ["Suspended", "Rejected"].includes(listing.status);
+      if (req.user?.role === "admin") {
+        listing.status = status;
+      } else if (isModerated && status !== listing.status) {
+        cleanupFiles(req.files);
+        return res.status(403).json({
+          status: false,
+          message: "Moderated listings cannot be reactivated by the seller",
+        });
+      } else if (["Active", "Inactive", "Draft"].includes(status)) {
+        listing.status = status;
+      }
+    }
     if (usecapacity !== undefined) listing.usecapacity = usecapacity;
     if (discount !== undefined) listing.discount = discount;
     if (isGroupAvailable !== undefined) {

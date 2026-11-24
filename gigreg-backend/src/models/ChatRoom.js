@@ -26,5 +26,7 @@ const chatRoomSchema = new mongoose.Schema(
 
 // Enforce a single room per student/teacher pair
 chatRoomSchema.index({ student: 1, teacher: 1 }, { unique: true });
+chatRoomSchema.index({ student: 1, updatedAt: -1 });
+chatRoomSchema.index({ teacher: 1, updatedAt: -1 });
 
 export default mongoose.model("ChatRoom", chatRoomSchema);

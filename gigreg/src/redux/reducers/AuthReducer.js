@@ -136,23 +136,28 @@ export const ResetPassword = createAsyncThunk(
 
 export const LogoutUser = createAsyncThunk(
   "user/logout-user",
-  async (_, { rejectWithValue }) => {
+  async () => {
     // Unregister FCM push token from backend
     unregisterPushToken().catch(() => {});
-    clearClientSession();
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const response = await api.get("/users/logout-user", {
-        withCredentials: true,
-        signal: controller.signal,
-      });
+      const response = await api.post(
+        "/users/logout-user",
+        {},
+        {
+          withCredentials: true,
+          signal: controller.signal,
+        }
+      );
       clearTimeout(timeoutId);
       return response.data;
-    } catch (error) {
+    } catch {
       return { status: true, message: "Logged out locally" };
+    } finally {
+      clearClientSession();
     }
   }
 );
@@ -248,11 +253,11 @@ const userSlice = createSlice({
   name: "user",
   initialState,
   reducers: {
-    messageClear: (state, _) => {
+    messageClear: (state) => {
       state.errorMessage = "";
       state.successMessage = "";
     },
-    user_reset: (state, _) => {
+    user_reset: (state) => {
       state.userInfo = "";
     },
   },
@@ -365,7 +370,7 @@ const userSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(LogoutUser.fulfilled, (state, action) => {
+      .addCase(LogoutUser.fulfilled, (state) => {
         state.loading = false;
         state.userInfo = null;
         state.user = null;

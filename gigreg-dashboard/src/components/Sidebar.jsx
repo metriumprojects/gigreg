@@ -44,7 +44,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         `}
       >
         <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6">
-          <span className="text-xl font-bold text-primary">Gigreg Admin</span>
+          <span className="text-xl font-bold text-primary">GigMake Admin</span>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-gray-100 lg:hidden">
             <X size={20} />
           </button>

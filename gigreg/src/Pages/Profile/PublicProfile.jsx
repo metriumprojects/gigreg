@@ -17,6 +17,79 @@ import { ListingCard } from "../Home/Listing";
 import PublicFvrt from "./components/PublicFvrt";
 import PublicUpcoming from "./components/PublicUpcoming";
 import { useCurrency } from "../../currency/CurrencyContext";
+import { useDocumentMeta } from "../../hooks/useDocumentMeta";
+
+const LEGACY_PLACEHOLDER_IMAGE = "https://i.ibb.co/tpV3m2GW/no-image.png";
+
+const ProfileHeader = ({
+  userbyid,
+  rating,
+  startChatLoading,
+  onStartChat,
+  showPrivateNote = false,
+}) => (
+  <div className="flex flex-col items-center text-center">
+    <h1 className="mb-4 text-2xl">{userbyid?.name || "Unknown"}</h1>
+    <div className="mb-4 h-48 w-48 overflow-hidden rounded-2xl shadow-md bg-gray-200 flex items-center justify-center">
+      {userbyid?.image?.url && userbyid.image.url !== LEGACY_PLACEHOLDER_IMAGE ? (
+        <img
+          src={userbyid.image.url}
+          alt={userbyid?.name ? `${userbyid.name} profile` : "Profile"}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="w-full h-full p-8 flex items-center justify-center">
+          <UserAvatarPlaceholder className="w-full h-full text-[#1A2B49]" />
+        </div>
+      )}
+    </div>
+
+    <div className="mb-4 flex items-center gap-3 text-gray-900">
+      {rating > 0 && (
+        <div className="flex items-center gap-1">
+          {rating > 60 ? (
+            <Smile className="text-black" size={20} />
+          ) : (
+            <Frown className="text-black" size={20} />
+          )}
+          <span>{rating}%</span>
+        </div>
+      )}
+    </div>
+
+    <p className="mb-4 max-w-md text-sm text-gray-700">{userbyid?.bio}</p>
+
+    <div className="flex gap-4">
+      <button
+        className="flex items-center gap-2 rounded-md border border-gray-300 bg-[#F5F5F5] px-4 py-2 disabled:opacity-60"
+        onClick={onStartChat}
+        disabled={startChatLoading}
+      >
+        {startChatLoading ? "Starting..." : "Send Me a Message"}{" "}
+        <BsSend className="h-4 w-4" />
+      </button>
+    </div>
+
+    {showPrivateNote && (
+      <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-6">
+        <div className="mb-2 flex items-center gap-3">
+          <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
+          </svg>
+          <h3 className="text-lg font-semibold text-yellow-800">Private Account</h3>
+        </div>
+        <p className="text-yellow-700">
+          This account is private. The user&apos;s content and activities are not publicly visible.
+        </p>
+      </div>
+    )}
+  </div>
+);
 
 export default function PublicProfile() {
   const { currency } = useCurrency();
@@ -110,76 +183,31 @@ export default function PublicProfile() {
   };
 
   const rating = userbyid?.averageRating || 0;
+  const profileImageUrl =
+    userbyid?.image?.url && userbyid.image.url !== LEGACY_PLACEHOLDER_IMAGE
+      ? userbyid.image.url
+      : "";
 
-  const ProfileHeader = ({ showPrivateNote = false }) => (
-    <div className="flex flex-col items-center text-center">
-      <h1 className="mb-4 text-2xl">{userbyid?.name || "Unknown"}</h1>
-      <div className="mb-4 h-48 w-48 overflow-hidden rounded-2xl shadow-md bg-gray-200 flex items-center justify-center">
-        {userbyid?.image?.url && userbyid.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
-          <img
-            src={userbyid.image.url}
-            alt="Profile"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full p-8 flex items-center justify-center">
-            <UserAvatarPlaceholder className="w-full h-full text-[#1A2B49]" />
-          </div>
-        )}
-      </div>
-
-      <div className="mb-4 flex items-center gap-3 text-gray-900">
-        {rating > 0 && (
-          <div className="flex items-center gap-1">
-            {rating > 60 ? (
-              <Smile className="text-black" size={20} />
-            ) : (
-              <Frown className="text-black" size={20} />
-            )}
-            <span>{rating}%</span>
-          </div>
-        )}
-      </div>
-
-      <p className="mb-4 max-w-md text-sm text-gray-700">{userbyid?.bio}</p>
-
-      <div className="flex gap-4">
-        <button
-          className="flex items-center gap-2 rounded-md border border-gray-300 bg-[#F5F5F5] px-4 py-2 disabled:opacity-60"
-          onClick={handleStartChat}
-          disabled={startChatLoading}
-        >
-          {startChatLoading ? "Starting..." : "Send Me a Message"}{" "}
-          <BsSend className="h-4 w-4" />
-        </button>
-      </div>
-
-      {showPrivateNote && (
-        <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 p-6">
-          <div className="mb-2 flex items-center gap-3">
-            <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-            <h3 className="text-lg font-semibold text-yellow-800">Private Account</h3>
-          </div>
-          <p className="text-yellow-700">
-            This account is private. The user's content and activities are not publicly visible.
-          </p>
-        </div>
-      )}
-    </div>
-  );
+  useDocumentMeta({
+    title: userbyid?.name || "Profile",
+    description:
+      userbyid?.bio ||
+      (userbyid?.name ? `View ${userbyid.name}'s profile and listings on GigMake.` : ""),
+    image: profileImageUrl,
+    type: "profile",
+  });
 
   if (!isTeacher && userbyid?.publicType === false) {
     return (
       <MainLayout>
         <div className="flex min-h-screen w-full flex-col items-center py-12">
-          <ProfileHeader showPrivateNote />
+          <ProfileHeader
+            userbyid={userbyid}
+            rating={rating}
+            startChatLoading={startChatLoading}
+            onStartChat={handleStartChat}
+            showPrivateNote
+          />
         </div>
       </MainLayout>
     );
@@ -188,7 +216,12 @@ export default function PublicProfile() {
   return (
     <MainLayout>
       <div className="flex min-h-screen w-full flex-col items-center py-12">
-        <ProfileHeader />
+        <ProfileHeader
+          userbyid={userbyid}
+          rating={rating}
+          startChatLoading={startChatLoading}
+          onStartChat={handleStartChat}
+        />
 
         {(userbyid?.publicType !== false || isTeacher) && (
           <div className="w-full pt-6">

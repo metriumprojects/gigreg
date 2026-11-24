@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Copy, GalleryHorizontalEnd, Heart, Home, MapPin, Plus, Star, Timer, Upload, X } from "lucide-react";
 import { Link, useNavigate, useLocation, useParams } from "react-router-dom";
@@ -6,6 +6,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { getLoginUrl, getSafeRedirectPath } from "../../utils/authRedirect";
 import { shareNativeContent } from "../../utils/nativeShare";
+import { sanitizeHtml } from "../../utils/sanitizeHtml";
 import MainLayout from "../../components/MainLayout";
 import ImageGallery from "../Curriculum-Booking/component/ImageGallery";
 import TeacherCard from "../Curriculum-Booking/component/TeacherCard";
@@ -25,6 +26,7 @@ import {
 } from "../../redux/reducers/BookingReducer";
 import { becomeTeacher, getUser } from "../../redux/reducers/AuthReducer";
 import { useCurrency } from "../../currency/CurrencyContext";
+import { useDocumentMeta } from "../../hooks/useDocumentMeta";
 import { FaCircleCheck } from "react-icons/fa6";
 
 const formatDurationForPrice = (duration) => {
@@ -699,7 +701,24 @@ const ListingDetails = () => {
   const [quoteContext, setQuoteContext] = useState(null);
   const [quoteSubmitting, setQuoteSubmitting] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const checkoutInFlightRef = useRef(false);
   const [mobileCalendarOpen, setMobileCalendarOpen] = useState(false);
+
+  const listingOgImage =
+    listing?.coverImage?.url ||
+    listing?.images?.[0]?.url ||
+    (typeof listing?.images?.[0] === "string" ? listing.images[0] : "");
+
+  useDocumentMeta({
+    title: listing?.title || "",
+    description:
+      listing?.description ||
+      (listing?.title
+        ? `Book ${listing.title}${listing?.createdBy?.name ? ` with ${listing.createdBy.name}` : ""} on GigMake.`
+        : ""),
+    image: listingOgImage,
+    type: "product",
+  });
 
   const [reviewsList, setReviewsList] = useState(() => {
     const defaultReviews = [
@@ -1151,6 +1170,8 @@ const ListingDetails = () => {
   };
 
   const handleFixedListingCheckout = async () => {
+    if (checkoutInFlightRef.current || checkoutLoading) return;
+
     if (!userInfo?._id) {
       toast.info("Please log in to book this listing.");
       navigate(getLoginUrl(location), {
@@ -1169,17 +1190,19 @@ const ListingDetails = () => {
       return;
     }
 
-    if (userInfo.role === "teacher") {
-      try {
-        await dispatch(becomeTeacher("user")).unwrap();
-        dispatch(getUser());
-      } catch (err) {
-        console.error("Auto switch to buyer error:", err);
-      }
-    }
-
+    checkoutInFlightRef.current = true;
     setCheckoutLoading(true);
+    let redirected = false;
     try {
+      if (userInfo.role === "teacher") {
+        try {
+          await dispatch(becomeTeacher("user")).unwrap();
+          dispatch(getUser());
+        } catch (err) {
+          console.error("Auto switch to buyer error:", err);
+        }
+      }
+
       const [firstName = userInfo?.name || "Client", ...lastNameParts] = String(userInfo?.name || "").split(" ");
       const res = await dispatch(
         initiateBooking({
@@ -1193,6 +1216,7 @@ const ListingDetails = () => {
       ).unwrap();
 
       if (res?.status && res?.url) {
+        redirected = true;
         localStorage.setItem("bookingId", res.bookingId);
         window.location.href = res.url;
         return;
@@ -1203,11 +1227,16 @@ const ListingDetails = () => {
       const message = typeof error === "string" ? error : error?.data?.message || "Error starting checkout";
       toast.error(message);
     } finally {
-      setCheckoutLoading(false);
+      if (!redirected) {
+        checkoutInFlightRef.current = false;
+        setCheckoutLoading(false);
+      }
     }
   };
 
   const handleCalendarListingCheckout = async ({ selectedDate, selectedTimes }) => {
+    if (checkoutInFlightRef.current || checkoutLoading) return;
+
     if (!selectedDate || !selectedTimes?.length) {
       toast.info("Please select a date and time.");
       return;
@@ -1231,21 +1260,23 @@ const ListingDetails = () => {
       return;
     }
 
-    if (userInfo.role === "teacher") {
-      try {
-        await dispatch(becomeTeacher("user")).unwrap();
-        dispatch(getUser());
-      } catch (err) {
-        console.error("Auto switch to buyer error:", err);
-      }
-    }
-
     const scheduledAt = formatSelectedSlotForBooking(selectedDate, selectedTimes[0]);
     const totalMinutes = selectedTimes.length * parseDurationToMinutes(listing?.duration);
     const [firstName = userInfo?.name || "Client", ...lastNameParts] = String(userInfo?.name || "").split(" ");
 
+    checkoutInFlightRef.current = true;
     setCheckoutLoading(true);
+    let redirected = false;
     try {
+      if (userInfo.role === "teacher") {
+        try {
+          await dispatch(becomeTeacher("user")).unwrap();
+          dispatch(getUser());
+        } catch (err) {
+          console.error("Auto switch to buyer error:", err);
+        }
+      }
+
       const res = await dispatch(
         initiateBooking({
           id: listing._id,
@@ -1265,6 +1296,7 @@ const ListingDetails = () => {
       ).unwrap();
 
       if (res?.status && res?.url) {
+        redirected = true;
         localStorage.setItem("bookingId", res.bookingId);
         window.location.href = res.url;
         return;
@@ -1275,7 +1307,10 @@ const ListingDetails = () => {
       const message = typeof error === "string" ? error : error?.data?.message || "Error starting checkout";
       toast.error(message);
     } finally {
-      setCheckoutLoading(false);
+      if (!redirected) {
+        checkoutInFlightRef.current = false;
+        setCheckoutLoading(false);
+      }
     }
   };
 
@@ -1712,7 +1747,7 @@ const ListingDetails = () => {
 
                     <div className="mt-[10px] md:mt-5 text-sm leading-relaxed text-black [&_p:last-child]:mb-0 [&_p:first-child]:mt-0">
                       {listing?.description ? (
-                        <div dangerouslySetInnerHTML={{ __html: listing.description }} />
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(listing.description) }} />
                       ) : (
                         <p>No description available</p>
                       )}

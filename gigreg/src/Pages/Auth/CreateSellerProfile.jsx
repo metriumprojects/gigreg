@@ -12,6 +12,7 @@ import {
   isSellerProfileComplete,
   loadProposalRequest,
   saveProposalRequest,
+  sendProposalUrl,
 } from "../../utils/proposalRequest";
 import ButtonSpinner from "../../components/ButtonSpinner";
 
@@ -54,7 +55,14 @@ export default function CreateSellerProfile() {
     dispatch(becomeTeacher("teacher")).then((res) => {
       if (res.payload?.status) {
         dispatch(getUser());
-        navigate("/seller-created", { state: { request: pendingRequest } });
+        if (pendingRequest?._id) {
+          navigate(sendProposalUrl(pendingRequest._id), {
+            replace: true,
+            state: { request: pendingRequest, switchedFromBuyer: true },
+          });
+        } else {
+          navigate("/profile", { replace: true });
+        }
       }
     });
   }, [dispatch, navigate, pendingRequest, userInfo]);

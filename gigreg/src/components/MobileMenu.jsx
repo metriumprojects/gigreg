@@ -10,6 +10,7 @@ import { resetChatState } from '../redux/reducers/ChatReducer'
 import { isSellerProfileComplete } from '../utils/proposalRequest'
 import { getLoginUrl, getRegisterUrl, getSafeRedirectPath } from '../utils/authRedirect'
 import SearchCategoryToolbar from '../Pages/Home/Components/SearchCategoryToolbar'
+import { DEFAULT_LISTING_IMAGE } from '../utils/defaultImages'
 
 const CategoriesIcon = ({ className = "h-4 w-4", strokeWidth = 2, size = 16 }) => (
   <svg
@@ -86,7 +87,9 @@ const MobileMenu = ({
   const location = useLocation()
   const dispatch = useDispatch()
   const { userInfo } = useSelector((state) => state.auth)
-  const { chatUnread } = useSelector((state) => state.chat || { chatUnread: 0 })
+  const chatUnread = useSelector((state) =>
+    state.auth?.userInfo?._id ? state.chat?.chatUnread || 0 : 0
+  )
   const { categories: reduxCategories } = useSelector((state) => state.category || { categories: [] })
   const isLoggedIn = !!userInfo
 
@@ -370,8 +373,8 @@ const MobileMenu = ({
                   : activeCategoryList.includes(cat.name)
                 const title = isTrending ? "Trending" : cat.name
                 const imageUrl = isTrending
-                  ? "https://i.ibb.co/tpV3m2GW/no-image.png"
-                  : (cat?.image?.url || "https://i.ibb.co/tpV3m2GW/no-image.png")
+                  ? DEFAULT_LISTING_IMAGE
+                  : (cat?.image?.url || DEFAULT_LISTING_IMAGE)
 
                 return (
                   <button

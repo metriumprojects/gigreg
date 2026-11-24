@@ -20,6 +20,6 @@ router.get("/teacher-timelock/:userId",  getTimeLockByUser);
 router.get("/lesson-calender/:id",  getLessonCalender);
 router.get("/lesson-calender-user", protect, lessonCalenderByUser);
 router.get("/lesson-calender-by-id/:id", lessonCalenderById);
-router.put("/update-calender/:id", updateCalender);
+router.put("/update-calender/:id", protect, updateCalender);
 
 export default router;

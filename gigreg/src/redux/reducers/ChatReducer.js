@@ -3,6 +3,7 @@ import api from "../api";
 
 const initialState = {
   rooms: [],
+  chatUnread: 0,
   roomsLoading: false,
   roomsError: null,
   messagesByRoom: {},
@@ -14,6 +15,13 @@ const initialState = {
   lastStartedRoom: null,
   sendMessageLoading: false,
   sendMessageError: null,
+};
+
+const syncChatUnread = (state) => {
+  state.chatUnread = (state.rooms || []).reduce(
+    (sum, room) => sum + (Number(room?.unreadCount) || 0),
+    0
+  );
 };
 
 const upsertRoom = (rooms, incomingRoom = {}) => {
@@ -159,18 +167,76 @@ export const updateQuoteMessage = createAsyncThunk(
   }
 );
 
-const replaceMessage = (state, updatedMessage) => {
-  if (!updatedMessage?.roomId || !updatedMessage?._id) return;
-  const roomId = String(updatedMessage.roomId);
-  const list = state.messagesByRoom[roomId];
-  if (!Array.isArray(list)) return;
-
-  const index = list.findIndex((item) => String(item?._id) === String(updatedMessage._id));
-  if (index === -1) {
-    list.push(updatedMessage);
-    return;
+const normalizeRoomId = (roomId) => {
+  if (!roomId) return "";
+  if (typeof roomId === "object") {
+    return String(roomId._id || roomId.id || "");
   }
-  list[index] = updatedMessage;
+  return String(roomId);
+};
+
+const upsertMessageInRoom = (state, rawRoomId, message) => {
+  const roomId = normalizeRoomId(rawRoomId);
+  if (!roomId || !message?._id) {
+    return { roomId, inserted: false };
+  }
+
+  if (!Array.isArray(state.messagesByRoom[roomId])) {
+    state.messagesByRoom[roomId] = [];
+  }
+
+  const list = state.messagesByRoom[roomId];
+  const index = list.findIndex((item) => String(item?._id) === String(message._id));
+  if (index !== -1) {
+    list[index] = message;
+    return { roomId, inserted: false };
+  }
+
+  list.push(message);
+  return { roomId, inserted: true };
+};
+
+const syncRoomSummary = (state, roomId, { lastMessage, updatedAt, incrementUnread = false } = {}) => {
+  const roomIndex = state.rooms.findIndex((room) => String(room?._id) === String(roomId));
+  if (roomIndex === -1) return;
+
+  const room = state.rooms[roomIndex];
+  if (lastMessage !== undefined) {
+    room.lastMessage = lastMessage;
+  }
+  if (updatedAt) {
+    room.updatedAt = updatedAt;
+  }
+  if (incrementUnread) {
+    room.unreadCount = (room.unreadCount || 0) + 1;
+  }
+  state.rooms[roomIndex] = room;
+};
+
+const replaceMessage = (state, updatedMessage) => {
+  const roomId = normalizeRoomId(updatedMessage?.roomId);
+  if (!roomId || !updatedMessage?._id) return;
+
+  if (Array.isArray(state.messagesByRoom[roomId])) {
+    upsertMessageInRoom(state, roomId, updatedMessage);
+  }
+
+  const status = updatedMessage?.quote?.status;
+  const summaryText =
+    updatedMessage?.type === "quote"
+      ? status === "accepted"
+        ? "Offer accepted"
+        : status === "cancelled"
+        ? "Offer declined"
+        : status === "withdrawn"
+        ? "Offer withdrawn"
+        : "Offer updated"
+      : updatedMessage?.message;
+
+  syncRoomSummary(state, roomId, {
+    lastMessage: summaryText,
+    updatedAt: updatedMessage?.updatedAt || new Date().toISOString(),
+  });
 };
 
 const chatSlice = createSlice({
@@ -178,51 +244,54 @@ const chatSlice = createSlice({
   initialState,
   reducers: {
     appendIncomingMessage: (state, action) => {
-      const { roomId, message, viewerId } = action.payload || {};
+      const { roomId: rawRoomId, message, viewerId, activeRoomId } = action.payload || {};
+      const roomId = normalizeRoomId(rawRoomId || message?.roomId);
       if (!roomId || !message) return;
 
-      if (!state.messagesByRoom[roomId]) {
-        state.messagesByRoom[roomId] = [];
-      }
-      const existingIndex = state.messagesByRoom[roomId].findIndex(
-        (item) => String(item?._id) === String(message?._id)
-      );
-      if (existingIndex !== -1) {
-        state.messagesByRoom[roomId][existingIndex] = message;
-        return;
-      }
-      state.messagesByRoom[roomId].push(message);
+      const { inserted } = upsertMessageInRoom(state, roomId, message);
+      if (!inserted) return;
 
       const senderId =
         message?.userId?._id || message?.userId || message?.user?._id;
+      const isMine =
+        senderId && viewerId ? String(senderId) === String(viewerId) : false;
+      const isViewingRoom =
+        activeRoomId ? String(activeRoomId) === String(roomId) : false;
 
-      const roomIndex = state.rooms.findIndex((room) => room._id === roomId);
-      if (roomIndex !== -1) {
-        const room = state.rooms[roomIndex];
-        room.lastMessage = message.message;
-        room.updatedAt = message.createdAt || new Date().toISOString();
-
-        const isMine =
-          senderId && viewerId
-            ? String(senderId) === String(viewerId)
-            : false;
-
-        if (!isMine && room.unreadCount !== undefined) {
-          room.unreadCount = (room.unreadCount || 0) + 1;
-        } else if (!isMine && room.unreadCount === undefined) {
-          room.unreadCount = 1;
-        }
-
-        state.rooms[roomIndex] = room;
-      }
+      syncRoomSummary(state, roomId, {
+        lastMessage: message.message,
+        updatedAt: message.createdAt || new Date().toISOString(),
+        incrementUnread: !isMine && !isViewingRoom,
+      });
+      syncChatUnread(state);
     },
     markRoomRead: (state, action) => {
-      const roomId = action.payload;
+      const roomId = normalizeRoomId(action.payload);
       if (!roomId) return;
-      const room = state.rooms.find((item) => item._id === roomId);
+      const room = state.rooms.find((item) => String(item?._id) === roomId);
       if (room) {
         room.unreadCount = 0;
       }
+      syncChatUnread(state);
+    },
+    markMessagesSeenByPeer: (state, action) => {
+      const { roomId: rawRoomId, readerId } =
+        typeof action.payload === "object"
+          ? action.payload || {}
+          : { roomId: action.payload };
+      const roomId = normalizeRoomId(rawRoomId);
+      if (!roomId) return;
+
+      const list = state.messagesByRoom[roomId];
+      if (!Array.isArray(list)) return;
+
+      state.messagesByRoom[roomId] = list.map((item) => {
+        const senderId = item?.userId?._id || item?.userId;
+        if (readerId && senderId && String(senderId) === String(readerId)) {
+          return item;
+        }
+        return item?.read ? item : { ...item, read: true };
+      });
     },
     updateChatMessage: (state, action) => {
       replaceMessage(state, action.payload);
@@ -239,6 +308,7 @@ const chatSlice = createSlice({
         state.roomsLoading = false;
         state.roomsError = null;
         state.rooms = action.payload?.connections || [];
+        syncChatUnread(state);
       })
       .addCase(fetchChatConnections.rejected, (state, action) => {
         state.roomsLoading = false;
@@ -279,6 +349,7 @@ const chatSlice = createSlice({
         state.lastStartedRoom = room || null;
         if (room) {
           upsertRoom(state.rooms, room);
+          syncChatUnread(state);
         }
       })
       .addCase(startChat.rejected, (state, action) => {
@@ -290,9 +361,18 @@ const chatSlice = createSlice({
         state.sendMessageLoading = true;
         state.sendMessageError = null;
       })
-      .addCase(sendChatMessage.fulfilled, (state) => {
+      .addCase(sendChatMessage.fulfilled, (state, action) => {
         state.sendMessageLoading = false;
         state.sendMessageError = null;
+        const sentMessage = action.payload;
+        if (sentMessage?._id && sentMessage?.roomId) {
+          const roomId = normalizeRoomId(sentMessage.roomId);
+          upsertMessageInRoom(state, roomId, sentMessage);
+          syncRoomSummary(state, roomId, {
+            lastMessage: sentMessage.message,
+            updatedAt: sentMessage.createdAt || new Date().toISOString(),
+          });
+        }
       })
       .addCase(sendChatMessage.rejected, (state, action) => {
         state.sendMessageLoading = false;
@@ -316,8 +396,13 @@ const chatSlice = createSlice({
   },
 });
 
-export const { appendIncomingMessage, markRoomRead, resetChatState, updateChatMessage } =
-  chatSlice.actions;
+export const {
+  appendIncomingMessage,
+  markMessagesSeenByPeer,
+  markRoomRead,
+  resetChatState,
+  updateChatMessage,
+} = chatSlice.actions;
 
 export default chatSlice.reducer;
 

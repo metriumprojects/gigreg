@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader, Home, ChevronRight } from "lucide-react";
@@ -15,6 +15,10 @@ import {
 import { getCategories } from "../../redux/reducers/CategoryReducer";
 import { getAvailability } from "../../redux/reducers/AvailabilityReducer";
 import { useCurrency } from "../../currency/CurrencyContext";
+import {
+  getCalendarSlotValidationError,
+  hasAnyCalendarTimeSlot,
+} from "../../utils/calendarValidation";
 
 const MAX_DESCRIPTION_LENGTH = 1200;
 
@@ -68,10 +72,36 @@ const UpdateListing = () => {
   const [existingCoverImage, setExistingCoverImage] = useState(null);
   const [images, setImages] = useState([]);
   const [calendarData, setCalendarData] = useState(null);
+  const [calendarSelection, setCalendarSelection] = useState({ mode: "default", calenderId: null });
+  const [calendarError, setCalendarError] = useState("");
+  const [isLargeScreen, setIsLargeScreen] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
   const durationOptions = useMemo(() => generateDurationOptions(), []);
   const enableCalendar = pricingType === "hourly_calendar";
   const isHourlyPricing = pricingType === "hourly_calendar" || pricingType === "hourly";
   const isOnDemandPricing = pricingType === "fixed_on_demand";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleChange = (event) => setIsLargeScreen(event.matches);
+    setIsLargeScreen(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  const handleCalendarChange = useCallback((data) => {
+    setCalendarData(data);
+    if (hasAnyCalendarTimeSlot(data)) {
+      setCalendarError("");
+    }
+  }, []);
+
+  const handleCalendarSelectionChange = useCallback((selection) => {
+    setCalendarSelection(selection);
+    setCalendarError("");
+  }, []);
 
   useEffect(() => {
     dispatch(getCategories());
@@ -122,7 +152,10 @@ const UpdateListing = () => {
 
   const handlePricingTypeChange = (type) => {
     setPricingType(type);
-    if (type !== "hourly_calendar") setCalendarData(null);
+    if (type !== "hourly_calendar") {
+      setCalendarData(null);
+      setCalendarError("");
+    }
     if (type !== "hourly_calendar" && type !== "hourly") {
       setFormData((prev) => ({ ...prev, duration: "" }));
     }
@@ -202,6 +235,21 @@ const UpdateListing = () => {
       toast.info("Please complete all required fields");
       return;
     }
+
+    const calErr = getCalendarSlotValidationError({
+      enableCalendar,
+      calendarSelection,
+      calendarData,
+      fallbackAvailability: { weeklyAvailability, dateAvailability },
+    });
+    if (calErr) {
+      setCalendarError(calErr);
+      toast.error(calErr);
+      const el = document.getElementById("field-calendar");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    setCalendarError("");
 
     const listingFormData = new FormData();
     listingFormData.append("title", formData.title);
@@ -596,27 +644,63 @@ const UpdateListing = () => {
             </form>
 
             {enableCalendar && (
-              <div className="hidden lg:block">
+              <div
+                id={isLargeScreen ? "field-calendar" : undefined}
+                className={`hidden lg:block rounded-2xl transition-colors ${
+                  calendarError ? "border border-red-500 ring-1 ring-red-500 bg-red-50/20 p-4" : ""
+                }`}
+              >
                 <div className="sticky top-10 h-fit">
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">My Availability</h3>
-                  <p className="text-gray-500 text-sm mb-6">Set your availability schedule for this listing</p>
-                  <MakeAvailability
-                    availabilityData={{ weeklyAvailability, dateAvailability }}
-                    onChange={setCalendarData}
-                    isGroupAvailable={isGroupAvailable}
-                  />
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">My Availability *</h3>
+                  <p className="text-gray-500 text-sm mb-4">Set your availability schedule for this listing (minimum 1 time slot required)</p>
+                  {calendarError ? (
+                    <div className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium">
+                      {calendarError}
+                    </div>
+                  ) : !hasAnyCalendarTimeSlot(calendarData || (calendarSelection.mode === "default" ? { weeklyAvailability, dateAvailability } : null)) ? (
+                    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                      Add at least one available time slot below so buyers can book this service.
+                    </div>
+                  ) : null}
+                  {isLargeScreen && (
+                    <MakeAvailability
+                      availabilityData={{ weeklyAvailability, dateAvailability }}
+                      onChange={handleCalendarChange}
+                      onSelectionChange={handleCalendarSelectionChange}
+                      isGroupAvailable={isGroupAvailable}
+                    />
+                  )}
                 </div>
               </div>
             )}
           </div>
 
           {enableCalendar && (
-            <div className="lg:hidden mt-12">
-              <MakeAvailability
-                availabilityData={{ weeklyAvailability, dateAvailability }}
-                onChange={setCalendarData}
-                isGroupAvailable={isGroupAvailable}
-              />
+            <div
+              id={!isLargeScreen ? "field-calendar" : undefined}
+              className={`lg:hidden mt-12 rounded-2xl transition-colors ${
+                calendarError ? "border border-red-500 ring-1 ring-red-500 bg-red-50/20 p-4" : ""
+              }`}
+            >
+              <h3 className="text-base font-semibold text-gray-900 mb-1">My Availability *</h3>
+              <p className="text-gray-500 text-sm mb-4">Set your availability schedule for this listing (minimum 1 time slot required)</p>
+              {calendarError ? (
+                <div className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium">
+                  {calendarError}
+                </div>
+              ) : !hasAnyCalendarTimeSlot(calendarData || (calendarSelection.mode === "default" ? { weeklyAvailability, dateAvailability } : null)) ? (
+                <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  Add at least one available time slot below so buyers can book this service.
+                </div>
+              ) : null}
+              {!isLargeScreen && (
+                <MakeAvailability
+                  availabilityData={{ weeklyAvailability, dateAvailability }}
+                  onChange={handleCalendarChange}
+                  onSelectionChange={handleCalendarSelectionChange}
+                  isGroupAvailable={isGroupAvailable}
+                />
+              )}
             </div>
           )}
         </div>

@@ -8,15 +8,9 @@ import { FaInstagram, FaStar, FaYoutube } from "react-icons/fa";
 import { SlSocialYoutube } from "react-icons/sl";
 
 import MainLayout from "../../components/MainLayout";
-import Booked from "./components/Booked";
-import Upcoming from "./components/Upcoming";
-import UnShaduled from "./components/UnShaduled";
-import Canceled from "./components/Canceled";
 import BookMark from "./components/BookMark";
 import { useSelector, useDispatch } from "react-redux";
 import TeacherDashboard from "./components/TeacherDashboard";
-import Lessons from "./components/Lesson";
-import Curriculum from "./components/Curriculum";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   becomeTeacher,
@@ -27,7 +21,6 @@ import { isSellerProfileComplete } from "../../utils/proposalRequest";
 import { toast } from "react-toastify";
 import Calender from "./components/Calendar";
 import Request from "./components/Request";
-import StudentDashboard from "./components/StudentDashboard";
 import StudentOrders from "./components/StudentOrders";
 import Revenu from "./TeacherComponents/Revenu";
 import PayoutHistory from "./TeacherComponents/PayoutHistory";
@@ -123,6 +116,7 @@ export default function Profile() {
   // Build-only profile tabs (listings / gigs)
   const studentStates = [
     "My Orders",
+    "My Requests",
     "My Bookmarks",
     "My Profile",
   ];
@@ -266,20 +260,13 @@ export default function Profile() {
               </div>
             )}
           </div>
-          {/* {tab === "Booked" && <Booked />} */}
           {tab === "Revenue" && <Revenu />}
           {tab === "Payout History" && <PayoutHistory />}
-          {tab === "Upcoming" && <Upcoming />}
-          {tab === "Unscheduled" && <UnShaduled />}
-          {tab === "Canceled" && <Canceled />}
           {tab === "My Bookmarks" && <BookMark />}
           {tab === "My Schedule" && <TeacherDashboard />}
-          {tab === "Student Dashboard" && <StudentDashboard />}
           {tab === "My Orders" && (
             userInfo?.role === "teacher" ? <TeacherDashboard /> : <StudentOrders />
           )}
-          {tab === "My Lessons" && <Lessons />}
-          {tab === "My Curriculum" && <Curriculum />}
           {(tab === "My Availability" || tab === "My Availability Calendar") && <Calender />}
           {tab === "My Requests" && <Request />}
           {tab === "My Profile" && <MyProfile />}

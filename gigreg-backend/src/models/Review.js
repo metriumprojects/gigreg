@@ -25,4 +25,7 @@ const ReviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+ReviewSchema.index({ isApproved: 1, createdAt: -1 });
+ReviewSchema.index({ user: 1, createdAt: -1 });
+
 export default mongoose.model("Review", ReviewSchema);

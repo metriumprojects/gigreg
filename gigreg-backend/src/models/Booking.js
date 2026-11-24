@@ -41,11 +41,35 @@ const bookingSchema = new mongoose.Schema({
   paymentStatus: { type: String, enum: ["pending", "paid", "failed", "cancelled", "part"], default: "pending" },
   stripePaymentIntentId: { type: String },
   stripeSessionId: { type: String },
+  stripeChargeId: { type: String },
   stripeTransferId: { type: String },
-  payoutStatus: { type: String, enum: ["direct", "pending_connect", "transferred"], default: "direct" },
+  stripeRefundId: { type: String },
+  refundStatus: { type: String, enum: ["none", "pending", "partial", "refunded", "disputed", "failed"], default: "none" },
+  refundedAt: { type: Date },
+  payoutStatus: {
+    type: String,
+    enum: ["pending_completion", "pending_connect", "processing", "transferred", "cancelled", "direct"],
+    default: "pending_completion",
+  },
+  commissionRate: { type: Number },
+  commissionAmount: { type: Number },
   teacherPayoutAmount: { type: Number },
   teacherPayoutCurrency: { type: String },
   transferredAt: { type: Date },
+  processingStartedAt: { type: Date },
+  completedAt: { type: Date },
+  completedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  deliveredAt: { type: Date },
+  deliveredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  deliveryNote: { type: String, default: "" },
+  autoCompleteAt: { type: Date },
+  autoCompleted: { type: Boolean, default: false },
+  revisionNote: { type: String, default: "" },
+  revisionRequestedAt: { type: Date },
+  revisionCount: { type: Number, default: 0 },
+  cancelledAt: { type: Date },
+  cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  transferError: { type: String },
   stripeApplicationFeeAmount: { type: Number },
   presentmentAmount: { type: Number },
   presentmentCurrency: { type: String },
@@ -78,6 +102,7 @@ const bookingSchema = new mongoose.Schema({
 bookingSchema.index({ teacher: 1, createdAt: -1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
 bookingSchema.index({ teacher: 1, payoutStatus: 1, paymentStatus: 1 });
+bookingSchema.index({ status: 1, autoCompleteAt: 1 }, { sparse: true });
 bookingSchema.index({ stripeSessionId: 1 }, { sparse: true });
 bookingSchema.index({ stripePaymentIntentId: 1 }, { sparse: true });
 

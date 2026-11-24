@@ -9,6 +9,7 @@ import {
 } from "../../../redux/reducers/ChatReducer";
 import { motion } from "framer-motion";
 import { useCurrency } from "../../../currency/CurrencyContext";
+import { DEFAULT_LISTING_IMAGE } from "../../../utils/defaultImages";
 
 export default function SendLesson({ open, onClose, request }) {
   const { formatPrice } = useCurrency();
@@ -134,7 +135,7 @@ export default function SendLesson({ open, onClose, request }) {
                   disabled={submitting}
                 />
                 <img
-                  src={listing?.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+                  src={listing?.coverImage?.url || DEFAULT_LISTING_IMAGE}
                   alt={listing.title}
                   className="h-12 w-12 rounded-lg object-cover"
                 />

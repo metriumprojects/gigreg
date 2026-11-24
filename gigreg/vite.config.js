@@ -24,7 +24,6 @@ export default defineConfig({
           'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js', '@stripe/connect-js', '@stripe/react-connect-js'],
           'vendor-swiper': ['swiper'],
           'vendor-firebase': ['firebase/app', 'firebase/auth'],
-          'vendor-date': ['moment-timezone'],
           'vendor-utils': ['axios', 'socket.io-client'],
         },
       },

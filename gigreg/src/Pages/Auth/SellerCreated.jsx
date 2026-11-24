@@ -9,6 +9,7 @@ import {
   loadProposalRequest,
 } from "../../utils/proposalRequest";
 import Logo from "../../components/Logo";
+import { DEFAULT_AVATAR_IMAGE } from "../../utils/defaultImages";
 
 const formatRequestDate = (value) => {
   if (!value) return "Date not available";
@@ -129,7 +130,7 @@ export default function SellerCreated() {
                         <img
                           src={
                             request?.user?.image?.url ||
-                            "https://i.ibb.co/tpV3m2GW/no-image.png"
+                            DEFAULT_AVATAR_IMAGE
                           }
                           alt=""
                           className="h-8 w-8 rounded-full object-cover"

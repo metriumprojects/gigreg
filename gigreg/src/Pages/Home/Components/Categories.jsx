@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment, useCallback, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRight,
@@ -21,6 +21,301 @@ import UserAvatarPlaceholder from "../../../components/UserAvatarPlaceholder";
 import { getLoginUrl, getRegisterUrl, getSafeRedirectPath } from "../../../utils/authRedirect";
 import SearchCategoryToolbar from "./SearchCategoryToolbar";
 import { getCurrentDeviceLocation } from "../../../utils/nativeLocation";
+
+const getProfileMenuLinkClass = (location, path, searchTab = "") => {
+  const currentTab = new URLSearchParams(location.search).get("tab");
+  let isActive = false;
+  if (searchTab) {
+    isActive = location.pathname === path && currentTab === searchTab;
+  } else if (path === "/profile") {
+    isActive = location.pathname === path && currentTab !== "My Profile";
+  } else {
+    isActive = location.pathname === path;
+  }
+  return `w-full px-4 py-2.5 text-left flex items-center gap-2 text-sm transition-colors hover:bg-gray-50 ${
+    isActive ? "font-bold text-black" : "font-normal text-black"
+  }`;
+};
+
+const ProfileMenu = ({
+  asPill = false,
+  asCircle = false,
+  useIcon = false,
+  userInfo,
+  location,
+  showProfileMenu,
+  onProfileMouseEnter,
+  onProfileMouseLeave,
+  handleProfileClick,
+  handleCloseProfileMenu,
+  handleTeacher,
+  handleLogout,
+}) => {
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownPos, setDropdownPos] = useState(null);
+
+  const updatePosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = 192; // w-48 is 192px
+    let left = rect.right - menuWidth;
+    if (left < 10) left = Math.max(10, rect.left);
+    if (left + menuWidth > window.innerWidth - 10) {
+      left = Math.max(10, window.innerWidth - menuWidth - 10);
+    }
+    setDropdownPos({
+      top: Math.round(rect.bottom),
+      left: Math.round(left),
+    });
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    if (handleCloseProfileMenu) handleCloseProfileMenu();
+    else handleProfileClick?.();
+  }, [handleCloseProfileMenu, handleProfileClick]);
+
+  useLayoutEffect(() => {
+    if (!showProfileMenu) return undefined;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [showProfileMenu, updatePosition]);
+
+  useEffect(() => {
+    if (!showProfileMenu) return undefined;
+    const handleClickOutside = (event) => {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
+        closeMenu();
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [showProfileMenu, closeMenu]);
+
+  return (
+    <div
+      className="relative z-50 flex items-center shrink-0"
+      onMouseEnter={() => {
+        updatePosition();
+        onProfileMouseEnter?.();
+      }}
+      onMouseLeave={onProfileMouseLeave}
+    >
+      <button
+        ref={buttonRef}
+        onClick={() => {
+          updatePosition();
+          handleProfileClick?.();
+        }}
+        className={
+          asCircle
+            ? "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 focus:outline-none overflow-hidden"
+            : asPill
+              ? "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 focus:outline-none"
+              : useIcon
+                ? "flex h-9 w-9 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100"
+                : "rounded-full"
+        }
+        aria-label="Open profile menu"
+        aria-expanded={showProfileMenu}
+        aria-haspopup="menu"
+        type="button"
+      >
+        {asPill ? (
+          <>
+            <svg
+              className="h-4 w-4 shrink-0"
+              viewBox="0 0 22 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+            </svg>
+            <span>Profile</span>
+          </>
+        ) : asCircle ? (
+          userInfo?.image?.url && userInfo.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
+            <img
+              loading="lazy"
+              src={userInfo.image.url}
+              className="h-full w-full object-cover"
+              alt="profile"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <UserAvatarPlaceholder className="h-[18px] w-[18px] text-[#1A2B49]" />
+            </div>
+          )
+        ) : useIcon ? (
+          <svg
+            className="h-5 w-5 shrink-0"
+            viewBox="0 0 22 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+            <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+          </svg>
+        ) : (
+          <svg
+            className="h-4 w-4 shrink-0"
+            viewBox="0 0 22 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
+            <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
+          </svg>
+        )}
+      </button>
+
+      {showProfileMenu &&
+        dropdownPos !== null &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: `${dropdownPos.top}px`,
+              left: `${dropdownPos.left}px`,
+            }}
+            className="z-[9999] w-48 pt-1.5"
+            onMouseEnter={onProfileMouseEnter}
+            onMouseLeave={onProfileMouseLeave}
+          >
+            <div className="w-full overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0">
+              {userInfo ? (
+                <>
+                  <Link
+                    to="/profile?tab=My Profile"
+                    className={getProfileMenuLinkClass(location, "/profile", "My Profile")}
+                    onClick={closeMenu}
+                  >
+                    View Profile
+                  </Link>
+                  {userInfo?.role === "user" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleTeacher("teacher");
+                        closeMenu();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+                    >
+                      {userInfo?.reverseRole || userInfo?.sellerName
+                        ? "Visit your Seller profile"
+                        : "Become a Seller"}
+                    </button>
+                  )}
+                  {userInfo?.role === "teacher" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleTeacher("user");
+                        closeMenu();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+                    >
+                      Visit your Buyer profile
+                    </button>
+                  )}
+                  <Link
+                    to="/"
+                    className={getProfileMenuLinkClass(location, "/")}
+                    onClick={closeMenu}
+                  >
+                    Build
+                  </Link>
+                  <Link
+                    to="/teach"
+                    className={getProfileMenuLinkClass(location, "/teach")}
+                    onClick={closeMenu}
+                  >
+                    {userInfo?.role === "teacher" ? "Buyer Requests" : "Requests"}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleLogout();
+                      closeMenu();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to={getLoginUrl(location)}
+                    state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-black hover:bg-gray-50 cursor-pointer"
+                    onClick={closeMenu}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to={getRegisterUrl(location)}
+                    state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-primary hover:bg-gray-50 cursor-pointer"
+                    onClick={closeMenu}
+                  >
+                    Sign up
+                  </Link>
+                  <Link
+                    to="/"
+                    className={getProfileMenuLinkClass(location, "/")}
+                    onClick={closeMenu}
+                  >
+                    Build
+                  </Link>
+                  <Link
+                    to="/teach"
+                    className={getProfileMenuLinkClass(location, "/teach")}
+                    onClick={closeMenu}
+                  >
+                    Requests
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+};
 
 export default function CategoriesBar({
   categories: propCategories = [],
@@ -216,6 +511,9 @@ export default function CategoriesBar({
   const handleOpenTawk = (e) => {
     e?.preventDefault();
     if (typeof window === "undefined") return;
+    if (typeof window.__loadTawkWidget === "function") {
+      window.__loadTawkWidget();
+    }
     if (window.Tawk_API) {
       if (typeof window.Tawk_API.showWidget === "function") {
         window.Tawk_API.showWidget();
@@ -224,6 +522,13 @@ export default function CategoriesBar({
         window.Tawk_API.maximize();
       } else if (typeof window.Tawk_API.toggle === "function") {
         window.Tawk_API.toggle();
+      } else {
+        const prevOnLoad = window.Tawk_API.onLoad;
+        window.Tawk_API.onLoad = () => {
+          prevOnLoad?.();
+          window.Tawk_API?.showWidget?.();
+          window.Tawk_API?.maximize?.();
+        };
       }
     }
   };
@@ -261,290 +566,6 @@ export default function CategoriesBar({
     const isActive = location.pathname === path || location.pathname.startsWith(`${path}/`);
     return `relative flex h-11 w-11 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100 ${isActive ? "bg-gray-100" : ""
       }`;
-  };
-
-  const menuLinkClass = (path, searchTab = "") => {
-    const currentTab = new URLSearchParams(location.search).get("tab");
-    let isActive = false;
-    if (searchTab) {
-      isActive = location.pathname === path && currentTab === searchTab;
-    } else if (path === "/profile") {
-      isActive = location.pathname === path && currentTab !== "My Profile";
-    } else {
-      isActive = location.pathname === path;
-    }
-    return `w-full px-4 py-2.5 text-left flex items-center gap-2 text-sm transition-colors hover:bg-gray-50 ${isActive ? "font-bold text-black" : "font-normal text-black"
-      }`;
-  };
-
-  const ProfileMenu = ({ asPill = false, asCircle = false, useIcon = false } = {}) => {
-    const buttonRef = useRef(null);
-    const dropdownRef = useRef(null);
-    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-
-    const updatePosition = () => {
-      if (buttonRef.current) {
-        const rect = buttonRef.current.getBoundingClientRect();
-        const menuWidth = 192; // w-48 is 192px
-        let left = rect.right - menuWidth;
-        if (left < 10) left = Math.max(10, rect.left);
-        if (left + menuWidth > window.innerWidth - 10) {
-          left = Math.max(10, window.innerWidth - menuWidth - 10);
-        }
-        setDropdownPos({
-          top: Math.round(rect.bottom + 6),
-          left: Math.round(left),
-        });
-      }
-    };
-
-    useEffect(() => {
-      if (!showProfileMenu) return;
-      updatePosition();
-      window.addEventListener("resize", updatePosition);
-      window.addEventListener("scroll", updatePosition, true);
-      return () => {
-        window.removeEventListener("resize", updatePosition);
-        window.removeEventListener("scroll", updatePosition, true);
-      };
-    }, [showProfileMenu]);
-
-    useEffect(() => {
-      if (!showProfileMenu) return;
-      const handleClickOutside = (event) => {
-        if (
-          buttonRef.current &&
-          !buttonRef.current.contains(event.target) &&
-          dropdownRef.current &&
-          !dropdownRef.current.contains(event.target)
-        ) {
-          if (handleCloseProfileMenu) handleCloseProfileMenu();
-          else handleProfileClick?.();
-        }
-      };
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("touchstart", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-        document.removeEventListener("touchstart", handleClickOutside);
-      };
-    }, [showProfileMenu]);
-
-    return (
-      <div
-        className="relative z-50 flex items-center shrink-0"
-        onMouseEnter={onProfileMouseEnter}
-        onMouseLeave={onProfileMouseLeave}
-      >
-        <button
-          ref={buttonRef}
-          onClick={() => {
-            updatePosition();
-            handleProfileClick?.();
-          }}
-          className={
-            asCircle
-              ? "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 focus:outline-none overflow-hidden"
-              : asPill
-                ? "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border-[1.5px] border-black bg-white px-4 text-sm font-semibold text-black transition-colors hover:bg-gray-50 focus:outline-none"
-                : useIcon
-                  ? "flex h-9 w-9 items-center justify-center rounded-full text-black transition-colors hover:bg-gray-100"
-                  : "rounded-full"
-          }
-          aria-label="Open profile menu"
-          type="button"
-        >
-          {asPill ? (
-            <>
-              <svg
-                className="h-4 w-4 shrink-0"
-                viewBox="0 0 22 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-                <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-              </svg>
-              <span>Profile</span>
-            </>
-          ) : asCircle ? (
-            userInfo?.image?.url && userInfo.image.url !== "https://i.ibb.co/tpV3m2GW/no-image.png" ? (
-              <img
-                loading="lazy"
-                src={userInfo.image.url}
-                className="h-full w-full object-cover"
-                alt="profile"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <UserAvatarPlaceholder className="h-[18px] w-[18px] text-[#1A2B49]" />
-              </div>
-            )
-          ) : useIcon ? (
-            <svg
-              className="h-5 w-5 shrink-0"
-              viewBox="0 0 22 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-            </svg>
-          ) : (
-            <svg
-              className="h-4 w-4 shrink-0"
-              viewBox="0 0 22 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 23C13.2546 23 15.0343 22.9447 16.4395 22.8027C17.8542 22.6598 18.8206 22.435 19.4834 22.1338C20.1133 21.8475 20.4493 21.5022 20.6562 21.0791C20.8817 20.618 21 19.9693 21 19C21 18.0307 20.8817 17.382 20.6562 16.9209C20.4493 16.4978 20.1133 16.1525 19.4834 15.8662C18.8206 15.565 17.8542 15.3402 16.4395 15.1973C15.0343 15.0553 13.2546 15 11 15C8.74545 15 6.96565 15.0553 5.56055 15.1973C4.1458 15.3402 3.17936 15.565 2.5166 15.8662C1.88675 16.1525 1.55068 16.4978 1.34375 16.9209C1.11831 17.382 1 18.0307 1 19C1 19.9693 1.11831 20.618 1.34375 21.0791C1.55068 21.5022 1.88675 21.8475 2.5166 22.1338C3.17936 22.435 4.1458 22.6598 5.56055 22.8027C6.96565 22.9447 8.74545 23 11 23Z" />
-              <circle cx="6" cy="6" r="5" transform="matrix(-1 0 0 1 17 0)" />
-            </svg>
-          )}
-        </button>
-
-        {showProfileMenu &&
-          createPortal(
-            <div
-              ref={dropdownRef}
-              style={{
-                position: "fixed",
-                top: `${dropdownPos.top}px`,
-                left: `${dropdownPos.left}px`,
-              }}
-              className="z-[9999] w-48 overflow-hidden rounded-lg bg-white shadow-xl border border-gray-100 p-0"
-              onMouseEnter={onProfileMouseEnter}
-              onMouseLeave={onProfileMouseLeave}
-            >
-              {userInfo ? (
-                <>
-                  <Link
-                    to="/profile?tab=My Profile"
-                    className={menuLinkClass("/profile", "My Profile")}
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    View Profile
-                  </Link>
-                  {userInfo?.role === "user" && (
-                    <button
-                      onClick={() => {
-                        handleTeacher("teacher");
-                        if (handleCloseProfileMenu) handleCloseProfileMenu();
-                        else handleProfileClick?.();
-                      }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
-                    >
-                      {userInfo?.reverseRole || userInfo?.sellerName
-                        ? "Visit your Seller profile"
-                        : "Become a Seller"}
-                    </button>
-                  )}
-                  {userInfo?.role === "teacher" && (
-                    <button
-                      onClick={() => {
-                        handleTeacher("user");
-                        if (handleCloseProfileMenu) handleCloseProfileMenu();
-                        else handleProfileClick?.();
-                      }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
-                    >
-                      Visit your Buyer profile
-                    </button>
-                  )}
-                  <Link
-                    to="/"
-                    className={menuLinkClass("/")}
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    Build
-                  </Link>
-                  <Link
-                    to="/teach"
-                    className={menuLinkClass("/teach")}
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    {userInfo?.role === "teacher" ? "Buyer Requests" : "Requests"}
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-normal text-black hover:bg-gray-50 cursor-pointer"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to={getLoginUrl(location)}
-                    state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-black hover:bg-gray-50 cursor-pointer"
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    Log in
-                  </Link>
-                  <Link
-                    to={getRegisterUrl(location)}
-                    state={getSafeRedirectPath(location) ? { from: getSafeRedirectPath(location) } : undefined}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-primary hover:bg-gray-50 cursor-pointer"
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    Sign up
-                  </Link>
-                  <Link
-                    to="/"
-                    className={menuLinkClass("/")}
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    Build
-                  </Link>
-                  <Link
-                    to="/teach"
-                    className={menuLinkClass("/teach")}
-                    onClick={() => {
-                      if (handleCloseProfileMenu) handleCloseProfileMenu();
-                      else handleProfileClick?.();
-                    }}
-                  >
-                    Requests
-                  </Link>
-                </>
-              )}
-            </div>,
-            document.body
-          )}
-      </div>
-    );
   };
 
   const renderBreadcrumbs = () => {
@@ -893,7 +914,18 @@ export default function CategoriesBar({
           {userInfo ? (
             <>
               <div className="hidden md:flex items-center">
-                <ProfileMenu asCircle />
+                <ProfileMenu
+                  asCircle
+                  userInfo={userInfo}
+                  location={location}
+                  showProfileMenu={showProfileMenu}
+                  onProfileMouseEnter={onProfileMouseEnter}
+                  onProfileMouseLeave={onProfileMouseLeave}
+                  handleProfileClick={handleProfileClick}
+                  handleCloseProfileMenu={handleCloseProfileMenu}
+                  handleTeacher={handleTeacher}
+                  handleLogout={handleLogout}
+                />
               </div>
               <Link
                 to="/profile?tab=My Bookmarks"

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { DEFAULT_AVATAR_IMAGE } from "../../../utils/defaultImages";
 
 const formatTime = (timestamp) => {
   if (!timestamp) return "";
@@ -49,7 +50,7 @@ export default function UserListI({
   const avatar =
     participant?.image?.url ||
     participant?.avatar ||
-    `https://i.ibb.co/tpV3m2GW/no-image.png`;
+    DEFAULT_AVATAR_IMAGE;
   const preview = room?.lastMessage
     ? room.lastMessage.length > 60
       ? `${room.lastMessage.slice(0, 57)}...`

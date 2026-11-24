@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
-import moment from "moment-timezone";
+import { convertTimeBetweenTimezones } from "../../utils/dateFormat";
 
 export function MyCalendar({
   selectedDate,
@@ -10,7 +10,7 @@ export function MyCalendar({
   weeklyAvailability = {},
   dateAvailability = [],
   dateUnAvailability = [],
-  teacherTimezone = teacherTimezone,
+  teacherTimezone = "UTC",
   isDisabled = false,
   lessonTitle = "",
   lessonNumber = 1,
@@ -73,17 +73,9 @@ export function MyCalendar({
     return `${year}-${month}-${day}`;
   };
 
-  // Function to convert time using moment-timezone
-  const convertTimeWithMoment = (timeStr, fromTimezone, toTimezone) => {
-    // Create a moment object with the time in the fromTimezone
-    const momentTime = moment.tz(`${moment().format('YYYY-MM-DD')} ${timeStr}`, 'YYYY-MM-DD HH:mm', fromTimezone);
-    
-    // Convert to target timezone
-    const convertedTime = momentTime.tz(toTimezone);
-    
-    // Return in HH:mm format
-    return convertedTime.format('HH:mm');
-  };
+  // Convert time between IANA timezones using native Intl.DateTimeFormat
+  const convertTimeWithMoment = (timeStr, fromTimezone, toTimezone) =>
+    convertTimeBetweenTimezones(timeStr, fromTimezone, toTimezone);
 
   // Helper to parse duration string to minutes
   const parseDurationToMinutes = (durationStr) => {

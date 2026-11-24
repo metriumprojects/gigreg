@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import Favorite from "../models/Favorite.js";
+import User from "../models/User.js";
 
 export const toggleFavorite = async (req, res) => {
     try {
@@ -56,15 +58,15 @@ export const getUserFavorites = async (req, res) => {
             .populate({
                 path: "propose",
                 populate: {
-                    path: "user",   // or createdBy — depends on your schema
-                    select: "name email image averageRating totalRatings"
+                    path: "user",
+                    select: "name image averageRating totalRatings"
                 }
             })
             .populate({
                 path: "listing",
                 populate: {
                     path: "createdBy",
-                    select: "name email image averageRating totalRatings"
+                    select: "name image averageRating totalRatings"
                 }
             });
 
@@ -82,10 +84,28 @@ export const getUserFavorites = async (req, res) => {
 export const getTeacherFavoritesByID = async (req, res) => {
   try {
     const createdById = req.params.id;
+    const isSelfOrAdmin =
+      String(req.user?._id || "") === String(createdById) || req.user?.role === "admin";
 
-    // Pagination inputs
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    if (!isSelfOrAdmin) {
+      return res.status(403).json({
+        status: false,
+        message: "Not authorized to view this user's favorites",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(createdById)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid seller ID",
+      });
+    }
+
+    const ownerObjectId = new mongoose.Types.ObjectId(createdById);
+
+    // Pagination inputs (bounded to prevent unbounded scans)
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
 
     const favorites = await Favorite.aggregate([
@@ -113,12 +133,12 @@ export const getTeacherFavoritesByID = async (req, res) => {
       { $unwind: { path: "$propose", preserveNullAndEmptyArrays: true } },
       { $unwind: { path: "$listing", preserveNullAndEmptyArrays: true } },
 
-      // MATCH → createdBy filter
+      // MATCH -> owner ObjectId filter
       {
         $match: {
           $or: [
-            { "propose.createdBy": createdById },
-            { "listing.createdBy": createdById }
+            { "propose.user": ownerObjectId },
+            { "listing.createdBy": ownerObjectId }
           ]
         }
       },
@@ -154,20 +174,32 @@ export const getTeacherFavoritesByID = async (req, res) => {
 export const getUserFavoritesByUser = async (req, res) => {
     try {
         const userId = req.params.id;
+        const isSelfOrAdmin =
+            String(req.user?._id || "") === String(userId) || req.user?.role === "admin";
+
+        if (!isSelfOrAdmin) {
+            const targetUser = await User.findById(userId).select("publicType").lean();
+            if (!targetUser || targetUser.publicType !== true) {
+                return res.status(403).json({
+                    status: false,
+                    message: "This user's favorites are private",
+                });
+            }
+        }
 
         const favorites = await Favorite.find({ user: userId })
             .populate({
                 path: "propose",
                 populate: {
-                    path: "user",   // or createdBy — depends on your schema
-                    select: "name email image averageRating totalRatings"
+                    path: "user",
+                    select: "name image averageRating totalRatings"
                 }
             })
             .populate({
                 path: "listing",
                 populate: {
                     path: "createdBy",
-                    select: "name email image averageRating totalRatings"
+                    select: "name image averageRating totalRatings"
                 }
             });
 

@@ -3,39 +3,10 @@ import Withdrawal from "../models/Withdrawal.js";
 import { generateOrderNo } from "../utils/utils.js";
 
 export const createWithdrawal = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const { name, accountNo,  bank, amount,country,currency,iban,routingNumber,swiftBic } = req.body;
-
-        if (!name || !accountNo ||  !bank || !amount) {
-            return res.status(400).json({ message: "All fields required" });
-        }
-
-        const user = await User.findById(userId);
-        if (user.money < amount) return res.status(400).json({ message: "Insufficient balance" });
-
-        const withdrawal = await Withdrawal.create({
-            userId,
-            name,
-            accountNo,
-                      bank,
-            amount,
-            country,
-            currency,
-            iban,
-            routingNumber,
-            swiftBic,
-            orderNo:generateOrderNo(),
-            status: "pending",
-        });
-        await User.findByIdAndUpdate(userId, {
-            $inc: { money: -amount }
-        });
-        res.json({ status: true, message: "Withdrawal request created", withdrawal });
-
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+    return res.status(410).json({
+        status: false,
+        message: "Manual withdrawals are deprecated. Please use Stripe Direct Payouts at /withdraw-request.",
+    });
 };
 export const getUserWithdrawals = async (req, res) => {
     try {
@@ -70,26 +41,32 @@ export const approveWithdrawal = async (req, res) => {
         const { id } = req.params; // withdrawalId
         const { status } = req.body;
 
-        const withdrawal = await Withdrawal.findById(id);
-        if (!withdrawal) return res.status(404).json({ message: "Withdrawal not found" });
+        if (!["approved", "rejected"].includes(status)) {
+            return res.status(400).json({ status: false, message: "Status must be 'approved' or 'rejected'" });
+        }
 
-        if (withdrawal.status !== "pending")
+        const existing = await Withdrawal.findById(id);
+        if (!existing) return res.status(404).json({ message: "Withdrawal not found" });
+
+        if (existing.status !== "pending") {
             return res.status(400).json({ message: "Already processed" });
+        }
 
-        if (status === "approved") {
-            withdrawal.status = "approved";
-            await withdrawal.save();
-        } else {
+        const withdrawal = await Withdrawal.findOneAndUpdate(
+            { _id: id, status: "pending" },
+            { $set: { status } },
+            { new: true }
+        );
 
-            // OPTIONAL → Update User Balance
+        if (!withdrawal) {
+            return res.status(400).json({ message: "Already processed" });
+        }
+
+        if (status === "rejected" && Number(withdrawal.amount) > 0) {
             await User.findByIdAndUpdate(withdrawal.userId, {
                 $inc: { money: withdrawal.amount }
             });
-            withdrawal.status = "rejected";
-            await withdrawal.save();
         }
-
-
 
         res.json({ status: true, message: "Withdrawal status updated", withdrawal });
 

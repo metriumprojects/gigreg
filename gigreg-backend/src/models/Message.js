@@ -83,7 +83,7 @@ const messageSchema = new mongoose.Schema(
       description: String,
       status: {
         type: String,
-        enum: ["open", "accepted", "cancelled"],
+        enum: ["open", "accepted", "cancelled", "withdrawn"],
         default: "open",
       },
       requestMessageId: {
@@ -109,7 +109,7 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-messageSchema.index({ roomId: 1, createdAt: 1 });
-messageSchema.index({ roomId: 1, read: 1 });
+messageSchema.index({ roomId: 1, createdAt: -1 });
+messageSchema.index({ roomId: 1, read: 1, userId: 1 });
 
 export default mongoose.model("Message", messageSchema);

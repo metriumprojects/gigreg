@@ -7,18 +7,23 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 import api from "../../../redux/api";
+import {
+  DEFAULT_AVATAR_IMAGE,
+  optimizeCloudinaryUrl,
+} from "../../../utils/defaultImages";
 
-const FALLBACK_AVATAR = "https://i.ibb.co/tpV3m2GW/no-image.png";
+const FALLBACK_AVATAR = DEFAULT_AVATAR_IMAGE;
 
 const mapSlide = (slide) => {
   const listing = slide?.listing || {};
+  const rawImage = slide.image?.url || listing.coverImage?.url || "";
   return {
     id: slide._id,
-    image: slide.image?.url || listing.coverImage?.url || "",
+    image: optimizeCloudinaryUrl(rawImage, { width: 1200 }),
     quote: slide.quote?.trim() || listing.title || "",
-    name: listing.createdBy?.name || listing.title || "Gigreg listing",
+    name: listing.createdBy?.name || listing.title || "GigMake listing",
     location: listing.location || listing.address || "Online",
-    avatar: listing.createdBy?.image?.url || FALLBACK_AVATAR,
+    avatar: optimizeCloudinaryUrl(listing.createdBy?.image?.url, { width: 96 }) || FALLBACK_AVATAR,
     path: listing.slug ? `/listing/${listing.slug}` : listing._id ? `/listing/${listing._id}` : null,
   };
 };

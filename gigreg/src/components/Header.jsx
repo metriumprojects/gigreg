@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { becomeTeacher, getUser, LogoutUser } from "../redux/reducers/AuthReducer";
 import { isSellerProfileComplete } from "../utils/proposalRequest";
+import { getLoginUrl } from "../utils/authRedirect";
 import { toast } from "react-toastify";
-import {
-  fetchChatConnections,
-  resetChatState,
-} from "../redux/reducers/ChatReducer";
+import { resetChatState } from "../redux/reducers/ChatReducer";
+import { disconnectChatSocket } from "../utils/chatSocket";
 import CreateRequestPopup from "../Pages/Home/Components/CreateRequestPopup";
 import CategoriesBar from "../Pages/Home/Components/Categories";
 import HeaderSearchOverlay from "./HeaderSearchOverlay";
@@ -43,7 +42,7 @@ const Header = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { userInfo } = useSelector((state) => state.auth);
-  const { rooms } = useSelector((state) => state.chat);
+  const { chatUnread: rawChatUnread = 0 } = useSelector((state) => state.chat);
   const dispatch = useDispatch();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCreateRequest, setShowCreateRequest] = useState(false);
@@ -66,29 +65,38 @@ const Header = ({
   const [currentSearch, setCurrentSearch] = useState(searchInput);
   const menuRef = useRef(null);
   const profileTimeoutRef = useRef(null);
+  const hoverOpenedAtRef = useRef(0);
   const isHome = location.pathname === "/" || location.pathname === "/listing";
 
-  const handleProfileMouseEnter = () => {
+  const handleProfileMouseEnter = useCallback(() => {
     if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
       if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
-      setShowProfileMenu(true);
+      setShowProfileMenu((prev) => {
+        if (!prev) hoverOpenedAtRef.current = Date.now();
+        return true;
+      });
     }
-  };
+  }, []);
 
-  const handleProfileMouseLeave = () => {
+  const handleProfileMouseLeave = useCallback(() => {
     if (window.matchMedia && window.matchMedia("(hover: hover)").matches) {
       if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
       profileTimeoutRef.current = setTimeout(() => {
         setShowProfileMenu(false);
-      }, 180);
+      }, 200);
     }
-  };
+  }, []);
 
   useEffect(() => {
     return () => {
       if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+    setShowProfileMenu(false);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     setCurrentSearch(searchInput);
@@ -100,46 +108,35 @@ const Header = ({
   };
 
   useEffect(() => {
-    dispatch(getUser());
-  }, [dispatch]);
+    if (!userInfo?._id && localStorage.getItem("token")) {
+      dispatch(getUser());
+    }
+  }, [dispatch, userInfo?._id]);
 
   const handleLogout = () => {
+    disconnectChatSocket();
     dispatch(LogoutUser()).then(() => {
       dispatch(resetChatState());
       navigate("/login");
     });
   };
 
-  const handleProfileClick = () => {
+  const handleProfileClick = useCallback(() => {
     if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
-    setShowProfileMenu((prev) => !prev);
-  };
+    setShowProfileMenu((prev) => {
+      if (prev && Date.now() - hoverOpenedAtRef.current < 350) {
+        return true;
+      }
+      return !prev;
+    });
+  }, []);
 
-  const handleCloseProfileMenu = () => {
+  const handleCloseProfileMenu = useCallback(() => {
     if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
     setShowProfileMenu(false);
-  };
+  }, []);
 
-  useEffect(() => {
-    if (!userInfo?._id) return;
-
-    const fetchConnections = () => {
-      dispatch(fetchChatConnections());
-    };
-
-    fetchConnections();
-
-    const handleFocus = () => fetchConnections();
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [dispatch, userInfo?._id]);
-
-  const chatUnread = userInfo
-    ? rooms.reduce((sum, room) => sum + (room.unreadCount || 0), 0)
-    : 0;
+  const chatUnread = userInfo?._id ? rawChatUnread : 0;
 
   const handleTeacher = (role) => {
     if (role === "teacher" && !isSellerProfileComplete(userInfo)) {
@@ -180,6 +177,17 @@ const Header = ({
     setShowHeaderSearch(true);
   };
 
+  const handleOpenRequest = () => {
+    if (!userInfo?._id) {
+      toast.info("Please log in to post a request");
+      navigate(getLoginUrl(location), {
+        state: { from: `${location.pathname}${location.search}` },
+      });
+      return;
+    }
+    setShowCreateRequest(true);
+  };
+
   const hasNoSearchBelowHeader = hideSearchCard || location.pathname !== "/teach";
   const headerPb = (breadcrumbs && hasNoSearchBelowHeader) ? "pb-[10px] lg:pb-[20px]" : "pb-[20px]";
 
@@ -203,7 +211,7 @@ const Header = ({
         menuRef={menuRef}
         handleLogout={handleLogout}
         handleTeacher={handleTeacher}
-        onOpenRequest={() => setShowCreateRequest(true)}
+        onOpenRequest={handleOpenRequest}
         searchInput={currentSearch}
         onSearchChange={handleSearchChangeWrapper}
         locationFilter={locationFilter}

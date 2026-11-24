@@ -1,10 +1,15 @@
 import fs from "fs";
+import mongoose from "mongoose";
 import ChatRoom from "../models/ChatRoom.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Listing from "../models/Listing.js";
 import cloudinary from "../config/cloudinary.js";
-import { emitChatMessage, emitChatMessageUpdate } from "../socket/socketHandler.js";
+import {
+  emitChatMessage,
+  emitChatMessageUpdate,
+  emitMessagesRead,
+} from "../socket/socketHandler.js";
 import { requireCurrency, requirePositivePrice } from "../services/currencyService.js";
 import { sendPushNotification } from "../services/notificationService.js";
 
@@ -22,7 +27,7 @@ export const connectUser = async (req, res) => {
   try {
     const { id } = req.user; // current user
 
-    const currentUser = await User.findById(id).select("role");
+    const currentUser = await User.findById(id).select("role").lean();
 
     if (!currentUser) {
       return res.status(404).json({ error: "User not found" });
@@ -31,24 +36,42 @@ export const connectUser = async (req, res) => {
     const rooms = await ChatRoom.find({
       $or: [{ student: id }, { teacher: id }],
     })
+      .sort({ updatedAt: -1 })
       .populate("student", "name email image role")
       .populate("teacher", "name email image role")
-      .select("student teacher lastMessage updatedAt");
+      .select("student teacher lastMessage updatedAt")
+      .lean();
 
-    const finalRooms = await Promise.all(
-      rooms.map(async (room) => {
-        const unread = await Message.countDocuments({
-          roomId: room._id,
-          read: false,
-          userId: { $ne: id },
-        });
+    const toObjectId = (val) =>
+      mongoose.Types.ObjectId.isValid(val) ? new mongoose.Types.ObjectId(val) : val;
 
-        return {
-          ...room.toObject(),
-          unreadCount: unread,
-        };
-      })
-    );
+    const unreadByRoom = new Map();
+    if (rooms.length > 0) {
+      const roomIds = rooms.map((room) => toObjectId(room._id));
+      const unreadAgg = await Message.aggregate([
+        {
+          $match: {
+            roomId: { $in: roomIds },
+            read: false,
+            userId: { $ne: toObjectId(id) },
+          },
+        },
+        {
+          $group: {
+            _id: "$roomId",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+      for (const item of unreadAgg || []) {
+        unreadByRoom.set(String(item._id), item.count || 0);
+      }
+    }
+
+    const finalRooms = rooms.map((room) => ({
+      ...room,
+      unreadCount: unreadByRoom.get(String(room._id)) || 0,
+    }));
 
     res.json({
       userId: id,
@@ -66,6 +89,19 @@ export const getMessages = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { before, limit = 20 } = req.query;
+    const requesterId = String(req.user?._id || "");
+
+    const room = await ChatRoom.findById(roomId).select("student teacher").lean();
+    if (!room) {
+      return res.status(404).json({ error: "Chat room not found" });
+    }
+    if (
+      String(room.student) !== requesterId &&
+      String(room.teacher) !== requesterId &&
+      req.user?.role !== "admin"
+    ) {
+      return res.status(403).json({ error: "You are not authorized to view this conversation" });
+    }
 
     let filter = { roomId };
 
@@ -76,7 +112,7 @@ export const getMessages = async (req, res) => {
 
     const messages = await Message.find(filter)
       .sort({ createdAt: -1 }) // newest first
-      .limit(Number(limit))
+      .limit(Math.min(100, Math.max(1, Number(limit) || 20)))
       .populate("userId", "name email image")
       .populate("listing", "title price currency duration coverImage slug");
 
@@ -91,13 +127,24 @@ export const getMessages = async (req, res) => {
 export const markAsRead = async (req, res) => {
   try {
     const { roomId } = req.params;
-    const { id } = req.user; // current user
+    const id = req.user?._id || req.user?.id;
+
+    const room = await ChatRoom.findById(roomId).select("student teacher").lean();
+    if (!room) {
+      return res.status(404).json({ error: "Chat room not found" });
+    }
+    if (String(room.student) !== String(id) && String(room.teacher) !== String(id)) {
+      return res.status(403).json({ error: "You are not authorized to update this conversation" });
+    }
 
     // Mark all messages NOT sent by me as read
     await Message.updateMany(
       { roomId, userId: { $ne: id }, read: false },
       { $set: { read: true } }
     );
+
+    const peerId = String(room.student) === String(id) ? room.teacher : room.student;
+    emitMessagesRead(roomId, id, peerId);
 
     res.json({ success: true });
 
@@ -317,6 +364,10 @@ export const sendMessage = async (req, res) => {
     }
 
     if (type === "quote") {
+      if (String(room.teacher) !== String(userId)) {
+        return res.status(403).json({ error: "Only the seller can send a quote" });
+      }
+
       let parsedQuote = {};
       if (quote) {
         parsedQuote = typeof quote === "string" ? JSON.parse(quote) : quote;
@@ -324,6 +375,13 @@ export const sendMessage = async (req, res) => {
 
       if (parsedQuote.price === undefined || parsedQuote.price === null || parsedQuote.price === "") {
         return res.status(400).json({ error: "Quote price is required" });
+      }
+
+      if (parsedQuote.listingId) {
+        const quoteListing = await Listing.findById(parsedQuote.listingId).select("createdBy");
+        if (!quoteListing || String(quoteListing.createdBy) !== String(userId)) {
+          return res.status(403).json({ error: "You can only send quotes for your own listing" });
+        }
       }
 
       const quoteCurrency = await resolveTeacherQuoteCurrency({
@@ -337,7 +395,7 @@ export const sendMessage = async (req, res) => {
         price: requirePositivePrice(parsedQuote.price, quoteCurrency),
         currency: quoteCurrency,
         description: parsedQuote.description || "",
-        status: parsedQuote.status || "open",
+        status: "open",
         requestMessageId: parsedQuote.requestMessageId || undefined,
         images: uploadedQuoteImages,
       };
@@ -365,7 +423,7 @@ export const sendMessage = async (req, res) => {
       updatedAt: new Date(),
     });
 
-    emitChatMessage(roomId, newMessage);
+    emitChatMessage(roomId, newMessage, [room.student, room.teacher]);
 
     // Send push notification to recipient
     const recipientId = String(room.student) === String(userId) ? room.teacher : room.student;
@@ -431,8 +489,22 @@ export const updateQuoteMessage = async (req, res) => {
       return res.status(403).json({ error: "Only the seller can edit a quote." });
     }
 
-    if (status !== undefined && !isStudent) {
-      return res.status(403).json({ error: "Only the buyer can update quote status." });
+    if (status !== undefined) {
+      if (status === "cancelled") {
+        if (!isStudent) {
+          return res.status(403).json({ error: "Only the buyer can decline a quote." });
+        }
+      } else if (status === "withdrawn") {
+        if (!isTeacher) {
+          return res.status(403).json({ error: "Only the seller can withdraw a quote." });
+        }
+      } else {
+        return res.status(400).json({ error: "Invalid quote status transition" });
+      }
+    }
+
+    if (message.quote?.status !== "open") {
+      return res.status(400).json({ error: "Only open quotes can be modified." });
     }
 
     if (price !== undefined) {
@@ -454,27 +526,46 @@ export const updateQuoteMessage = async (req, res) => {
     }
 
     if (status !== undefined) {
-      if (!["open", "accepted", "cancelled"].includes(status)) {
-        return res.status(400).json({ error: "Invalid quote status" });
-      }
       message.quote.status = status;
     }
 
     await message.save();
-    await message.populate("userId", "name email image");
+    await message.populate([
+      { path: "userId", select: "name email image" },
+      { path: "listing", select: "title price currency duration coverImage slug" },
+    ]);
 
-    emitChatMessageUpdate(message.roomId, message);
+    room.lastMessage =
+      status === "cancelled"
+        ? "Offer declined"
+        : status === "withdrawn"
+        ? "Offer withdrawn"
+        : "Offer updated";
+    room.updatedAt = new Date();
+    await room.save();
+
+    emitChatMessageUpdate(message.roomId, message, [room.student, room.teacher]);
 
     // Send push notification for quote update
     const notifyUserId = isTeacher ? room.student : room.teacher;
     const notifyTitle = isTeacher
-      ? "Custom Offer Updated"
+      ? status === "withdrawn"
+        ? "Offer Withdrawn"
+        : "Custom Offer Updated"
       : status === "accepted"
       ? "Quote Accepted! 🎉"
+      : status === "cancelled"
+      ? "Offer Declined"
       : "Quote Updated";
     const notifyBody = isTeacher
-      ? `${req.user.name || "Seller"} updated the custom offer`
-      : `${req.user.name || "Client"} ${status === "accepted" ? "accepted your offer" : "updated the quote"}`;
+      ? status === "withdrawn"
+        ? `${req.user.name || "Seller"} withdrew the custom offer`
+        : `${req.user.name || "Seller"} updated the custom offer`
+      : status === "accepted"
+      ? `${req.user.name || "Buyer"} accepted your offer`
+      : status === "cancelled"
+      ? `${req.user.name || "Buyer"} declined your custom offer`
+      : `${req.user.name || "Buyer"} updated the quote`;
 
     sendPushNotification({
       userIds: notifyUserId,

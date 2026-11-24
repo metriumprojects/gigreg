@@ -1,19 +1,27 @@
 import React, { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { ToastContainer, Slide } from "react-toastify";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { Capacitor } from "@capacitor/core";
 import PrivateRoute from "./redux/PrivateRoute";
 import api from "./redux/api";
+import { getUser } from "./redux/reducers/AuthReducer";
 import { initPushNotifications } from "./utils/pushNotifications";
 import NetworkStatusListener from "./components/NetworkStatusListener";
 import NativeAppManager from "./components/NativeAppManager";
+import GlobalChatListener from "./components/GlobalChatListener";
 
-const Loading = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-  </div>
-);
+const SessionBootstrap = () => {
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("token")) {
+      dispatch(getUser());
+    }
+  }, [dispatch]);
+
+  return null;
+};
 
 // Native push notifications listener and deep-linking router
 const PushNotificationManager = () => {
@@ -81,10 +89,12 @@ const App = () => {
   return (
     <>
       <Router>
+        <SessionBootstrap />
+        <GlobalChatListener />
         <PushNotificationManager />
         <NetworkStatusListener />
         <NativeAppManager />
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Listing />} />
             <Route path="/listing" element={<Navigate to="/" replace />} />

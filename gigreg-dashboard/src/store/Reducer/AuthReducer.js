@@ -127,9 +127,13 @@ export const LogoutUser = createAsyncThunk(
   "user/logout-user",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get("/users/logout-user", {
-        withCredentials: true,
-      });
+      const response = await api.post(
+        "/users/logout-user",
+        {},
+        {
+          withCredentials: true,
+        }
+      );
       const data = response.data;
       return data;
     } catch (error) {

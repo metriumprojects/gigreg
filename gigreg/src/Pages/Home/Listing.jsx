@@ -16,7 +16,13 @@ import SearchCategoryToolbar from "./Components/SearchCategoryToolbar";
 import HighlightSlider from "./Components/HighlightSlider";
 import FilterModal from "./Components/FilterModal";
 import { useCurrency } from "../../currency/CurrencyContext";
+import { useDocumentMeta } from "../../hooks/useDocumentMeta";
 import { getLoginUrl, getSafeRedirectPath } from "../../utils/authRedirect";
+import {
+  DEFAULT_AVATAR_IMAGE,
+  DEFAULT_LISTING_IMAGE,
+  optimizeCloudinaryUrl,
+} from "../../utils/defaultImages";
 
 const RightArrowIcon = ({ className = "h-2.5 w-3.5 shrink-0" }) => (
   <svg
@@ -162,7 +168,7 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
       <div className="relative aspect-[4/6] w-full overflow-hidden rounded-[16px] sm:rounded-[24px] bg-gray-200">
         <Link to={cardLink} className="absolute inset-0 block">
           <img
-            src={listing?.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+            src={optimizeCloudinaryUrl(listing?.coverImage?.url, { width: 600 }) || DEFAULT_LISTING_IMAGE}
             alt={listing?.title || "Listing"}
             loading="lazy"
             className="h-full w-full object-cover"
@@ -198,7 +204,7 @@ export const ListingCard = ({ listing, favorites, variant = "public" }) => {
               onClick={(event) => event.stopPropagation()}
             >
               <img
-                src={listing?.createdBy?.image?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+                src={optimizeCloudinaryUrl(listing?.createdBy?.image?.url, { width: 96 }) || DEFAULT_AVATAR_IMAGE}
                 loading="lazy"
                 alt={listing?.createdBy?.name || "Seller"}
                 className="h-6 w-6 sm:h-9 sm:w-9 shrink-0 rounded-full object-cover"
@@ -292,6 +298,14 @@ const Listing = () => {
   const [selectedCategories, setSelectedCategories] = useState(() => {
     if (!categoryParam) return [];
     return categoryParam.split(",").map((c) => c.trim()).filter(Boolean);
+  });
+
+  useDocumentMeta({
+    title: selectedCategories.length > 0 ? selectedCategories.join(", ") : "",
+    description:
+      selectedCategories.length > 0
+        ? `Explore ${selectedCategories.join(", ")} services, experts, and custom builds on GigMake.`
+        : "GigMake connects you with verified experts, builders, and creators. Book hourly sessions, fixed-price builds, or request custom quotes.",
   });
 
   useEffect(() => {

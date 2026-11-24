@@ -1,6 +1,6 @@
 import express from "express";
 import { upload } from "../middleware/uploadMiddleware.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, adminOnly } from "../middleware/authMiddleware.js";
 import {
   getActiveHomeSliders,
   getAllHomeSliders,
@@ -12,9 +12,9 @@ import {
 const router = express.Router();
 
 router.get("/active", getActiveHomeSliders);
-router.get("/", protect, getAllHomeSliders);
-router.post("/", protect, upload.single("image"), createHomeSlider);
-router.put("/:id", protect, upload.single("image"), updateHomeSlider);
-router.delete("/:id", protect, deleteHomeSlider);
+router.get("/", protect, adminOnly, getAllHomeSliders);
+router.post("/", protect, adminOnly, upload.single("image"), createHomeSlider);
+router.put("/:id", protect, adminOnly, upload.single("image"), updateHomeSlider);
+router.delete("/:id", protect, adminOnly, deleteHomeSlider);
 
 export default router;

@@ -1,12 +1,13 @@
-import fetch from "node-fetch";
+const FETCH_TIMEOUT_MS = 8000;
 
 export async function getPlaceDetails(placeId) {
   if (!placeId) return { lat: null, lng: null, address: null };
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY || "AIzaSyAMNesHvDnqE5YV41TuJB3Ym3MOfcbsbv0";
-  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=geometry,formatted_address,address_component&key=${apiKey}`;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_GEOCODING_API_KEY;
+  if (!apiKey) return { lat: null, lng: null, address: null };
+  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=geometry,formatted_address,address_component&key=${encodeURIComponent(apiKey)}`;
 
   try {
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     const data = await resp.json();
     const loc = data?.result?.geometry?.location || {};
     const components = data?.result?.address_components || [];

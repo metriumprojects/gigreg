@@ -36,6 +36,10 @@ import {
 } from "../../../redux/reducers/FavoriteReducer";
 import { toast } from "react-toastify";
 import { useCurrency } from "../../../currency/CurrencyContext";
+import {
+  DEFAULT_AVATAR_IMAGE,
+  DEFAULT_LISTING_IMAGE,
+} from "../../../utils/defaultImages";
 
 // Pass searchLocation as { lat, lng }
 const Card = ({ course, favorites, searchLocation, linkTo }) => {
@@ -104,7 +108,7 @@ const Card = ({ course, favorites, searchLocation, linkTo }) => {
         )}
       >
         <img
-          src={course?.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+          src={course?.coverImage?.url || DEFAULT_LISTING_IMAGE}
           alt={course.title}
           loading="lazy"
           className="h-full w-full object-cover"
@@ -150,7 +154,7 @@ const Card = ({ course, favorites, searchLocation, linkTo }) => {
           <img
             src={
               course?.createdBy?.image?.url ||
-              "https://i.ibb.co/tpV3m2GW/no-image.png"
+              DEFAULT_AVATAR_IMAGE
             }
             loading="lazy"
             alt={course.createdBy?.name}

@@ -1,5 +1,6 @@
 import Listing from "../models/Listing.js";
 import { geocodeAddress } from "../utils/geocodeAddress.js";
+import { escapeRegex } from "../utils/sanitize.js";
 import {
   SUPPORTED_CURRENCIES,
   convertCurrency,
@@ -9,12 +10,17 @@ import {
 
 const geocodeCache = new Map();
 const GEOCODE_CACHE_MS = 24 * 60 * 60 * 1000;
+const MAX_GEOCODE_CACHE = 500;
 
 const getCachedGeocode = async (location) => {
-  const key = String(location).trim().toLowerCase();
+  const key = String(location).trim().toLowerCase().slice(0, 120);
   const cached = geocodeCache.get(key);
   if (cached && Date.now() - cached.cachedAt < GEOCODE_CACHE_MS) return cached.value;
   const value = await geocodeAddress(location);
+  if (geocodeCache.size >= MAX_GEOCODE_CACHE) {
+    const oldestKey = geocodeCache.keys().next().value;
+    if (oldestKey) geocodeCache.delete(oldestKey);
+  }
   geocodeCache.set(key, { value, cachedAt: Date.now() });
   return value;
 };
@@ -69,8 +75,8 @@ export const getDiscoverFeed = async (req, res) => {
       radiusKm = 50,
     } = req.query;
 
-    page = Number(page) || 1;
-    limit = Number(limit) || 20;
+    page = Math.max(1, Number(page) || 1);
+    limit = Math.min(100, Math.max(1, Number(limit) || 20));
     const skip = (page - 1) * limit;
 
     const listingMatch = { status: "Active" };
@@ -85,12 +91,13 @@ export const getDiscoverFeed = async (req, res) => {
       listingAndFilters.push(listingPrice);
     }
 
-    if (search.trim()) {
+    const safeSearch = typeof search === "string" ? escapeRegex(search) : "";
+    if (safeSearch) {
       listingAndFilters.push({
         $or: [
-          { title: { $regex: search, $options: "i" } },
-          { category: { $regex: search, $options: "i" } },
-          { description: { $regex: search, $options: "i" } },
+          { title: { $regex: safeSearch, $options: "i" } },
+          { category: { $regex: safeSearch, $options: "i" } },
+          { description: { $regex: safeSearch, $options: "i" } },
         ],
       });
     }
@@ -102,8 +109,9 @@ export const getDiscoverFeed = async (req, res) => {
       listingMatch.isOnline = isOnline === "true";
     }
 
-    if (category?.trim()) {
-      listingMatch.category = { $regex: category, $options: "i" };
+    const safeCategory = typeof category === "string" ? escapeRegex(category) : "";
+    if (safeCategory) {
+      listingMatch.category = { $regex: safeCategory, $options: "i" };
     }
 
     let geoCoords = null;
@@ -112,7 +120,7 @@ export const getDiscoverFeed = async (req, res) => {
         type: "Point",
         coordinates: [Number(lng), Number(lat)],
       };
-    } else if (location?.trim()) {
+    } else if (typeof location === "string" && location.trim()) {
       const geo = await getCachedGeocode(location);
       if (geo?.lat && geo?.lng) {
         geoCoords = {
@@ -120,10 +128,11 @@ export const getDiscoverFeed = async (req, res) => {
           coordinates: [geo.lng, geo.lat],
         };
       } else {
+        const safeLocation = escapeRegex(location);
         listingAndFilters.push({
           $or: [
-            { location: { $regex: location, $options: "i" } },
-            { address: { $regex: location, $options: "i" } },
+            { location: { $regex: safeLocation, $options: "i" } },
+            { address: { $regex: safeLocation, $options: "i" } },
           ],
         });
       }
@@ -157,7 +166,7 @@ export const getDiscoverFeed = async (req, res) => {
           foreignField: "_id",
           as: "createdBy",
           pipeline: [
-            { $project: { name: 1, email: 1, image: 1, averageRating: 1, totalRatings: 1 } },
+            { $project: { name: 1, image: 1, averageRating: 1, totalRatings: 1 } },
           ],
         },
       },

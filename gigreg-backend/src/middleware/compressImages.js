@@ -2,17 +2,26 @@ import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 
+const safeUnlink = (filePath) => {
+  if (filePath) {
+    fs.promises.unlink(filePath).catch(() => {});
+  }
+};
+
 export const compressImages = async (req, res, next) => {
+  const compressedFiles = [];
+  const rawFiles = Array.isArray(req.files)
+    ? req.files
+    : req.files && typeof req.files === "object"
+    ? Object.values(req.files).flat()
+    : [];
   try {
-    if (!req.files || req.files.length === 0) {
+    if (rawFiles.length === 0) {
+      req.files = [];
       return next();
     }
 
-    const compressedFiles = [];
-
-    for (const file of req.files) {
-
-      // 🔥 Output in WEBP (universal compressed)
+    for (const file of rawFiles) {
       const compressedPath = path.join(
         path.dirname(file.path),
         `compressed-${Date.now()}-${path.parse(file.filename).name}.webp`
@@ -20,16 +29,15 @@ export const compressImages = async (req, res, next) => {
 
       await sharp(file.path)
         .resize({
-          width: 1200,            // Reduce dimensions for smaller size
+          width: 1200,
           withoutEnlargement: true,
         })
-        .webp({ quality: 70 })    // Convert + compress to WebP
+        .webp({ quality: 70 })
         .toFile(compressedPath);
 
-      // Remove original file
-      // if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      // Remove original uncompressed temp file to prevent disk leak
+      safeUnlink(file.path);
 
-      // Replace file info with compressed file
       compressedFiles.push({
         ...file,
         path: compressedPath,
@@ -39,13 +47,16 @@ export const compressImages = async (req, res, next) => {
     }
 
     req.files = compressedFiles;
-
     next();
   } catch (error) {
-    console.error("Image compression error:", error);
-    return res.status(500).json({
+    // Clean up both original and any already-compressed temp files on failure
+    for (const file of rawFiles) safeUnlink(file?.path);
+    for (const file of compressedFiles) safeUnlink(file?.path);
+
+    console.error("Image compression error:", error.message);
+    return res.status(400).json({
       status: false,
-      message: "Image compression failed",
+      message: "Invalid or corrupted image file",
     });
   }
 };

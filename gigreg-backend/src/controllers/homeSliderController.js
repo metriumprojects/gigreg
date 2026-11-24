@@ -21,8 +21,8 @@ const populateListing = {
 };
 
 const cleanupTempFile = (file) => {
-  if (file?.path && fs.existsSync(file.path)) {
-    fs.unlinkSync(file.path);
+  if (file?.path) {
+    fs.promises.unlink(file.path).catch(() => {});
   }
 };
 
@@ -30,12 +30,14 @@ export const getActiveHomeSliders = async (req, res) => {
   try {
     const slides = await HomeSlider.find({ isActive: true })
       .sort({ order: 1, createdAt: -1 })
-      .populate(populateListing);
+      .populate(populateListing)
+      .lean();
 
     const activeSlides = slides.filter(
       (slide) => slide.listing && slide.listing.status === "Active"
     );
 
+    res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=300");
     res.json({ status: true, slides: activeSlides });
   } catch (error) {
     console.error("Get active home sliders error:", error);

@@ -9,7 +9,7 @@ router.post("/save/:id", protect, toggleFavorite);
 
 // Get all user favorites
 router.get("/all-favorites", protect, getUserFavorites);
-router.get("/favorites-by-teacher/:id", getTeacherFavoritesByID);
-router.get("/favorites-by-user/:id", getUserFavoritesByUser);
+router.get("/favorites-by-teacher/:id", protect, getTeacherFavoritesByID);
+router.get("/favorites-by-user/:id", protect, getUserFavoritesByUser);
 
 export default router;

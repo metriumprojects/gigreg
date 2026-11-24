@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { io } from "socket.io-client";
 import { Capacitor } from "@capacitor/core";
 import MainLayout from "../../components/MainLayout";
 import Sidebar from "./components/Sidebar";
-import { socketHost } from "../../redux/api";
+import { connectChatSocket } from "../../utils/chatSocket";
 import { pickNativeImage } from "../../utils/nativeCamera";
 import { hapticSuccess, hapticImpact } from "../../utils/nativeHaptics";
 import {
-  appendIncomingMessage,
   fetchChatConnections,
   fetchChatMessages,
   markRoomRead,
   sendChatMessage,
-  updateChatMessage,
   updateQuoteMessage,
 } from "../../redux/reducers/ChatReducer";
 import { initiateBooking } from "../../redux/reducers/BookingReducer";
@@ -28,7 +25,6 @@ import {
 import { useCurrency } from "../../currency/CurrencyContext";
 import { becomeTeacher, getUser } from "../../redux/reducers/AuthReducer";
 import {
-  ArrowRight,
   ChevronLeft,
   ChevronRight,
   Home,
@@ -39,6 +35,10 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { IoSendSharp } from "react-icons/io5";
+import {
+  DEFAULT_AVATAR_IMAGE,
+  DEFAULT_LISTING_IMAGE,
+} from "../../utils/defaultImages";
 
 const formatTime = (timestamp) => {
   if (!timestamp) return "";
@@ -82,6 +82,14 @@ const getMessageImages = (message) => {
   if (message.type === "quote_request") return message.quoteRequest?.images || [];
   if (message.type === "quote") return message.quote?.images || [];
   return [];
+};
+
+const revokePreviewUrls = (urls = []) => {
+  urls.forEach((url) => {
+    if (typeof url === "string" && url.startsWith("blob:")) {
+      URL.revokeObjectURL(url);
+    }
+  });
 };
 
 const formatQuoteSlotForBooking = (dateKey, time) => {
@@ -464,7 +472,7 @@ const QuoteAvailabilityCalendar = ({
             {!selectedDate
               ? hasAnyAvailableDatesInMonth()
                 ? "Pick a date"
-                : "Sorry, this teacher is currently fully booked."
+                : "Sorry, this seller is currently fully booked."
               : "No available times for this date"}
           </p>
         )}
@@ -505,12 +513,31 @@ const AskQuoteModal = ({
   onSubmit,
 }) => {
   const { formatPrice } = useCurrency();
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !submitting) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, submitting, onClose]);
+
   if (!open) return null;
   const selectedListing = listings.find((listing) => listing._id === selectedListingId);
   const isCalendarListing = selectedListing?.pricingType === "hourly_calendar";
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !submitting) {
+          onClose();
+        }
+      }}
+    >
       <form
         onSubmit={onSubmit}
         className="w-full max-w-[675px] max-h-[90vh] overflow-y-auto rounded-[22px] bg-white p-[20px] shadow-2xl"
@@ -579,7 +606,7 @@ const AskQuoteModal = ({
 
         <div className="mb-5 rounded-xl bg-[#F7F7F7] p-3">
           <label className="mb-3 block text-sm">
-            {teacherName ? `${teacherName}'s listings` : "Teacher listings"}
+            {teacherName ? `${teacherName}'s listings` : "Available listings"}
           </label>
           {listingsLoading ? (
             <p className="text-sm text-gray-500">Loading listings...</p>
@@ -590,7 +617,7 @@ const AskQuoteModal = ({
               {listings.map((listing) => {
                 const isSelected = selectedListingId === listing._id;
                 const coverImage =
-                  listing?.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png";
+                  listing?.coverImage?.url || DEFAULT_LISTING_IMAGE;
 
                 return (
                   <button
@@ -673,23 +700,42 @@ const QuoteModal = ({
   onRemoveImage,
   onSubmit,
 }) => {
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !submitting) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, submitting, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !submitting) {
+          onClose();
+        }
+      }}
+    >
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-[675px] rounded-[22px] bg-white p-[20px] shadow-2xl"
+        className="w-full max-w-[675px] max-h-[90vh] overflow-y-auto rounded-[22px] bg-white p-[20px] shadow-2xl"
       >
         <div className="mb-[20px] flex items-center justify-between">
           <h2 className="text-base font-medium leading-none">{mode === "edit" ? "Edit quote" : "Send a quote"}</h2>
           <button
-            type="submit"
+            type="button"
+            onClick={onClose}
             disabled={submitting}
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50"
-            aria-label={mode === "edit" ? "Update quote" : "Submit quote"}
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
+            aria-label="Close quote modal"
           >
-            <ArrowRight size={18} />
+            <X size={18} />
           </button>
         </div>
 
@@ -698,8 +744,9 @@ const QuoteModal = ({
           <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
             <input
               type="number"
-              min="0"
+              min="1"
               step="1"
+              placeholder="Enter amount"
               value={form.price}
               onChange={(event) => onFormChange("price", event.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none"
@@ -833,6 +880,9 @@ export default function Chat() {
     quoteMessage: null,
   });
   const [quoteForm, setQuoteForm] = useState({ price: "", description: "", currency });
+  const [acceptingQuoteId, setAcceptingQuoteId] = useState(null);
+  const [decliningQuoteId, setDecliningQuoteId] = useState(null);
+  const acceptingQuoteRef = useRef(null);
   const [quoteImages, setQuoteImages] = useState([]);
   const [quoteImagePreviews, setQuoteImagePreviews] = useState([]);
   const [askQuoteModalOpen, setAskQuoteModalOpen] = useState(false);
@@ -850,6 +900,7 @@ export default function Chat() {
   const viewerIdRef = useRef(viewerId);
   const chatScrollRef = useRef(null);
   const fileInputRef = useRef(null);
+  const lastAutoScrolledRef = useRef({ roomId: null, count: 0 });
 
   useEffect(() => {
     activeRoomRef.current = roomId;
@@ -871,70 +922,126 @@ export default function Chat() {
   }, [dispatch, roomId, userInfo?._id]);
 
   useEffect(() => {
-    const socketInstance = io(socketHost, {
-      transports: ["websocket", "polling"],
-      withCredentials: true,
-    });
+    if (!viewerId) {
+      socketRef.current = null;
+      return undefined;
+    }
+
+    const socketInstance = connectChatSocket(viewerId);
+    if (!socketInstance) {
+      socketRef.current = null;
+      return undefined;
+    }
 
     socketRef.current = socketInstance;
 
-    const handleReceiveMessage = (incoming) => {
-      dispatch(
-        appendIncomingMessage({
-          roomId: incoming.roomId,
-          message: incoming,
-          viewerId: viewerIdRef.current,
-        })
-      );
-
-      if (incoming.roomId === activeRoomRef.current && viewerIdRef.current) {
+    const handleConnect = () => {
+      const currentRoom = activeRoomRef.current;
+      if (currentRoom) {
+        socketInstance.emit("joinRoom", currentRoom);
+        dispatch(fetchChatMessages({ roomId: currentRoom }));
         socketInstance.emit("markRead", {
-          roomId: incoming.roomId,
+          roomId: currentRoom,
           userId: viewerIdRef.current,
         });
-        dispatch(markRoomRead(incoming.roomId));
+        dispatch(markRoomRead(currentRoom));
       }
     };
 
-    const handleMessagesRead = ({ roomId: readRoomId }) => {
-      dispatch(markRoomRead(readRoomId));
+    const handleReceiveMessage = (incoming) => {
+      const incomingRoomId = normalizeId(incoming?.roomId);
+      const senderId = normalizeId(incoming?.userId) || normalizeId(incoming?.user);
+      const currentRoom = activeRoomRef.current;
+
+      if (
+        incomingRoomId &&
+        incomingRoomId === String(currentRoom || "") &&
+        viewerIdRef.current &&
+        String(senderId) !== String(viewerIdRef.current)
+      ) {
+        socketInstance.emit("markRead", {
+          roomId: incomingRoomId,
+          userId: viewerIdRef.current,
+        });
+        dispatch(markRoomRead(incomingRoomId));
+      }
     };
 
-    const handleMessageUpdated = (updatedMessage) => {
-      dispatch(updateChatMessage(updatedMessage));
-    };
-
+    socketInstance.on("connect", handleConnect);
     socketInstance.on("receiveMessage", handleReceiveMessage);
-    socketInstance.on("messagesRead", handleMessagesRead);
-    socketInstance.on("messageUpdated", handleMessageUpdated);
+
+    const handleWindowSync = () => {
+      if (document.visibilityState && document.visibilityState !== "visible") {
+        return;
+      }
+      if (activeRoomRef.current) {
+        dispatch(fetchChatMessages({ roomId: activeRoomRef.current }));
+      }
+    };
+
+    window.addEventListener("focus", handleWindowSync);
+    document.addEventListener("visibilitychange", handleWindowSync);
 
     return () => {
+      window.removeEventListener("focus", handleWindowSync);
+      document.removeEventListener("visibilitychange", handleWindowSync);
+      socketInstance.off("connect", handleConnect);
       socketInstance.off("receiveMessage", handleReceiveMessage);
-      socketInstance.off("messagesRead", handleMessagesRead);
-      socketInstance.off("messageUpdated", handleMessageUpdated);
-      socketInstance.disconnect();
+      if (socketRef.current === socketInstance) {
+        socketRef.current = null;
+      }
     };
-  }, [dispatch]);
+  }, [dispatch, viewerId]);
 
   useEffect(() => {
-    if (!roomId || !socketRef.current || !viewerIdRef.current) return;
-    socketRef.current.emit("joinRoom", roomId);
-    socketRef.current.emit("markRead", {
+    const socket = socketRef.current;
+    if (!roomId || !socket || !viewerId) return undefined;
+
+    socket.emit("joinRoom", roomId);
+    socket.emit("markRead", {
       roomId,
-      userId: viewerIdRef.current,
+      userId: viewerId,
     });
     dispatch(markRoomRead(roomId));
-  }, [dispatch, roomId]);
 
-  const messages = roomId ? messagesByRoom[roomId] || [] : [];
+    return () => {
+      socket.emit("leaveRoom", roomId);
+    };
+  }, [dispatch, roomId, viewerId]);
+
+  const messages = useMemo(
+    () => (roomId ? messagesByRoom[roomId] || [] : []),
+    [roomId, messagesByRoom]
+  );
+  const lastMyMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msgSenderId =
+        normalizeId(messages[i]?.userId) || normalizeId(messages[i]?.user);
+      if (viewerId && msgSenderId && String(msgSenderId) === String(viewerId)) {
+        return messages[i]?._id || null;
+      }
+    }
+    return null;
+  }, [messages, viewerId]);
   const isMessagesLoading = messagesLoading && messagesRoomId === roomId;
   const currentError =
     roomsError || (messagesRoomId === roomId ? messagesError : null);
 
   useEffect(() => {
-    if (!chatScrollRef.current) return;
-    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-  }, [messages]);
+    if (!chatScrollRef.current || !roomId) return;
+    const prev = lastAutoScrolledRef.current;
+    const roomChanged = prev.roomId !== roomId;
+    const grew = messages.length > prev.count;
+
+    if (roomChanged || grew) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+
+    lastAutoScrolledRef.current = {
+      roomId,
+      count: messages.length,
+    };
+  }, [messages, roomId]);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room._id === roomId),
@@ -989,7 +1096,7 @@ export default function Chat() {
 
   const handleLessonNavigate = (lessonId) => {
     if (!lessonId) return;
-    navigate(`/lesson-booking/${lessonId}`);
+    navigate("/listings");
   };
 
   const handleListingNavigate = (listing) => {
@@ -999,6 +1106,7 @@ export default function Chat() {
   };
 
   const closeQuoteModal = () => {
+    revokePreviewUrls(quoteImagePreviews);
     setQuoteModal({
       open: false,
       mode: "create",
@@ -1043,16 +1151,23 @@ export default function Chat() {
   };
 
   const handleQuoteImagesChange = (files) => {
-    setQuoteImages(files);
-    setQuoteImagePreviews(files.map((file) => URL.createObjectURL(file)));
+    if (!files?.length) return;
+    const nextPreviews = files.map((file) => URL.createObjectURL(file));
+    setQuoteImages((current) => [...current, ...files]);
+    setQuoteImagePreviews((current) => [...current, ...nextPreviews]);
   };
 
   const handleRemoveQuoteImage = (index) => {
+    const targetPreview = quoteImagePreviews[index];
+    if (targetPreview) {
+      revokePreviewUrls([targetPreview]);
+    }
     setQuoteImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setQuoteImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const closeAskQuoteModal = () => {
+    revokePreviewUrls(askQuoteImagePreviews);
     setAskQuoteModalOpen(false);
     setAskQuoteDescription("");
     setAskQuoteImages([]);
@@ -1067,7 +1182,7 @@ export default function Chat() {
   const openAskQuoteModal = async () => {
     const teacherId = getRoomTeacherId(activeRoom);
     if (!teacherId) {
-      toast.error("Teacher information not available.");
+      toast.error("Seller information not available.");
       return;
     }
 
@@ -1092,11 +1207,17 @@ export default function Chat() {
   };
 
   const handleAskQuoteImagesChange = (files) => {
-    setAskQuoteImages(files);
-    setAskQuoteImagePreviews(files.map((file) => URL.createObjectURL(file)));
+    if (!files?.length) return;
+    const nextPreviews = files.map((file) => URL.createObjectURL(file));
+    setAskQuoteImages((current) => [...current, ...files]);
+    setAskQuoteImagePreviews((current) => [...current, ...nextPreviews]);
   };
 
   const handleRemoveAskQuoteImage = (index) => {
+    const targetPreview = askQuoteImagePreviews[index];
+    if (targetPreview) {
+      revokePreviewUrls([targetPreview]);
+    }
     setAskQuoteImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setAskQuoteImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
@@ -1188,7 +1309,7 @@ export default function Chat() {
             inputCurrency: quoteForm.currency,
           })
         ).unwrap();
-        toast.success("Quote updated");
+        toast.success("Offer updated");
         closeQuoteModal();
         return;
       }
@@ -1219,20 +1340,36 @@ export default function Chat() {
   };
 
   const handleQuoteStatus = async (quoteMessage, status) => {
-    if (!quoteMessage?._id || sendMessageLoading) return;
+    if (
+      !quoteMessage?._id ||
+      sendMessageLoading ||
+      decliningQuoteId ||
+      acceptingQuoteRef.current
+    ) {
+      return;
+    }
 
+    setDecliningQuoteId(quoteMessage._id);
     try {
       await dispatch(updateQuoteMessage({ messageId: quoteMessage._id, status })).unwrap();
-      toast.success(status === "accepted" ? "Quote accepted" : "Quote cancelled");
+      toast.success(
+        status === "withdrawn"
+          ? "Offer withdrawn"
+          : status === "accepted"
+          ? "Offer accepted"
+          : "Offer declined"
+      );
     } catch (error) {
       const errMessage =
-        typeof error === "string" ? error : error?.message || "Failed to update quote.";
+        typeof error === "string" ? error : error?.message || "Failed to update offer.";
       toast.error(errMessage);
+    } finally {
+      setDecliningQuoteId(null);
     }
   };
 
   const handleAcceptQuote = async (quoteMessage) => {
-    if (!quoteMessage?._id || sendMessageLoading) return;
+    if (!quoteMessage?._id || sendMessageLoading || acceptingQuoteRef.current) return;
 
     const requestMessage = messages.find(
       (item) => String(item?._id) === String(quoteMessage?.quote?.requestMessageId)
@@ -1251,16 +1388,20 @@ export default function Chat() {
       return;
     }
 
-    if (userInfo.role === "teacher") {
-      try {
-        await dispatch(becomeTeacher("user")).unwrap();
-        dispatch(getUser());
-      } catch (err) {
-        console.error("Auto switch to buyer error in chat:", err);
-      }
-    }
+    acceptingQuoteRef.current = quoteMessage._id;
+    setAcceptingQuoteId(quoteMessage._id);
+    let redirected = false;
 
     try {
+      if (userInfo.role === "teacher") {
+        try {
+          await dispatch(becomeTeacher("user")).unwrap();
+          dispatch(getUser());
+        } catch (err) {
+          console.error("Auto switch to buyer error in chat:", err);
+        }
+      }
+
       const quoteRequest = requestMessage?.quoteRequest || {};
       const selectedDate = quoteRequest.selectedDate || "";
       const selectedTimes = quoteRequest.selectedTimes || [];
@@ -1289,6 +1430,7 @@ export default function Chat() {
       ).unwrap();
 
       if (res?.status && res?.url) {
+        redirected = true;
         localStorage.setItem("bookingId", res.bookingId);
         window.location.href = res.url;
         return;
@@ -1301,6 +1443,11 @@ export default function Chat() {
           ? error
           : error?.data?.message || error?.message || "Failed to accept quote.";
       toast.error(errMessage);
+    } finally {
+      if (!redirected) {
+        acceptingQuoteRef.current = null;
+        setAcceptingQuoteId(null);
+      }
     }
   };
 
@@ -1394,17 +1541,37 @@ export default function Chat() {
       return;
     }
 
-    if (!trimmed || !socketRef.current || !viewerIdRef.current) {
+    if (!trimmed || !viewerIdRef.current) {
       return;
     }
 
-    socketRef.current.emit("sendMessage", {
-      roomId,
-      userId: viewerIdRef.current,
-      message: trimmed,
-    });
-    hapticImpact();
-    setMessage("");
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("sendMessage", {
+        roomId,
+        userId: viewerIdRef.current,
+        message: trimmed,
+      });
+      hapticImpact();
+      setMessage("");
+      return;
+    }
+
+    try {
+      await dispatch(
+        sendChatMessage({
+          roomId,
+          message: trimmed,
+        })
+      ).unwrap();
+      hapticImpact();
+      setMessage("");
+    } catch (error) {
+      const errMessage =
+        typeof error === "string"
+          ? error
+          : error?.message || "Failed to send message.";
+      toast.error(errMessage);
+    }
   };
 
   const activePeerName =
@@ -1412,7 +1579,7 @@ export default function Chat() {
   const activePeerAvatar =
     activePeer?.image?.url ||
     activePeer?.avatar ||
-    `https://i.ibb.co/JFFpmtfn/user-icon-image-13.png`;
+    DEFAULT_AVATAR_IMAGE;
 
     useEffect(() => {
       window.scrollTo(0, 0);
@@ -1452,7 +1619,7 @@ export default function Chat() {
 
   return (
     <MainLayout breadcrumbs={chatBreadcrumbNav} hideSearchCard={true}>
-      <div className="flex md:h-full border-2 border-gray-300 overflow-hidden shadow-lg bg-white h-[88vh] relative mb-10">
+      <div className="flex md:h-full border border-gray-200 md:rounded-2xl overflow-hidden shadow-sm bg-white h-[88vh] relative mb-10">
         {/* Mobile Sidebar Overlay */}
         {showMobileSidebar && (
           <div 
@@ -1466,7 +1633,7 @@ export default function Chat() {
           fixed md:static inset-y-0 left-0 z-50
           w-full md:w-1/3 lg:w-1/4
           transform transition-transform duration-300 ease-in-out
-          md:transform-none md:border-r-2 border-gray-300 bg-white
+          md:transform-none md:border-r border-gray-200 bg-white
           ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}>
           <Sidebar
@@ -1503,7 +1670,7 @@ export default function Chat() {
             </div>
           ) : (
             <>
-              <div className="p-4 border-b-2 border-gray-300 flex items-center gap-3 bg-white shadow-sm">
+              <div className="px-4 h-[73.6px] border-b border-gray-200 flex items-center gap-3 bg-white">
                 <button
                   className="md:hidden text-gray-600 p-2 hover:bg-gray-100 rounded-lg -ml-2"
                   onClick={() => setShowMobileSidebar(true)}
@@ -1583,7 +1750,8 @@ export default function Chat() {
                               onClick={() =>
                                 window.open(
                                   msg.image.url || msg.image,
-                                  "_blank"
+                                  "_blank",
+                                  "noopener,noreferrer"
                                 )
                               }
                             />
@@ -1656,7 +1824,7 @@ export default function Chat() {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
-                                    {isDirectBookingCard ? "Booking accepted" : "Quote offer"}
+                                    {isDirectBookingCard ? "Booking accepted" : "Custom offer"}
                                   </p>
                                   <div className="mt-1">
                                     <span
@@ -1665,21 +1833,38 @@ export default function Chat() {
                                           ? "bg-green-100 text-green-700"
                                           : quoteStatus === "cancelled"
                                           ? "bg-red-100 text-red-700"
+                                          : quoteStatus === "withdrawn"
+                                          ? "bg-gray-100 text-gray-700"
                                           : "bg-blue-100 text-blue-700"
                                       }`}
                                     >
-                                      {quoteStatus}
+                                      {quoteStatus === "cancelled"
+                                        ? "Declined"
+                                        : quoteStatus === "withdrawn"
+                                        ? "Withdrawn"
+                                        : quoteStatus}
                                     </span>
                                   </div>
                                   <p className="mt-2 text-2xl font-semibold leading-tight">
                                     {formatPrice(msg.quote?.price ?? 0, msg.quote?.currency || "USD")}
                                   </p>
                                   <p className="mt-1 text-xs text-gray-500">
-                                    {isDirectBookingCard ? "Booking accepted" : quoteStatus === "accepted" ? "Quote accepted" : quoteStatus === "cancelled" ? "Quote cancelled" : " Review the offer details before checkout."}
+                                    {isDirectBookingCard
+                                      ? "Booking accepted"
+                                      : quoteStatus === "accepted"
+                                      ? "Offer accepted"
+                                      : quoteStatus === "cancelled"
+                                      ? "Offer declined"
+                                      : quoteStatus === "withdrawn"
+                                      ? "Offer withdrawn"
+                                      : "Review the offer details before checkout."}
                                   </p>
                                 </div>
                                 <span className="shrink-0 text-[11px] text-gray-400 font-normal">
                                   {formatTime(msg.createdAt)}
+                                  {isMine && String(msg._id) === String(lastMyMessageId) && msg.read
+                                    ? " · Seen"
+                                    : ""}
                                 </span>
                               </div>
 
@@ -1702,39 +1887,60 @@ export default function Chat() {
                                 </div>
                               )}
 
-                              {isViewerBuyer && (
-                                <div className={`mt-4 grid gap-2 ${quoteStatus === "open" ? "grid-cols-2" : "grid-cols-1"}`}>
-                                  {quoteStatus === "open" && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        disabled={sendMessageLoading}
-                                        onClick={() => handleQuoteStatus(msg, "cancelled")}
-                                        className="rounded-full border border-red-500 bg-white px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={sendMessageLoading}
-                                        onClick={() => handleAcceptQuote(msg)}
-                                        className="rounded-full border border-[#65a30d] bg-[#65a30d] hover:bg-[#578d0b] px-3 py-2 text-xs font-medium text-white transition-colors disabled:opacity-50 cursor-pointer"
-                                      >
-                                        Accept
-                                      </button>
-                                    </>
-                                  )}
+                              {isViewerBuyer && quoteStatus === "open" && (
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      sendMessageLoading ||
+                                      Boolean(acceptingQuoteId) ||
+                                      Boolean(decliningQuoteId)
+                                    }
+                                    onClick={() => handleQuoteStatus(msg, "cancelled")}
+                                    className="rounded-full border border-red-500 bg-white px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {decliningQuoteId === msg._id ? "Declining..." : "Decline"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      sendMessageLoading ||
+                                      Boolean(acceptingQuoteId) ||
+                                      Boolean(decliningQuoteId)
+                                    }
+                                    onClick={() => handleAcceptQuote(msg)}
+                                    className="rounded-full border border-[#65a30d] bg-[#65a30d] hover:bg-[#578d0b] px-3 py-2 text-xs font-medium text-white transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {acceptingQuoteId === msg._id ? "Opening..." : "Accept & Pay"}
+                                  </button>
                                 </div>
                               )}
 
                               {isViewerSeller && isMine && quoteStatus === "open" && (
-                                <button
-                                  type="button"
-                                  onClick={() => openEditQuoteModal(msg)}
-                                  className="mt-4 w-full rounded-full border border-primary bg-white px-4 py-2 text-xs font-medium text-primary hover:bg-primary/5 transition-colors cursor-pointer"
-                                >
-                                  Edit
-                                </button>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      sendMessageLoading ||
+                                      Boolean(decliningQuoteId)
+                                    }
+                                    onClick={() => handleQuoteStatus(msg, "withdrawn")}
+                                    className="rounded-full border border-red-500 bg-white px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {decliningQuoteId === msg._id ? "Withdrawing..." : "Withdraw"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      sendMessageLoading ||
+                                      Boolean(decliningQuoteId)
+                                    }
+                                    onClick={() => openEditQuoteModal(msg)}
+                                    className="rounded-full border border-primary bg-white px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5 transition-colors disabled:opacity-50 cursor-pointer"
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
@@ -1760,7 +1966,7 @@ export default function Chat() {
                                     <img
                                       src={
                                         lessonData.image ||
-                                        "https://i.ibb.co/JFFpmtfn/user-icon-image-13.png"
+                                        DEFAULT_AVATAR_IMAGE
                                       }
                                       alt={lessonData.title}
                                       className="w-full h-full object-cover"
@@ -1814,7 +2020,7 @@ export default function Chat() {
                                     <img
                                       src={
                                         listingData.image ||
-                                        "https://i.ibb.co/tpV3m2GW/no-image.png"
+                                        DEFAULT_LISTING_IMAGE
                                       }
                                       alt={listingData.title}
                                       className="h-full w-full object-cover"
@@ -1858,6 +2064,9 @@ export default function Chat() {
                           {!isCardMessage && (
                             <div className="mt-1 text-[11px] opacity-80 text-right">
                               {formatTime(msg.createdAt)}
+                              {isMine && String(msg._id) === String(lastMyMessageId) && msg.read
+                                ? " · Seen"
+                                : ""}
                             </div>
                           )}
                         </div>
@@ -1867,7 +2076,7 @@ export default function Chat() {
                 )}
               </div>
 
-              <div className="p-3 md:p-4 border-t-2 border-gray-300 bg-white">
+              <div className="p-3 md:p-4 border-t border-gray-200 bg-white">
                 {imagePreview && (
                   <div className="mb-2 relative inline-block">
                     <img 
@@ -1931,7 +2140,7 @@ export default function Chat() {
                       type="button"
                       onClick={openAskQuoteModal}
                       disabled={!roomId || sendMessageLoading}
-                      className="shrink-0 inline-flex h-10 md:h-11 items-center justify-center rounded-full border border-gray-300 px-4 md:px-5 text-sm md:text-base font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                      className="shrink-0 inline-flex h-10 md:h-11 items-center justify-center rounded-full border border-gray-300 px-4 md:px-5 text-sm md:text-base font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       Request a quote
                     </button>

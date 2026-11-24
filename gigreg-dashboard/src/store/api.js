@@ -6,6 +6,7 @@ export const gigregFrontendUrl = import.meta.env.VITE_FRONTEND_URL || "http://lo
 const api = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
+  timeout: 30000,
 });
 
 api.interceptors.request.use((config) => {

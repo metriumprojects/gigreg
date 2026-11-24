@@ -1,2 +1,0 @@
-// This script loads the Google Identity Services library
-// Place this in your public/index.html or load dynamically if needed

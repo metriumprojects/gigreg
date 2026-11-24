@@ -8,17 +8,28 @@ import Listing from "../models/Listing.js";
 import User from "../models/User.js";
 import moment from "moment-timezone";
 import { parseLessonDuration } from "../utils/utils.js";
-import { checkAndSaveSlot, releaseSlot } from "./lockTimeController.js";
+import { escapeHtml } from "../utils/sanitize.js";
+import { checkAndSaveSlot, isSlotAvailable, releaseSlot } from "./lockTimeController.js";
 import Availability from "../models/availabilityModel.js";
 import LessonCalender from "../models/LessonCalender.js";
-import { requireCurrency, requirePositivePrice, roundMoney, toSmallestUnit } from "../services/currencyService.js";
+import {
+  requireCurrency,
+  requireMinimumStripeCharge,
+  requirePositivePrice,
+  roundMoney,
+  toSmallestUnit,
+} from "../services/currencyService.js";
 import { convertWithStripeFx } from "../services/stripeFxService.js";
 import { getCommissionRate } from "../services/appSettingsService.js";
-import { getStripe } from "../services/stripeService.js";
+import { getFrontendUrl, getStripe } from "../services/stripeService.js";
 import { processPendingTeacherPayouts } from "./stripeConnectController.js";
 import { sendPushNotification } from "../services/notificationService.js";
+import { emitChatMessage, emitChatMessageUpdate } from "../socket/socketHandler.js";
 
 const stripe = getStripe();
+
+export const ORDER_AUTO_COMPLETE_DAYS = Math.max(1, Number(process.env.ORDER_AUTO_COMPLETE_DAYS) || 3);
+const ORDER_AUTO_COMPLETE_MS = ORDER_AUTO_COMPLETE_DAYS * 24 * 60 * 60 * 1000;
 
 const activeBookingFilter = {
   status: { $ne: "cancelled" },
@@ -74,6 +85,49 @@ const getListingBookingSlots = (booking, listing) => {
   return booking.scheduledAt
     ? [{ scheduledAt: booking.scheduledAt, duration: listing?.duration || booking.itemSnapshot?.duration || "60m" }]
     : [];
+};
+
+const formatServerHoursLabel = (totalMinutes) => {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "";
+  if (totalMinutes < 60) return `${totalMinutes} mins`;
+  const hours = totalMinutes / 60;
+  const formatted = Number.isInteger(hours) ? String(hours) : hours.toFixed(1).replace(/\.0$/, "");
+  return `${formatted} ${Number(formatted) === 1 ? "hour" : "hours"}`;
+};
+
+export const verifyStripeSessionMatchesBooking = ({ session = null, paymentIntent = null, booking }) => {
+  if (!booking) {
+    return { ok: false, reason: "Booking record missing" };
+  }
+  const expectedCurrency = requireCurrency(booking.chargedCurrency || booking.currency || "USD");
+  const expectedMajor = booking.chargedAmount ?? booking.amount;
+  const expectedMinor = toSmallestUnit(expectedMajor, expectedCurrency);
+  const bookingIdStr = String(booking._id);
+
+  if (session) {
+    if (session.metadata?.bookingId && String(session.metadata.bookingId) !== bookingIdStr) {
+      return { ok: false, reason: "Stripe session bookingId mismatch" };
+    }
+    if (session.currency && String(session.currency).toUpperCase() !== expectedCurrency) {
+      return { ok: false, reason: "Stripe session currency mismatch" };
+    }
+    if (typeof session.amount_total === "number" && session.amount_total !== expectedMinor) {
+      return { ok: false, reason: "Stripe session amount mismatch" };
+    }
+  } else if (paymentIntent) {
+    if (paymentIntent.metadata?.bookingId && String(paymentIntent.metadata.bookingId) !== bookingIdStr) {
+      return { ok: false, reason: "Stripe payment intent bookingId mismatch" };
+    }
+    if (paymentIntent.currency && String(paymentIntent.currency).toUpperCase() !== expectedCurrency) {
+      return { ok: false, reason: "Stripe payment intent currency mismatch" };
+    }
+    const received = paymentIntent.amount_received ?? paymentIntent.amount;
+    if (typeof received === "number" && received < expectedMinor) {
+      return { ok: false, reason: "Stripe payment intent amount below expected total" };
+    }
+  }
+
+  return { ok: true };
 };
 
 export const checkAvailablityBooking = async (req, res) => {
@@ -225,7 +279,7 @@ export const checkAvailablityBooking = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(err.status || 500).json({
+    return res.status(error.status || 500).json({
       status: false,
       message: "Server Error",
       error: error.message,
@@ -247,15 +301,37 @@ export const initiateBooking = async (req, res) => {
       meta
     } = req.body;
 
-    const parsedMeta = meta
-      ? typeof meta === "string" ? JSON.parse(meta) : meta
-      : {};
+    let parsedMeta = {};
+    if (meta !== undefined && meta !== null && meta !== "") {
+      try {
+        parsedMeta = typeof meta === "string" ? JSON.parse(meta) : meta;
+      } catch {
+        return res.status(400).json({ status: false, message: "Invalid meta payload" });
+      }
+      if (!parsedMeta || typeof parsedMeta !== "object" || Array.isArray(parsedMeta)) {
+        return res.status(400).json({ status: false, message: "Invalid meta payload" });
+      }
+    }
     const requestedCurrency = requireCurrency(checkoutCurrency);
 
     if (!id || !firstname || !lastname || !type) {
       return res.status(400).json({
         status: false,
         message: "id, firstname, lastname, and type are required",
+      });
+    }
+
+    if (!["listing", "lesson", "curriculum"].includes(type)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid booking type",
+      });
+    }
+
+    if (type !== "listing") {
+      return res.status(410).json({
+        status: false,
+        message: "Legacy lesson and curriculum bookings are disabled. Only listing bookings are supported.",
       });
     }
 
@@ -333,6 +409,13 @@ export const initiateBooking = async (req, res) => {
           .json({ status: false, message: "Listing not found" });
       }
 
+      if (String(itemData.status || "").toLowerCase() !== "active") {
+        return res.status(400).json({
+          status: false,
+          message: "This listing is not currently available for booking",
+        });
+      }
+
       const quoteCheckout = Boolean(parsedMeta?.quoteMessageId);
 
       if (!["fixed", "hourly_calendar", "hourly", "fixed_on_demand"].includes(itemData.pricingType)) {
@@ -356,6 +439,22 @@ export const initiateBooking = async (req, res) => {
         });
       }
 
+      const rawSelectedTimes = Array.isArray(parsedMeta.selectedTimes)
+        ? parsedMeta.selectedTimes
+            .filter((t) => typeof t === "string" && t.trim())
+            .map((t) => t.trim())
+        : [];
+      const sanitizedSelectedTimes = [...new Set(rawSelectedTimes)];
+      if (sanitizedSelectedTimes.length > 24) {
+        return res.status(400).json({
+          status: false,
+          message: "Too many time slots selected in a single booking",
+        });
+      }
+
+      const slotMinutes = parseLessonDuration(itemData.duration || "60m");
+      const baseBookedHours = itemData.duration ? formatServerHoursLabel(slotMinutes) : "";
+
       itemName = itemData.title;
       amountFloat = itemData.price || 0;
       teacher = itemData.createdBy?._id;
@@ -369,9 +468,9 @@ export const initiateBooking = async (req, res) => {
         duration: itemData.duration || "",
         pricingType: itemData.pricingType,
         quantity: 1,
-        bookedHours: parsedMeta?.hours || itemData.duration || "",
-        selectedDate: parsedMeta?.selectedDate || "",
-        selectedTimes: Array.isArray(parsedMeta?.selectedTimes) ? parsedMeta.selectedTimes : [],
+        bookedHours: baseBookedHours,
+        selectedDate: typeof parsedMeta.selectedDate === "string" ? parsedMeta.selectedDate.trim() : "",
+        selectedTimes: sanitizedSelectedTimes,
       };
 
       if (quoteCheckout) {
@@ -380,24 +479,39 @@ export const initiateBooking = async (req, res) => {
           !quoteMessage ||
           quoteMessage.type !== "quote" ||
           String(quoteMessage.quote?.listingId) !== String(itemData._id) ||
-          !["open", "accepted"].includes(quoteMessage.quote?.status)
+          quoteMessage.quote?.status !== "open"
         ) {
-          return res.status(400).json({ status: false, message: "Quote not found" });
+          return res.status(400).json({ status: false, message: "Valid open quote not found" });
+        }
+        if (String(quoteMessage.userId) !== String(itemData.createdBy?._id)) {
+          return res.status(403).json({ status: false, message: "Quote was not issued by the listing seller" });
         }
         const quoteRoom = await ChatRoom.findById(quoteMessage.roomId).select("student teacher");
         if (!quoteRoom || String(quoteRoom.student) !== String(req.user._id) || String(quoteRoom.teacher) !== String(itemData.createdBy?._id)) {
           return res.status(403).json({ status: false, message: "This quote does not belong to this booking" });
         }
+        const existingPaidQuoteBooking = await Booking.findOne({
+          "meta.quoteMessageId": { $in: [quoteMessage._id, String(quoteMessage._id)] },
+          paymentStatus: "paid",
+        }).select("_id");
+        if (existingPaidQuoteBooking) {
+          return res.status(400).json({ status: false, message: "This quote has already been paid" });
+        }
         amountFloat = quoteMessage.quote.price;
         bookingCurrencyOverride = quoteMessage.quote.currency || itemData.currency || "USD";
         bookingSnapshot.price = quoteMessage.quote.price;
         bookingSnapshot.currency = bookingCurrencyOverride;
+        if (sanitizedSelectedTimes.length > 0) {
+          bookingSnapshot.quantity = sanitizedSelectedTimes.length;
+          bookingSnapshot.bookedHours = formatServerHoursLabel(slotMinutes * sanitizedSelectedTimes.length);
+        }
       } else if (["hourly", "hourly_calendar"].includes(itemData.pricingType)) {
-        const quantity = Math.max(1, Array.isArray(parsedMeta.selectedTimes) ? parsedMeta.selectedTimes.length : 1);
-        amountFloat = roundMoney(amountFloat * quantity);
+        const quantity = Math.max(1, sanitizedSelectedTimes.length || 1);
+        const listingCurrencyForRound = requireCurrency(itemData.currency || "USD");
+        amountFloat = roundMoney(amountFloat * quantity, listingCurrencyForRound);
         bookingSnapshot.quantity = quantity;
         bookingSnapshot.price = amountFloat;
-        bookingSnapshot.bookedHours = parsedMeta?.hours || itemData.duration || "";
+        bookingSnapshot.bookedHours = formatServerHoursLabel(slotMinutes * quantity);
       }
     }
 
@@ -425,7 +539,99 @@ export const initiateBooking = async (req, res) => {
       : await convertWithStripeFx(finalAmount, itemCurrency, requestedCurrency);
     const paymentCurrency = requestedCurrency;
     const paymentAmount = requirePositivePrice(display.amount, paymentCurrency);
-    const amountInSmallestUnit = toSmallestUnit(paymentAmount, paymentCurrency);
+    const amountInSmallestUnit = requireMinimumStripeCharge(
+      toSmallestUnit(paymentAmount, paymentCurrency),
+      paymentCurrency
+    );
+
+    const safeMeta = {};
+    if (parsedMeta.quoteMessageId) safeMeta.quoteMessageId = String(parsedMeta.quoteMessageId);
+    if (parsedMeta.requestMessageId) safeMeta.requestMessageId = String(parsedMeta.requestMessageId);
+    if (typeof parsedMeta.selectedDate === "string" && parsedMeta.selectedDate.trim()) {
+      safeMeta.selectedDate = parsedMeta.selectedDate.trim();
+    }
+    if (type === "listing" && bookingSnapshot?.selectedTimes?.length) {
+      safeMeta.selectedTimes = bookingSnapshot.selectedTimes;
+    }
+    if (type === "listing" && bookingSnapshot?.bookedHours) {
+      safeMeta.hours = bookingSnapshot.bookedHours;
+    }
+
+    // Pre-check slot availability before creating a Booking or Stripe Checkout session
+    if (type === "listing" && itemData?.pricingType === "hourly_calendar" && newDateUTC && timezone && teacher) {
+      const requestedSlots = getListingBookingSlots(
+        { scheduledAt: newDateUTC, timezone, meta: safeMeta, itemSnapshot: bookingSnapshot },
+        itemData
+      );
+      for (const slot of requestedSlots) {
+        const slotCheck = await isSlotAvailable({
+          teacher,
+          scheduledAtUTC: slot.scheduledAt,
+          timezone,
+          duration: slot.duration,
+          lessonId: null,
+          group: false,
+        });
+        if (!slotCheck.available) {
+          return res.status(409).json({
+            status: false,
+            message: slotCheck.reason || "One or more selected time slots are no longer available",
+          });
+        }
+      }
+    }
+
+    // Reuse an existing open Stripe Checkout session for the same quote to prevent double-click duplicates
+    if (type === "listing" && safeMeta.quoteMessageId) {
+      const existingPending = await Booking.findOne({
+        user: req.user._id,
+        "meta.quoteMessageId": safeMeta.quoteMessageId,
+        paymentStatus: "pending",
+        status: "pending",
+        stripeSessionId: { $exists: true, $ne: null },
+      }).sort({ createdAt: -1 });
+
+      if (existingPending?.stripeSessionId) {
+        try {
+          const existingSession = await stripe.checkout.sessions.retrieve(existingPending.stripeSessionId);
+          const sameTotal =
+            existingSession?.status === "open" &&
+            existingSession?.payment_status !== "paid" &&
+            existingSession?.amount_total === amountInSmallestUnit &&
+            String(existingSession?.currency || "").toUpperCase() === paymentCurrency &&
+            existingSession?.url;
+
+          if (sameTotal) {
+            return res.status(200).json({
+              status: true,
+              reusedSession: true,
+              message: "Listing booking initiated successfully",
+              bookingId: existingPending._id,
+              clientSecret: existingSession.client_secret,
+              amount: existingPending.amount,
+              currency: itemCurrency,
+              chargedAmount: existingPending.chargedAmount ?? paymentAmount,
+              chargedCurrency: existingPending.chargedCurrency || paymentCurrency,
+              displayAmount: existingPending.display_price ?? paymentAmount,
+              displayCurrency: existingPending.display_currency || paymentCurrency,
+              teacherPayoutCurrency: existingPending.teacherPayoutCurrency || itemCurrency,
+              type,
+              url: existingSession.url,
+            });
+          }
+
+          if (existingSession?.status === "open") {
+            await stripe.checkout.sessions.expire(existingPending.stripeSessionId).catch(() => {});
+          }
+          await Booking.findOneAndUpdate(
+            { _id: existingPending._id, paymentStatus: "pending" },
+            { $set: { paymentStatus: "cancelled", payment_status: "cancelled", payoutStatus: "cancelled" } }
+          );
+        } catch (reuseErr) {
+          console.warn("Pending quote session check notice:", reuseErr.message);
+        }
+      }
+    }
 
     // ----------------------------------------------------------------
     // Save booking
@@ -451,22 +657,14 @@ export const initiateBooking = async (req, res) => {
       timezone,
       type,
       itemSnapshot: bookingSnapshot || undefined,
-      meta: Object.keys(parsedMeta).length
-        ? {
-            ...parsedMeta,
-            preferredCustomerCurrency: requestedCurrency,
-            listingCurrency: itemCurrency,
-            checkoutExchangeRate: display.rate,
-            checkoutExchangeStale: Boolean(display.stale),
-            stripeFxQuoteId: display.quoteId || undefined,
-          }
-        : {
-            preferredCustomerCurrency: requestedCurrency,
-            listingCurrency: itemCurrency,
-            checkoutExchangeRate: display.rate,
-            checkoutExchangeStale: Boolean(display.stale),
-            stripeFxQuoteId: display.quoteId || undefined,
-          },
+      meta: {
+        ...safeMeta,
+        preferredCustomerCurrency: requestedCurrency,
+        listingCurrency: itemCurrency,
+        checkoutExchangeRate: display.rate,
+        checkoutExchangeStale: Boolean(display.stale),
+        stripeFxQuoteId: display.quoteId || undefined,
+      },
 
       paymentStatus: "pending",
     };
@@ -502,130 +700,100 @@ export const initiateBooking = async (req, res) => {
     }
 
     // ----------------------------------------------------------------
-    // STRIPE CHECKOUT SESSION (Corrected!)
+    // STRIPE CHECKOUT SESSION (Unified Platform Escrow)
     // ----------------------------------------------------------------
-    const teacherAccount = await User.findById(teacher).select("stripeConnectAccountId stripeConnect");
-    let connectAccount = null;
-    let connectReady = false;
-
-    if (teacherAccount?.stripeConnectAccountId) {
-      try {
-        connectAccount = await stripe.accounts.retrieve(teacherAccount.stripeConnectAccountId, {
-          expand: ["external_accounts"],
-        });
-        connectReady = Boolean(
-          connectAccount.payouts_enabled && connectAccount.capabilities?.transfers === "active"
-        );
-      } catch (err) {
-        console.warn("Unable to check teacher Stripe Connect readiness:", err.message);
-        connectReady = false;
-      }
-    }
-
     const commissionRate = await getCommissionRate();
     const earningCurrency = requireCurrency(
       type === "lesson"
         ? booking.lesson_currency || "USD"
-        : booking.itemSnapshot?.currency || booking.currency || item.currency || "USD"
+        : booking.itemSnapshot?.currency || booking.currency || itemData?.currency || "USD"
     );
-    const teacherPayoutAmount = roundMoney(booking.amount - booking.amount * commissionRate, earningCurrency);
+    const commissionAmount = roundMoney(booking.amount * commissionRate, earningCurrency);
+    const teacherPayoutAmount = roundMoney(booking.amount - commissionAmount, earningCurrency);
+    const applicationFeeAmount = Math.min(
+      amountInSmallestUnit,
+      Math.max(0, Math.round(amountInSmallestUnit * commissionRate))
+    );
 
-    let sessionMetadata = {
+    booking.commissionRate = commissionRate;
+    booking.commissionAmount = commissionAmount;
+    booking.stripeApplicationFeeAmount = applicationFeeAmount;
+    booking.payoutStatus = "pending_completion";
+    booking.teacherPayoutAmount = teacherPayoutAmount;
+    booking.teacherPayoutCurrency = earningCurrency;
+
+    await booking.save();
+
+    const sessionMetadata = {
       bookingId: String(booking._id),
       teacherId: String(teacher),
       lessonCurrency: itemCurrency,
       preferredCustomerCurrency: requestedCurrency,
       chargedCurrency: paymentCurrency,
+      teacherPayoutCurrency: earningCurrency,
+      commissionRate: String(commissionRate),
+      payoutMode: "escrow",
       stripeFxQuoteId: display.quoteId || "",
       checkoutExchangeRate: String(display.rate ?? 1),
     };
 
-    let paymentIntentData = {};
+    const paymentIntentData = {
+      transfer_group: `booking_${booking._id}`,
+      metadata: {
+        bookingId: String(booking._id),
+        teacherId: String(teacher),
+        chargedCurrency: paymentCurrency,
+        lessonCurrency: itemCurrency,
+        teacherPayoutCurrency: earningCurrency,
+        commissionRate: String(commissionRate),
+        payoutMode: "escrow",
+      },
+    };
 
-    if (connectReady && teacherAccount?.stripeConnectAccountId) {
-      const applicationFeeAmount = Math.min(
-        amountInSmallestUnit,
-        Math.max(0, Math.round(amountInSmallestUnit * commissionRate))
-      );
-      booking.stripeApplicationFeeAmount = applicationFeeAmount;
-      booking.payoutStatus = "direct";
-      booking.teacherPayoutAmount = teacherPayoutAmount;
-      booking.teacherPayoutCurrency = earningCurrency;
+    const frontendUrl = getFrontendUrl();
 
-      const teacherPayoutCurrency = String(connectAccount.default_currency || "").toUpperCase();
-      sessionMetadata.teacherPayoutCurrency = teacherPayoutCurrency;
-      sessionMetadata.payoutMode = "direct";
-
-      paymentIntentData = {
-        application_fee_amount: applicationFeeAmount,
-        transfer_data: { destination: teacherAccount.stripeConnectAccountId },
-        metadata: {
-          bookingId: String(booking._id),
-          chargedCurrency: paymentCurrency,
-          lessonCurrency: itemCurrency,
-          teacherPayoutCurrency,
-          payoutMode: "direct",
-        },
-      };
-    } else {
-      // Platform escrow mode: teacher hasn't completed Stripe Connect yet.
-      // Funds collected into platform account, and transferred upon Connect setup.
-      booking.stripeApplicationFeeAmount = 0;
-      booking.payoutStatus = "pending_connect";
-      booking.teacherPayoutAmount = teacherPayoutAmount;
-      booking.teacherPayoutCurrency = earningCurrency;
-
-      sessionMetadata.teacherPayoutCurrency = earningCurrency;
-      sessionMetadata.payoutMode = "pending_connect";
-
-      paymentIntentData = {
-        metadata: {
-          bookingId: String(booking._id),
-          chargedCurrency: paymentCurrency,
-          lessonCurrency: itemCurrency,
-          teacherPayoutCurrency: earningCurrency,
-          payoutMode: "pending_connect",
-        },
-      };
-    }
-
-    await booking.save();
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: req.user?.email || undefined,
-      branding_settings: { display_name: "Skill Slide" },
-      metadata: sessionMetadata,
-      payment_intent_data: paymentIntentData,
-
-      line_items: [
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create(
         {
-          price_data: {
-            currency: paymentCurrency.toLowerCase(),
-            product_data: {
-              name: `TEACHER: ${teacherName} - ${
-                type === "lesson" ? "LESSON" : type === "listing" ? "LISTING" : "CURRICULUM"
-              }: ${itemName} `,
+          mode: "payment",
+          customer_email: req.user?.email || undefined,
+          branding_settings: { display_name: "GigMake" },
+          metadata: sessionMetadata,
+          payment_intent_data: paymentIntentData,
 
-              images: productImage ? [productImage] : [],
+          line_items: [
+            {
+              price_data: {
+                currency: paymentCurrency.toLowerCase(),
+                product_data: {
+                  name: `SELLER: ${teacherName} - ${
+                    type === "lesson" ? "LESSON" : type === "listing" ? "LISTING" : "CURRICULUM"
+                  }: ${itemName} `,
+
+                  images: productImage ? [productImage] : [],
+                },
+                unit_amount: amountInSmallestUnit, // minor units
+              },
+              quantity: 1,
             },
-            unit_amount: amountInSmallestUnit, // cents
-          },
-          quantity: 1,
-        },
-      ],
+          ],
 
-      success_url: `${process.env.FRONTEND_URL}/after-payment-curri/${
-        booking?._id || 12323
-      }`,
-      cancel_url: `${process.env.FRONTEND_URL}/payment-cancel/${booking._id}`,
-    });
+          success_url: `${frontendUrl}/after-payment-curri/${booking._id}`,
+          cancel_url: `${frontendUrl}/payment-cancel/${booking._id}`,
+        },
+        { idempotencyKey: `checkout_booking_${booking._id}` }
+      );
+    } catch (stripeErr) {
+      // Prevent orphaned pending booking documents when Stripe Checkout creation fails
+      await Booking.findByIdAndDelete(booking._id).catch(() => {});
+      throw stripeErr;
+    }
 
     // Save stripe session id
     booking.stripeSessionId = session.id;
     booking.stripe_session_id = session.id;
     await booking.save();
-    console.log(session, "sessions");
 
     // Return data
     return res.status(201).json({
@@ -641,7 +809,7 @@ export const initiateBooking = async (req, res) => {
       chargedCurrency: paymentCurrency,
       displayAmount: paymentAmount,
       displayCurrency: paymentCurrency,
-      teacherPayoutCurrency,
+      teacherPayoutCurrency: earningCurrency,
       type,
       url: session.url,
     });
@@ -654,424 +822,615 @@ export const initiateBooking = async (req, res) => {
   }
 };
 
-// --------------------------- Confirm Booking -------------------------------
+// --------------------------- Confirm & Fulfill Paid Booking -------------------------------
+
+const findOrCreateBookingChatRoom = async ({ studentId, teacherId, isLesson, isListing, itemId }) => {
+  if (!studentId || !teacherId) return null;
+  const primaryFilter = { student: studentId, teacher: teacherId };
+  const legacyFilter = { student: teacherId, teacher: studentId };
+
+  let chatRoom = await ChatRoom.findOne({ $or: [primaryFilter, legacyFilter] });
+  if (!chatRoom) {
+    try {
+      chatRoom = await ChatRoom.create({
+        ...primaryFilter,
+        lesson: isLesson ? itemId : undefined,
+        curriculum: !isLesson && !isListing ? itemId : undefined,
+      });
+    } catch (error) {
+      if (error?.code === 11000) {
+        chatRoom = await ChatRoom.findOne({ $or: [primaryFilter, legacyFilter] });
+      } else {
+        throw error;
+      }
+    }
+  }
+  return chatRoom;
+};
+
+export const fulfillPaidBooking = async ({
+  bookingId,
+  session = null,
+  paymentIntent,
+  group = false,
+  usecapacity = 1,
+}) => {
+  const booking = await Booking.findById(bookingId)
+    .populate("curriculum")
+    .populate("lesson")
+    .populate("listing")
+    .populate("user", "name email");
+
+  if (!booking) {
+    const error = new Error("Booking not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const isLesson = booking.type === "lesson";
+  const isListing = booking.type === "listing";
+  const item = isLesson ? booking.lesson : isListing ? booking.listing : booking.curriculum;
+  const itemTitle = item?.title || booking.itemSnapshot?.title || "Purchased Content";
+  const teacherId = item?.createdBy || booking.teacher;
+  const teacher = teacherId ? await User.findById(teacherId) : null;
+  const student = booking.user;
+  const studentId = student?._id || booking.user;
+
+  const confirmedGroup = Boolean(
+    group || (isLesson && booking.lesson?.isGroupAvailable)
+  );
+  const stripeChargeId =
+    typeof paymentIntent?.latest_charge === "string"
+      ? paymentIntent.latest_charge
+      : paymentIntent?.latest_charge?.id;
+
+  const verification = verifyStripeSessionMatchesBooking({ session, paymentIntent, booking });
+  if (!verification.ok) {
+    const error = new Error(`Payment verification failed: ${verification.reason}`);
+    error.status = 400;
+    throw error;
+  }
+
+  const nextEscrowPayoutStatus = ["direct", "transferred"].includes(booking.payoutStatus)
+    ? booking.payoutStatus
+    : "pending_completion";
+
+  const claimedBooking = await Booking.findOneAndUpdate(
+    {
+      _id: bookingId,
+      paymentStatus: { $ne: "paid" },
+    },
+    {
+      $set: {
+        paymentStatus: "paid",
+        payment_status: "paid",
+        status: "paid",
+        payoutStatus: nextEscrowPayoutStatus,
+        stripePaymentIntentId: paymentIntent?.id || undefined,
+        stripe_payment_intent_id: paymentIntent?.id || undefined,
+        ...(stripeChargeId ? { stripeChargeId } : {}),
+        group: confirmedGroup,
+        ...(session?.presentment_details?.presentment_amount != null
+          ? { presentmentAmount: session.presentment_details.presentment_amount }
+          : {}),
+        ...(session?.presentment_details?.presentment_currency
+          ? { presentmentCurrency: session.presentment_details.presentment_currency.toUpperCase() }
+          : {}),
+        ...(paymentIntent?.id
+          ? { "meta.stripe": { id: paymentIntent.id, status: paymentIntent.status } }
+          : {}),
+        ...(session?.payment_status
+          ? { "meta.stripeCheckoutPaymentStatus": session.payment_status }
+          : {}),
+      },
+    },
+    { new: true }
+  );
+
+  if (!claimedBooking) {
+    let existingRoom = null;
+    if (studentId && teacher?._id) {
+      existingRoom = await ChatRoom.findOne({
+        $or: [
+          { student: studentId, teacher: teacher._id },
+          { student: teacher._id, teacher: studentId },
+        ],
+      }).select("_id");
+    }
+    return {
+      alreadyConfirmed: true,
+      booking,
+      chatRoomId: existingRoom?._id || null,
+    };
+  }
+
+  booking.paymentStatus = claimedBooking.paymentStatus;
+  booking.payment_status = claimedBooking.payment_status;
+  booking.status = claimedBooking.status;
+  booking.stripePaymentIntentId = claimedBooking.stripePaymentIntentId;
+  booking.stripe_payment_intent_id = claimedBooking.stripe_payment_intent_id;
+  booking.stripeChargeId = claimedBooking.stripeChargeId;
+  booking.group = claimedBooking.group;
+  booking.meta = claimedBooking.meta;
+
+  const fallbackRate =
+    typeof booking.commissionRate === "number"
+      ? booking.commissionRate
+      : await getCommissionRate();
+
+  const earningCurrencyForFulfill =
+    isLesson || isListing
+      ? requireCurrency(
+          booking.teacherPayoutCurrency ||
+            (isLesson
+              ? booking.lesson_currency || "USD"
+              : booking.itemSnapshot?.currency || booking.currency || item?.currency || "USD")
+        )
+      : "USD";
+  const teacherAmountForFulfill =
+    booking.teacherPayoutAmount != null
+      ? booking.teacherPayoutAmount
+      : isLesson || isListing
+      ? roundMoney(booking.amount - booking.amount * fallbackRate, earningCurrencyForFulfill)
+      : booking.amount - booking.amount * fallbackRate;
+
+  const lockedSlots = [];
+  try {
+    if (isLesson && booking.lesson && teacher?._id) {
+      await checkAndSaveSlot({
+        teacher: teacher._id,
+        scheduledAtUTC: booking.scheduledAt,
+        timezone: booking.timezone,
+        duration: booking.lesson.duration,
+        lessonId: booking.lesson,
+        group: booking.group || false,
+        usecapacity: 1,
+        capacity: booking.lesson.usecapacity || 0,
+      });
+      lockedSlots.push({
+        teacher: teacher._id,
+        scheduledAt: booking.scheduledAt,
+        timezone: booking.timezone,
+        duration: booking.lesson.duration,
+        group: booking.group || false,
+      });
+    } else if (isListing && booking.scheduledAt && teacher?._id) {
+      const listingSlots = getListingBookingSlots(booking, booking.listing);
+      for (const slot of listingSlots) {
+        await checkAndSaveSlot({
+          teacher: teacher._id,
+          scheduledAtUTC: slot.scheduledAt,
+          timezone: booking.timezone,
+          duration: slot.duration,
+          lessonId: null,
+          group: false,
+          usecapacity: 1,
+        });
+        lockedSlots.push({
+          teacher: teacher._id,
+          scheduledAt: slot.scheduledAt,
+          timezone: booking.timezone,
+          duration: slot.duration,
+          group: false,
+        });
+      }
+    } else if (!isListing && teacher?._id && booking.curriculum?.lessonPosition?.length) {
+      const firstLessonId = booking.curriculum.lessonPosition[0]?.lId;
+      const newDateUTC = booking.lessonPosition?.[0]?.scheduledAt;
+      let duration = "60m";
+      if (firstLessonId) {
+        const firstLesson = await Lesson.findById(firstLessonId);
+        duration = firstLesson?.duration || "60m";
+      }
+      if (newDateUTC && booking.timezone) {
+        await checkAndSaveSlot({
+          teacher: teacher._id,
+          scheduledAtUTC: newDateUTC,
+          timezone: booking.timezone,
+          duration,
+          lessonId: firstLessonId,
+          group: group || false,
+          usecapacity: usecapacity || 1,
+        });
+        lockedSlots.push({
+          teacher: teacher._id,
+          scheduledAt: newDateUTC,
+          timezone: booking.timezone,
+          duration,
+          group: group || false,
+          usecapacity: usecapacity || 1,
+        });
+      }
+    }
+  } catch (slotErr) {
+    // Roll back any slots locked earlier in this multi-slot booking
+    for (const locked of lockedSlots) {
+      await releaseBookedSlot(locked).catch(() => {});
+    }
+
+    const isSlotConflict = /already booked|not available|fully booked/i.test(slotErr.message || "");
+    if (isSlotConflict) {
+      let autoRefundId = null;
+      let nextRefundStatus = "failed";
+      const piId = paymentIntent?.id || booking.stripePaymentIntentId;
+      if (piId) {
+        try {
+          const refund = await stripe.refunds.create(
+            {
+              payment_intent: piId,
+              reason: "requested_by_customer",
+              metadata: {
+                bookingId: String(booking._id),
+                autoRefundReason: "slot_conflict",
+              },
+            },
+            { idempotencyKey: `auto_refund_slot_conflict_${booking._id}` }
+          );
+          autoRefundId = refund.id;
+          nextRefundStatus = "refunded";
+        } catch (refundErr) {
+          console.error(`Auto-refund failed after slot conflict for booking ${booking._id}:`, refundErr.message);
+        }
+      }
+
+      await Booking.findByIdAndUpdate(booking._id, {
+        $set: {
+          status: "cancelled",
+          payoutStatus: "cancelled",
+          refundStatus: nextRefundStatus,
+          ...(autoRefundId ? { stripeRefundId: autoRefundId, refundedAt: new Date() } : {}),
+          cancelledAt: new Date(),
+          transferError: "Auto-refunded due to simultaneous slot booking",
+        },
+      });
+
+      const conflictError = new Error(
+        autoRefundId
+          ? "Selected time slot was just booked by another customer. Your payment has been automatically refunded."
+          : "Selected time slot was just booked by another customer. Please contact support for a refund."
+      );
+      conflictError.status = 409;
+      throw conflictError;
+    }
+
+    throw slotErr;
+  }
+
+  // Credit seller pending balance ONLY AFTER slot reservation succeeds
+  if (isLesson || isListing) {
+    if (teacher?._id) {
+      await User.findByIdAndUpdate(teacher._id, {
+        $inc: { [`balances.pending.${earningCurrencyForFulfill}`]: teacherAmountForFulfill },
+      });
+    }
+  } else if (teacher) {
+    await User.findByIdAndUpdate(teacher._id, {
+      $inc: { moneyPending: teacherAmountForFulfill },
+    });
+  }
+
+  if (isListing && booking.meta?.quoteMessageId) {
+    const acceptedQuoteMessage = await Message.findOneAndUpdate(
+      {
+        _id: booking.meta.quoteMessageId,
+        type: "quote",
+        "quote.status": { $nin: ["cancelled", "withdrawn"] },
+      },
+      { $set: { "quote.status": "accepted" } },
+      { new: true }
+    ).populate("userId", "name email image");
+
+    if (acceptedQuoteMessage) {
+      await ChatRoom.findByIdAndUpdate(acceptedQuoteMessage.roomId, {
+        lastMessage: "Offer accepted",
+        updatedAt: new Date(),
+      });
+      emitChatMessageUpdate(acceptedQuoteMessage.roomId, acceptedQuoteMessage, [
+        studentId,
+        teacher?._id,
+      ]);
+    }
+  }
+
+  const chatRoom = await findOrCreateBookingChatRoom({
+    studentId,
+    teacherId: teacher?._id,
+    isLesson,
+    isListing,
+    itemId: item?._id,
+  });
+
+  const updatedBooking = await Booking.findOneAndUpdate(
+    {
+      _id: bookingId,
+      welcomeMessageSent: { $ne: true },
+    },
+    { $set: { welcomeMessageSent: true } },
+    { new: true }
+  );
+
+  if (updatedBooking && chatRoom && teacher?._id) {
+    if (isListing && !booking.meta?.quoteMessageId && item?._id) {
+      const bookingAcceptedMessage = await Message.create({
+        roomId: chatRoom._id,
+        userId: teacher._id,
+        type: "quote",
+        message: `Booking accepted for "${itemTitle}"`,
+        quote: {
+          listingId: item._id,
+          price: booking.amount,
+          currency: requireCurrency(
+            booking.itemSnapshot?.currency || booking.currency || item.currency || "USD"
+          ),
+          description: `Booking accepted for ${itemTitle}`,
+          status: "accepted",
+        },
+      });
+      await bookingAcceptedMessage.populate("userId", "name email image");
+      emitChatMessage(chatRoom._id, bookingAcceptedMessage, [
+        studentId,
+        teacher?._id,
+      ]);
+    }
+
+    const defaultWelcomeMessage = isLesson
+      ? "thank you for booking a lesson with me!"
+      : isListing
+      ? "thank you for booking my service!"
+      : "thank you for booking with me!";
+    const teacherWelcomeMessage =
+      (isLesson ? booking.lesson?.message : isListing ? booking.listing?.message : booking.curriculum?.message)
+        ?.trim() || defaultWelcomeMessage;
+
+    const welcomeMsg = await Message.create({
+      roomId: chatRoom._id,
+      userId: teacher._id,
+      message: `Hi ${student?.name || booking.firstname}, ${teacherWelcomeMessage}`,
+    });
+    await welcomeMsg.populate("userId", "name email image");
+    emitChatMessage(chatRoom._id, welcomeMsg, [studentId, teacher?._id]);
+
+    chatRoom.lastMessage = `Chat started for ${
+      isLesson ? "lesson" : isListing ? "listing" : "course"
+    } "${itemTitle}"`;
+    await chatRoom.save();
+  }
+
+  const frontendUrl = getFrontendUrl();
+  const fromEmail = process.env.SMTP_EMAIL || process.env.SMTP_USER;
+  const safeTeacherName = escapeHtml(teacher?.name || "Seller");
+  const safeBuyerFirstName = escapeHtml(booking.firstname || "");
+  const safeBuyerLastName = escapeHtml(booking.lastname || "");
+  const safeItemTitle = escapeHtml(itemTitle);
+  const emailPromises = [];
+  if (teacher?.email && chatRoom) {
+    emailPromises.push(
+      sendEmail({
+        from: fromEmail,
+        to: teacher.email,
+        subject: `Your ${isLesson ? "lesson" : isListing ? "listing" : "course"} "${itemTitle}" was purchased!`,
+        html: `<p>Hello ${safeTeacherName},</p>
+            <p>${safeBuyerFirstName} ${safeBuyerLastName} purchased <b>${safeItemTitle}</b>.</p>
+            <p><a href="${frontendUrl}/chat/${chatRoom._id}">Open Chat</a></p>`,
+      })
+    );
+  }
+  if (student?.email && chatRoom) {
+    emailPromises.push(
+      sendEmail({
+        from: fromEmail,
+        to: student.email,
+        subject: `Order confirmed: "${itemTitle}"`,
+        html: `<p>Hello ${safeBuyerFirstName},</p>
+            <p>You purchased <b>${safeItemTitle}</b> by ${safeTeacherName}.</p>
+            <p><a href="${frontendUrl}/chat/${chatRoom._id}">Go to Chat Room</a></p>`,
+      })
+    );
+  }
+
+  if (emailPromises.length) {
+    Promise.all(emailPromises)
+      .then((emailResults) => {
+        const failedEmails = emailResults.filter((result) => !result.status);
+        if (failedEmails.length) {
+          console.error("Booking confirmed but notification email failed:", {
+            bookingId: booking._id,
+            failedCount: failedEmails.length,
+            errors: failedEmails.map((result) => result.error),
+          });
+        }
+      })
+      .catch((emailErr) => {
+        console.error("Booking notification email dispatch error:", emailErr.message);
+      });
+  }
+
+  if (teacher?._id) {
+    sendPushNotification({
+      userIds: teacher._id,
+      title: `New Order for "${itemTitle}"`,
+      body: `${booking.firstname || "A client"} purchased your service.`,
+      data: {
+        type: "booking",
+        bookingId: String(booking._id),
+        roomId: chatRoom ? String(chatRoom._id) : "",
+      },
+    }).catch((err) => console.error("Teacher order push notification error:", err));
+  }
+
+  if (studentId) {
+    sendPushNotification({
+      userIds: studentId,
+      title: `Order Confirmed: "${itemTitle}"`,
+      body: `Your order with ${teacher?.name || "the seller"} has been confirmed.`,
+      data: {
+        type: "booking",
+        bookingId: String(booking._id),
+        roomId: chatRoom ? String(chatRoom._id) : "",
+      },
+    }).catch((err) => console.error("Student order push notification error:", err));
+  }
+
+  return {
+    alreadyConfirmed: false,
+    booking: updatedBooking || claimedBooking,
+    chatRoomId: chatRoom?._id || null,
+  };
+};
 
 export const confirmBooking = async (req, res) => {
   try {
-    const {
-      bookingId,
-      type,
-      group,
-
-      usecapacity,
-    } = req.body;
-
+    const { bookingId, type, group, usecapacity } = req.body;
 
     if (!bookingId) {
-      return res
-        .status(400)
-        .json({ status: false, message: "bookingId required" });
+      return res.status(400).json({ status: false, message: "bookingId required" });
     }
 
-    // ðŸ” Find booking & populate data
-    const booking = await Booking.findById(bookingId)
-      .populate("curriculum")
-      .populate("lesson")
-      .populate("listing")
-      .populate("user", "name email");
+    const booking = await Booking.findById(bookingId).select(
+      "user teacher amount currency chargedAmount chargedCurrency paymentStatus status refundStatus transferError stripeSessionId stripe_session_id stripePaymentIntentId"
+    );
 
     if (!booking) {
-      return res
-        .status(404)
-        .json({ status: false, message: "Booking not found" });
+      return res.status(404).json({ status: false, message: "Booking not found" });
     }
 
-    if (String(booking.user?._id || booking.user) !== String(req.user._id)) {
+    if (String(booking.user) !== String(req.user._id)) {
       return res.status(403).json({ status: false, message: "You cannot confirm another user's booking" });
     }
 
-    // Prevent duplicate confirmations with multiple safety checks
-    if (booking.paymentStatus === "paid" && booking.status === "paid") {
-      // If already paid, check if we need to create welcome message
-      if (!booking.welcomeMessageSent) {
-        // This shouldn't happen, but ensure message exists
-        return res.status(400).json({
+    if (booking.paymentStatus === "paid") {
+      if (booking.status === "cancelled" && ["refunded", "disputed"].includes(booking.refundStatus)) {
+        return res.status(409).json({
           status: false,
-          message: "Booking already confirmed but processing...",
+          refunded: booking.refundStatus === "refunded",
+          message:
+            booking.transferError ||
+            "This booking was cancelled and your payment has been refunded.",
+          booking,
         });
       }
-      return res.status(400).json({
-        status: false,
+      const existingRoom = await ChatRoom.findOne({
+        $or: [
+          { student: booking.user, teacher: booking.teacher },
+          { student: booking.teacher, teacher: booking.user },
+        ],
+      }).select("_id");
+      return res.status(200).json({
+        status: true,
+        alreadyConfirmed: true,
         message: "Booking already confirmed",
+        chatRoomId: existingRoom?._id || null,
+        booking,
       });
     }
 
-    if (booking.welcomeMessageSent) {
-      return res.status(400).json({
-        status: false,
-        message: "Booking already processed",
-      });
-    }
+    const checkoutSessionId = booking.stripeSessionId || booking.stripe_session_id;
+    let session = null;
+    let paymentIntent = null;
 
-    const checkoutSessionId = booking.stripeSessionId || booking.stripe_session_id || booking.stripePaymentIntentId;
-    if (!checkoutSessionId) {
+    if (checkoutSessionId) {
+      session = await stripe.checkout.sessions.retrieve(checkoutSessionId, {
+        expand: ["payment_intent.latest_charge"],
+      });
+      paymentIntent = session?.payment_intent || null;
+    } else if (booking.stripePaymentIntentId) {
+      paymentIntent = await stripe.paymentIntents.retrieve(booking.stripePaymentIntentId, {
+        expand: ["latest_charge"],
+      });
+    } else {
       return res.status(400).json({
         status: false,
         message: "No Stripe session found for this booking",
       });
     }
 
-    // â­ Retrieve Checkout Session with paymentIntent expanded
-    const session = await stripe.checkout.sessions.retrieve(
-      checkoutSessionId,
-      { expand: ["payment_intent"] }
-    );
-
-    if (!session) {
-      return res.status(400).json({
-        status: false,
-        message: "Unable to retrieve Stripe checkout session",
+    const isPaid = session?.payment_status === "paid" || paymentIntent?.status === "succeeded";
+    if (isPaid && paymentIntent) {
+      const result = await fulfillPaidBooking({
+        bookingId,
+        session,
+        paymentIntent,
+        group,
+        usecapacity,
       });
-    }
-
-    const paymentIntent = session.payment_intent;
-
-    if (!paymentIntent) {
-      booking.paymentStatus = "failed";
-      booking.payment_status = "failed";
-      await booking.save();
-      return res.status(400).json({
-        status: false,
-        message: "Payment not completed or no payment found",
-      });
-    }
-
-    // â­ Payment success logic
-    if (paymentIntent.status === "succeeded" && type === "succeeded") {
-      // bookSlot(group, global, slotId, day, specific, calenderId);
-      const confirmedGroup =
-        group ||
-        (booking.type === "lesson" && booking.lesson?.isGroupAvailable) ||
-        false;
-
-      const claimedBooking = await Booking.findOneAndUpdate(
-        {
-          _id: bookingId,
-          paymentStatus: { $ne: "paid" },
-          status: { $ne: "paid" },
-        },
-        {
-          $set: {
-            paymentStatus: "paid",
-            payment_status: "paid",
-            status: "paid",
-            stripePaymentIntentId: paymentIntent.id,
-            stripe_payment_intent_id: paymentIntent.id,
-            group: confirmedGroup,
-            "meta.stripe": {
-              id: paymentIntent.id,
-              status: paymentIntent.status,
-            },
-          },
-        },
-        { new: true }
-      );
-
-      if (!claimedBooking) {
-        return res.status(200).json({
-          status: true,
-          message: "Booking already confirmed",
-          booking,
-        });
-      }
-
-      booking.paymentStatus = claimedBooking.paymentStatus;
-      booking.payment_status = claimedBooking.payment_status;
-      booking.status = claimedBooking.status;
-      booking.stripePaymentIntentId = claimedBooking.stripePaymentIntentId;
-      booking.stripe_payment_intent_id = claimedBooking.stripe_payment_intent_id;
-      booking.group = claimedBooking.group;
-      booking.meta = claimedBooking.meta;
-
-      // ðŸ§  Determine type (lesson, listing or curriculum)
-      const isLesson = booking.type === "lesson";
-      const isListing = booking.type === "listing";
-      const item = isLesson ? booking.lesson : isListing ? booking.listing : booking.curriculum;
-      const itemTitle = item?.title || "Purchased Content";
-
-      
-    console.log(group, usecapacity, "groupvalue");
-
-     
-      // if(isLesson){
-
-      // }else{
-      //   if (booking.lessonPosition && booking.lessonPosition.length > 0) {
-      //     booking.lessonPosition[0].group = true;
-      //   }
-      // }
-      // ðŸ§‘â€ðŸ« Get teacher
-      const teacher = await User.findById(item.createdBy);
-      const student = booking.user;
-      const commissionRate = await getCommissionRate();
-      if (isLesson || isListing) {
-        const earningCurrency = requireCurrency(
-          isLesson
-            ? booking.lesson_currency || "USD"
-            : booking.itemSnapshot?.currency || booking.currency || item.currency || "USD"
-        );
-        const teacherAmount = roundMoney(booking.amount - booking.amount * commissionRate, earningCurrency);
-        await User.findByIdAndUpdate(teacher._id, {
-          $inc: { [`balances.pending.${earningCurrency}`]: teacherAmount },
-        });
-      } else {
-        const commission = booking.amount * commissionRate;
-        const finalAmount = booking.amount - commission;
-        teacher.moneyPending = (teacher.moneyPending || 0) + finalAmount;
-        await teacher.save();
-      }
-
-      if (isLesson) {
-        let duration;
-        let newDateUTC;
-        let lessonId;
-        duration = booking.lesson.duration;
-        newDateUTC = booking.scheduledAt;
-        lessonId = booking.lesson;
-        await checkAndSaveSlot({
-          teacher: teacher._id,
-          scheduledAtUTC: newDateUTC,
-          timezone: booking.timezone,
-          duration,
-          lessonId,
-          group: booking.group || false,
-          usecapacity: 1,
-          capacity: booking.lesson.usecapacity || 0,
-        });
-      } else if (isListing && booking.scheduledAt) {
-        const listingSlots = getListingBookingSlots(booking, booking.listing);
-
-        for (const slot of listingSlots) {
-          await checkAndSaveSlot({
-            teacher: teacher._id,
-            scheduledAtUTC: slot.scheduledAt,
-            timezone: booking.timezone,
-            duration: slot.duration,
-            lessonId: null,
-            group: false,
-            usecapacity: 1,
-          });
-        }
-      } else if (!isListing) {
-        let duration;
-        let newDateUTC;
-        let lessonId;
-        // For curriculum, get the first lesson's duration
-        const firstLessonId = booking.curriculum.lessonPosition[0]?.lId;
-        lessonId = firstLessonId;
-        newDateUTC = booking.lessonPosition[0]?.scheduledAt;
-        if (firstLessonId) {
-          const firstLesson = await Lesson.findById(firstLessonId);
-          duration = firstLesson?.duration || "60m";
-        } else {
-          duration = "60m";
-        }
-        await checkAndSaveSlot({
-          teacher: teacher._id,
-          scheduledAtUTC: newDateUTC,
-          timezone: booking.timezone,
-          duration,
-          lessonId,
-          group: group || false,
-          usecapacity: usecapacity || 1,
-        });
-      }
-
-      if (isListing && booking.meta?.quoteMessageId) {
-        const acceptedQuoteMessage = await Message.findOneAndUpdate(
-          {
-            _id: booking.meta.quoteMessageId,
-            type: "quote",
-            "quote.status": { $ne: "cancelled" },
-          },
-          { $set: { "quote.status": "accepted" } },
-          { new: true }
-        ).populate("userId", "name email image");
-
-        if (acceptedQuoteMessage) {
-          emitChatMessageUpdate(acceptedQuoteMessage.roomId, acceptedQuoteMessage);
-        }
-      }
-
-      // ðŸ’¬ Create chat room if not exists
-      const primaryFilter = { student: student._id, teacher: teacher._id };
-      const legacyFilter = { student: teacher._id, teacher: student._id };
-
-      let chatRoom = await ChatRoom.findOne({ $or: [primaryFilter, legacyFilter] });
-
-      if (!chatRoom) {
-        chatRoom = await ChatRoom.create({
-          ...primaryFilter,
-          lesson: isLesson ? item._id : undefined,
-          curriculum: !isLesson && !isListing ? item._id : undefined,
-        });
-      }
-
-      // Create welcome message - only create if this is a new booking confirmation
-      // Use atomic operation to ensure only ONE message is created even with concurrent requests
-      const updatedBooking = await Booking.findOneAndUpdate(
-        {
-          _id: bookingId,
-          welcomeMessageSent: { $ne: true } // Only update if NOT already sent
-        },
-        {
-          $set: { welcomeMessageSent: true }
-        },
-        { new: true }
-      );
-
-      // Only create message if the update was successful (meaning it hadn't been sent before)
-      if (updatedBooking) {
-        if (isListing && !booking.meta?.quoteMessageId) {
-          const bookingAcceptedMessage = await Message.create({
-            roomId: chatRoom._id,
-            userId: teacher._id,
-            type: "quote",
-            message: `Booking accepted for "${itemTitle}"`,
-            quote: {
-              listingId: item._id,
-              price: booking.amount,
-              currency: requireCurrency(
-                booking.itemSnapshot?.currency || booking.currency || item.currency || "USD"
-              ),
-              description: `Booking accepted for ${itemTitle}`,
-              status: "accepted",
-            },
-          });
-          await bookingAcceptedMessage.populate("userId", "name email image");
-          emitChatMessage(chatRoom._id, bookingAcceptedMessage);
-        }
-
-        const defaultWelcomeMessage = isLesson
-          ? "thank you for booking a lesson with me!"
-          : isListing
-          ? "thank you for booking my service!"
-          : "thank you for booking with me!";
-        const teacherWelcomeMessage =
-          (isLesson ? booking.lesson?.message : isListing ? booking.listing?.message : booking.curriculum?.message)
-            ?.trim() || defaultWelcomeMessage;
-
-        await Message.create({
-          roomId: chatRoom._id,
-          userId: teacher._id,
-          message: `Hi ${student.name || booking.firstname}, ${teacherWelcomeMessage}`,
-        });
-      }
-
-//       thank you for booking a lesson with me!
-// I'm really looking forward to working with you.
-// If you'd like, feel free to share your experience level, goals, or anything specific you'd like to focus on, so I can tailor the session to you.
-
-      chatRoom.lastMessage = `Chat started for ${
-        isLesson ? "lesson" : isListing ? "listing" : "course"
-      } "${itemTitle}"`;
-      await chatRoom.save();
-
-      // âœ‰ï¸ Emails
-      const teacherMail = {
-        from: process.env.SMTP_USER,
-        to: teacher.email,
-        subject: `ðŸŽ“ Your ${
-          isLesson ? "lesson" : isListing ? "listing" : "course"
-        } "${itemTitle}" was purchased!`,
-        html: `<p>Hello ${teacher.name},</p>
-            <p>${booking.firstname} ${booking.lastname} purchased <b>${itemTitle}</b>.</p>
-            <p><a href="${process.env.FRONTEND_URL}/chat/${chatRoom._id}">Open Chat</a></p>`,
-      };
-
-      const studentMail = {
-        from: process.env.SMTP_USER,
-        to: student.email,
-        subject: `ðŸ“˜ You enrolled in "${itemTitle}"`,
-        html: `<p>Hello ${booking.firstname},</p>
-            <p>You purchased <b>${itemTitle}</b> by ${teacher.name}.</p>
-            <p><a href="${process.env.FRONTEND_URL}/chat/${chatRoom._id}">Go to Chat Room</a></p>`,
-      };
-
-      const emailResults = await Promise.all([
-        sendEmail(teacherMail),
-        sendEmail(studentMail),
-      ]);
-
-      // 🔔 Push notifications for order/booking confirmation
-      sendPushNotification({
-        userIds: teacher._id,
-        title: `🎉 New Order for "${itemTitle}"`,
-        body: `${booking.firstname || "A client"} purchased your service.`,
-        data: {
-          type: "booking",
-          bookingId: String(booking._id),
-          roomId: String(chatRoom._id),
-        },
-      }).catch((err) => console.error("Teacher order push notification error:", err));
-
-      sendPushNotification({
-        userIds: student._id,
-        title: `Order Confirmed: "${itemTitle}"`,
-        body: `Your booking with ${teacher.name} has been confirmed.`,
-        data: {
-          type: "booking",
-          bookingId: String(booking._id),
-          roomId: String(chatRoom._id),
-        },
-      }).catch((err) => console.error("Student order push notification error:", err));
-
-      const failedEmails = emailResults.filter((result) => !result.status);
-      if (failedEmails.length) {
-        console.error("Booking confirmed but notification email failed:", {
-          bookingId: booking._id,
-          failedCount: failedEmails.length,
-          errors: failedEmails.map((result) => result.error),
-        });
-      }
 
       return res.status(200).json({
         status: true,
-        message: "Booking confirmed successfully",
-        chatRoomId: chatRoom._id,
-        booking,
+        alreadyConfirmed: result.alreadyConfirmed,
+        message: result.alreadyConfirmed ? "Booking already confirmed" : "Booking confirmed successfully",
+        chatRoomId: result.chatRoomId,
+        booking: result.booking,
       });
     }
 
-    // ðŸ”´ Payment Failed / Requires Payment
     if (
-      paymentIntent.status === "requires_payment_method" ||
-      paymentIntent.status === "canceled" ||
-      type === "failed"
+      session?.status === "expired" ||
+      paymentIntent?.status === "canceled" ||
+      (type === "failed" && session?.payment_status !== "paid")
     ) {
-      const failedStatus = paymentIntent.status === "canceled" ? "cancelled" : "failed";
-      booking.paymentStatus = failedStatus;
-      booking.payment_status = failedStatus;
-      booking.stripePaymentIntentId = paymentIntent.id;
-      booking.stripe_payment_intent_id = paymentIntent.id;
-      await booking.save();
+      if (type === "failed" && checkoutSessionId && session?.status === "open") {
+        try {
+          await stripe.checkout.sessions.expire(checkoutSessionId);
+        } catch (expireErr) {
+          // If the session was just completed in another tab during cancel, re-check and fulfill instead of cancelling.
+          const latestSession = await stripe.checkout.sessions
+            .retrieve(checkoutSessionId, { expand: ["payment_intent.latest_charge"] })
+            .catch(() => null);
+          const latestPi = latestSession?.payment_intent || null;
+          if (latestSession?.payment_status === "paid" && latestPi) {
+            const result = await fulfillPaidBooking({
+              bookingId,
+              session: latestSession,
+              paymentIntent: latestPi,
+              group,
+              usecapacity,
+            });
+            return res.status(200).json({
+              status: true,
+              alreadyConfirmed: result.alreadyConfirmed,
+              message: result.alreadyConfirmed ? "Booking already confirmed" : "Booking confirmed successfully",
+              chatRoomId: result.chatRoomId,
+              booking: result.booking,
+            });
+          }
+          console.warn("Checkout session expire notice:", expireErr.message);
+        }
+      }
+
+      const nextStatus =
+        session?.status === "expired" || paymentIntent?.status === "canceled" || type === "failed"
+          ? "cancelled"
+          : "failed";
+      await Booking.findOneAndUpdate(
+        { _id: bookingId, paymentStatus: "pending" },
+        {
+          $set: {
+            paymentStatus: nextStatus,
+            payment_status: nextStatus,
+            payoutStatus: "cancelled",
+            ...(paymentIntent?.id
+              ? {
+                  stripePaymentIntentId: paymentIntent.id,
+                  stripe_payment_intent_id: paymentIntent.id,
+                }
+              : {}),
+          },
+        }
+      );
 
       return res.status(400).json({
         status: false,
-        message: `Payment failed: ${paymentIntent.status}`,
+        message: "Payment was not completed",
       });
     }
 
-    // Other payment states
     return res.status(400).json({
       status: false,
-      message: `Payment not completed: ${paymentIntent.status}`,
+      message: `Payment not completed yet${paymentIntent?.status ? `: ${paymentIntent.status}` : ""}`,
     });
   } catch (err) {
     console.error("confirmBooking error:", err);
-    return res
-      .status(500)
-      .json({ status: false, message: err.message || "Server error" });
+    return res.status(err.status || 500).json({ status: false, message: err.message || "Server error" });
   }
 };
 
@@ -1218,6 +1577,10 @@ export const teacherListingOrders = async (req, res) => {
       return res.status(401).json({ status: false, message: "Unauthorized" });
     }
 
+    await autoCompleteExpiredDeliveredOrders({ teacherId: req.user._id }).catch((err) =>
+      console.warn("teacherListingOrders auto-complete error:", err.message)
+    );
+
     const filter = {
       teacher: req.user._id,
       type: "listing",
@@ -1229,7 +1592,7 @@ export const teacherListingOrders = async (req, res) => {
     } else if (statusFilter === "cancelled" || statusFilter === "canceled") {
       filter.status = "cancelled";
     } else {
-      // upcoming / active orders
+      // upcoming / active orders (includes delivered orders awaiting buyer confirmation)
       filter.status = { $nin: ["completed", "cancelled"] };
     }
 
@@ -1264,6 +1627,12 @@ export const teacherListingOrders = async (req, res) => {
         currency: snapshot.currency,
         status: booking.status === "paid" ? "upcoming" : booking.status,
         type: booking.type,
+        deliveredAt: booking.deliveredAt || null,
+        deliveryNote: booking.deliveryNote || "",
+        autoCompleteAt: booking.autoCompleteAt || null,
+        autoCompleted: Boolean(booking.autoCompleted),
+        revisionNote: booking.revisionNote || "",
+        revisionCount: booking.revisionCount || 0,
       };
     });
 
@@ -1290,6 +1659,10 @@ export const userListingOrders = async (req, res) => {
     if (!req.user?._id) {
       return res.status(401).json({ status: false, message: "Unauthorized" });
     }
+
+    await autoCompleteExpiredDeliveredOrders({ userId: req.user._id }).catch((err) =>
+      console.warn("userListingOrders auto-complete error:", err.message)
+    );
 
     const filter = {
       user: req.user._id,
@@ -1338,6 +1711,12 @@ export const userListingOrders = async (req, res) => {
         currency: snapshot.currency,
         status: booking.status === "paid" ? "upcoming" : booking.status,
         type: booking.type,
+        deliveredAt: booking.deliveredAt || null,
+        deliveryNote: booking.deliveryNote || "",
+        autoCompleteAt: booking.autoCompleteAt || null,
+        autoCompleted: Boolean(booking.autoCompleted),
+        revisionNote: booking.revisionNote || "",
+        revisionCount: booking.revisionCount || 0,
       };
     });
 
@@ -1371,6 +1750,12 @@ export const rescheduleBooking = async (req, res) => {
     const booking = await Booking.findById(bookingId).populate("lesson");
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const isBuyer = String(booking.user || "") === String(req.user._id);
+    const isSeller = String(booking.teacher || "") === String(req.user._id);
+    if (!isBuyer && !isSeller && req.user.role !== "admin") {
+      return res.status(403).json({ status: false, message: "Not authorized to reschedule this booking" });
     }
 
     // Lesson duration safe parse
@@ -1507,6 +1892,12 @@ export const rescheduleCLessonBooking = async (req, res) => {
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const isBuyer = String(booking.user || "") === String(req.user._id);
+    const isSeller = String(booking.teacher || "") === String(req.user._id);
+    if (!isBuyer && !isSeller && req.user.role !== "admin") {
+      return res.status(403).json({ status: false, message: "Not authorized to reschedule this booking" });
     }
 
     // Find lesson inside lessonPosition
@@ -1689,11 +2080,119 @@ export const cancelBooking = async (req, res) => {
     const booking = await Booking.findById(bookingId)
       .populate("lesson")
       .populate("listing");
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    if (!booking) return res.status(404).json({ status: false, message: "Booking not found" });
 
-    // 1ï¸âƒ£ If TYPE = LESSON â†’ full booking cancel
-    if (type === "lesson" || type === "listing") {
-      if (type === "listing") {
+    const isBuyer = String(booking.user || "") === String(req.user._id);
+    const isSeller = String(booking.teacher || "") === String(req.user._id);
+    if (!isBuyer && !isSeller && req.user.role !== "admin") {
+      return res.status(403).json({ status: false, message: "Not authorized to cancel this booking" });
+    }
+
+    const bookingType = booking.type;
+    if (type && type !== bookingType) {
+      return res.status(400).json({ status: false, message: "Booking type mismatch" });
+    }
+
+    if (bookingType === "lesson" || bookingType === "listing") {
+      if (booking.status === "cancelled") {
+        return res.status(400).json({ status: false, message: "Order is already cancelled" });
+      }
+      if (booking.status === "completed") {
+        return res.status(400).json({ status: false, message: "Completed orders cannot be cancelled" });
+      }
+
+      const previousStatus = booking.status;
+      const claimed = await Booking.findOneAndUpdate(
+        { _id: bookingId, status: { $nin: ["cancelled", "completed"] } },
+        {
+          $set: {
+            status: "cancelled",
+            cancelledAt: new Date(),
+            cancelledBy: req.user._id,
+            ...(booking.paymentStatus === "paid" ? { refundStatus: "pending" } : {}),
+          },
+        },
+        { new: true }
+      );
+      if (!claimed) {
+        return res.status(400).json({ status: false, message: "Order cannot be cancelled in its current state" });
+      }
+
+      const paymentIntentId = claimed.stripePaymentIntentId || claimed.stripe_payment_intent_id;
+      let refundUpdate = {};
+
+      if (claimed.paymentStatus === "paid" && paymentIntentId) {
+        try {
+          const refundParams = {
+            payment_intent: paymentIntentId,
+            reason: "requested_by_customer",
+            metadata: {
+              bookingId: String(claimed._id),
+              cancelledBy: String(req.user._id),
+            },
+          };
+          if (claimed.payoutStatus === "direct") {
+            refundParams.reverse_transfer = true;
+            refundParams.refund_application_fee = true;
+          }
+
+          const refund = await stripe.refunds.create(refundParams, {
+            idempotencyKey: `refund_booking_${claimed._id}`,
+          });
+
+          refundUpdate = {
+            stripeRefundId: refund.id,
+            refundStatus: "refunded",
+            refundedAt: new Date(),
+            payoutStatus: "cancelled",
+          };
+
+          if (claimed.teacher) {
+            const earningCurrency = requireCurrency(
+              claimed.teacherPayoutCurrency ||
+                claimed.itemSnapshot?.currency ||
+                claimed.lesson_currency ||
+                claimed.currency ||
+                "USD"
+            );
+            const fallbackRate =
+              typeof claimed.commissionRate === "number"
+                ? claimed.commissionRate
+                : await getCommissionRate();
+            const teacherAmount =
+              claimed.teacherPayoutAmount != null
+                ? claimed.teacherPayoutAmount
+                : roundMoney(claimed.amount - claimed.amount * fallbackRate, earningCurrency);
+
+            await User.findByIdAndUpdate(claimed.teacher, {
+              $inc: { [`balances.pending.${earningCurrency}`]: -teacherAmount },
+            });
+          }
+        } catch (refundErr) {
+          await Booking.findByIdAndUpdate(claimed._id, {
+            $set: {
+              status: previousStatus,
+              cancelledAt: null,
+              cancelledBy: null,
+              refundStatus: "failed",
+            },
+          });
+          return res.status(502).json({
+            status: false,
+            message: `Unable to process Stripe refund: ${refundErr.message}`,
+          });
+        }
+      } else {
+        const pendingSessionId = claimed.stripeSessionId || claimed.stripe_session_id;
+        if (pendingSessionId) {
+          stripe.checkout.sessions.expire(pendingSessionId).catch((err) =>
+            console.warn("Expire unpaid checkout session on cancel notice:", err.message)
+          );
+        }
+        refundUpdate = { payoutStatus: "cancelled" };
+      }
+
+      if (bookingType === "listing") {
         const listingSlots = getListingBookingSlots(booking, booking.listing);
         for (const slot of listingSlots) {
           await releaseBookedSlot({
@@ -1714,15 +2213,28 @@ export const cancelBooking = async (req, res) => {
         });
       }
 
-      booking.status = "cancelled";
-      if (type === "lesson" || type === "listing") booking.scheduledAt = null;
-
-      await booking.save();
+      const updatedBooking = await Booking.findByIdAndUpdate(
+        claimed._id,
+        {
+          $set: {
+            ...refundUpdate,
+            scheduledAt: null,
+          },
+        },
+        { new: true }
+      );
 
       return res.json({
         status: true,
-        message: type === "listing" ? "Order cancelled successfully" : "Lesson booking cancelled successfully",
-        booking,
+        message:
+          bookingType === "listing"
+            ? refundUpdate.stripeRefundId
+              ? "Order cancelled and refunded successfully"
+              : "Order cancelled successfully"
+            : refundUpdate.stripeRefundId
+            ? "Lesson booking cancelled and refunded successfully"
+            : "Lesson booking cancelled successfully",
+        booking: updatedBooking,
       });
     } else {
       if (!lId) {
@@ -1732,7 +2244,6 @@ export const cancelBooking = async (req, res) => {
         });
       }
 
-      // Find lesson in lessonPosition
       const idx = booking.lessonPosition.findIndex(
         (ls) => ls.lId.toString() === lId.toString()
       );
@@ -1744,7 +2255,10 @@ export const cancelBooking = async (req, res) => {
         });
       }
 
-      // Cancel only this lesson
+      if (booking.lessonPosition[idx].status === "cancelled") {
+        return res.status(400).json({ status: false, message: "Curriculum lesson is already cancelled" });
+      }
+
       const lesson = await Lesson.findById(booking.lessonPosition[idx].lId);
       await releaseBookedSlot({
         teacher: booking.teacher,
@@ -1941,12 +2455,350 @@ export const userUnscheduledBookings = async (req, res) => {
   }
 };
 
+export const finalizeListingOrderCompletion = async (
+  booking,
+  { completedBy = null, autoCompleted = false, allowedStatuses = ["delivered"] } = {}
+) => {
+  if (!booking?._id) return null;
+
+  const nextPayoutStatus = ["direct", "transferred"].includes(booking.payoutStatus)
+    ? booking.payoutStatus
+    : "pending_connect";
+
+  const claimed = await Booking.findOneAndUpdate(
+    {
+      _id: booking._id,
+      type: "listing",
+      paymentStatus: "paid",
+      status: { $in: allowedStatuses },
+      refundStatus: { $nin: ["refunded", "disputed"] },
+    },
+    {
+      $set: {
+        status: "completed",
+        completedAt: new Date(),
+        completedBy,
+        autoCompleted,
+        autoCompleteAt: null,
+        payoutStatus: nextPayoutStatus,
+      },
+    },
+    { new: true }
+  );
+
+  if (!claimed) return null;
+
+  const earningCurrency = requireCurrency(
+    claimed.teacherPayoutCurrency ||
+      claimed.itemSnapshot?.currency ||
+      claimed.lesson_currency ||
+      claimed.currency ||
+      "USD"
+  );
+  const teacherAmount =
+    claimed.teacherPayoutAmount != null
+      ? claimed.teacherPayoutAmount
+      : roundMoney(
+          claimed.amount -
+            claimed.amount *
+              (typeof claimed.commissionRate === "number"
+                ? claimed.commissionRate
+                : await getCommissionRate()),
+          earningCurrency
+        );
+
+  const teacherId = booking.teacher?._id || booking.teacher;
+  if (teacherId) {
+    await User.findByIdAndUpdate(
+      teacherId,
+      {
+        $inc: {
+          [`balances.pending.${earningCurrency}`]: -teacherAmount,
+          [`balances.available.${earningCurrency}`]: teacherAmount,
+          [`balances.total.${earningCurrency}`]: teacherAmount,
+        },
+      },
+      { new: true }
+    );
+
+    if (nextPayoutStatus === "pending_connect") {
+      processPendingTeacherPayouts(teacherId).catch((err) =>
+        console.warn("Auto transfer on complete listing error:", err.message)
+      );
+    }
+  }
+
+  return { claimed, teacherAmount, earningCurrency };
+};
+
+export const autoCompleteExpiredDeliveredOrders = async ({ teacherId, userId } = {}) => {
+  const filter = {
+    type: "listing",
+    paymentStatus: "paid",
+    status: "delivered",
+    refundStatus: { $nin: ["refunded", "disputed"] },
+    autoCompleteAt: { $lte: new Date() },
+  };
+  if (teacherId) filter.teacher = teacherId;
+  if (userId) filter.user = userId;
+
+  const expired = await Booking.find(filter)
+    .select("_id teacher user payoutStatus")
+    .lean();
+
+  if (!Array.isArray(expired) || expired.length === 0) return 0;
+
+  let completedCount = 0;
+  for (const item of expired) {
+    const finalized = await finalizeListingOrderCompletion(item, {
+      completedBy: null,
+      autoCompleted: true,
+      allowedStatuses: ["delivered"],
+    });
+    if (!finalized) continue;
+    completedCount += 1;
+
+    const shortOrderId = String(item._id).slice(-6);
+    if (item.user) {
+      sendPushNotification({
+        userIds: item.user,
+        title: "Order Auto-Completed",
+        body: `Order #${shortOrderId} was automatically completed after the ${ORDER_AUTO_COMPLETE_DAYS}-day review window.`,
+        data: { type: "booking", bookingId: String(item._id) },
+      }).catch((err) => console.error("Auto-complete buyer push error:", err));
+    }
+    if (item.teacher) {
+      sendPushNotification({
+        userIds: item.teacher,
+        title: "Payment Released!",
+        body: `Order #${shortOrderId} auto-completed and earnings were released for payout.`,
+        data: { type: "booking", bookingId: String(item._id) },
+      }).catch((err) => console.error("Auto-complete seller push error:", err));
+    }
+  }
+
+  return completedCount;
+};
+
+export const deliverListingOrder = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const rawNote = typeof req.body?.deliveryNote === "string" ? req.body.deliveryNote.trim() : "";
+    const deliveryNote = rawNote.slice(0, 1000);
+
+    const booking = await Booking.findById(bookingId)
+      .populate("user", "_id name")
+      .populate("teacher", "_id name");
+
+    if (!booking) {
+      return res.status(404).json({ status: false, message: "Booking not found" });
+    }
+    if (booking.type !== "listing") {
+      return res.status(400).json({ status: false, message: "Only listing orders support delivery" });
+    }
+
+    const teacherId = String(booking.teacher?._id || booking.teacher || "");
+    const isAuthorized = (teacherId && teacherId === String(req.user._id)) || req.user.role === "admin";
+    if (!isAuthorized) {
+      return res.status(403).json({ status: false, message: "Only the seller can mark this order as delivered" });
+    }
+    if (["refunded", "disputed"].includes(booking.refundStatus)) {
+      return res.status(400).json({ status: false, message: "Refunded or disputed orders cannot be delivered" });
+    }
+
+    const now = new Date();
+    const autoCompleteAt = new Date(now.getTime() + ORDER_AUTO_COMPLETE_MS);
+
+    const updated = await Booking.findOneAndUpdate(
+      {
+        _id: bookingId,
+        type: "listing",
+        paymentStatus: "paid",
+        status: { $nin: ["delivered", "completed", "cancelled"] },
+        refundStatus: { $nin: ["refunded", "disputed"] },
+      },
+      {
+        $set: {
+          status: "delivered",
+          deliveredAt: now,
+          deliveredBy: req.user._id,
+          deliveryNote,
+          autoCompleteAt,
+          autoCompleted: false,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(400).json({
+        status: false,
+        message: "Only active paid orders can be marked as delivered",
+      });
+    }
+
+    const buyerId = booking.user?._id || booking.user;
+    if (buyerId) {
+      sendPushNotification({
+        userIds: buyerId,
+        title: "Order Delivered — Please Confirm",
+        body: `Your order #${String(booking._id).slice(-6)} was marked as delivered. Review and confirm within ${ORDER_AUTO_COMPLETE_DAYS} days to release payment.`,
+        data: { type: "booking", bookingId: String(booking._id) },
+      }).catch((err) => console.error("Order delivery push error:", err));
+    }
+
+    return res.json({
+      status: true,
+      message: `Order marked as delivered. Payment will release once the buyer confirms or after ${ORDER_AUTO_COMPLETE_DAYS} days.`,
+      booking: updated,
+    });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+export const confirmListingDelivery = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    const booking = await Booking.findById(bookingId)
+      .populate("user", "_id name")
+      .populate("teacher", "_id name");
+
+    if (!booking) {
+      return res.status(404).json({ status: false, message: "Booking not found" });
+    }
+    if (booking.type !== "listing") {
+      return res.status(400).json({ status: false, message: "Only listing orders can be confirmed here" });
+    }
+
+    const buyerId = String(booking.user?._id || booking.user || "");
+    const isAuthorized = (buyerId && buyerId === String(req.user._id)) || req.user.role === "admin";
+    if (!isAuthorized) {
+      return res.status(403).json({
+        status: false,
+        message: "Only the buyer or admin can confirm delivery",
+      });
+    }
+    if (["refunded", "disputed"].includes(booking.refundStatus)) {
+      return res.status(400).json({
+        status: false,
+        message: "Refunded or disputed orders cannot be confirmed",
+      });
+    }
+
+    const finalized = await finalizeListingOrderCompletion(booking, {
+      completedBy: req.user._id,
+      autoCompleted: false,
+      allowedStatuses: ["delivered"],
+    });
+
+    if (!finalized) {
+      return res.status(400).json({
+        status: false,
+        message: "Only delivered paid orders can be confirmed",
+      });
+    }
+
+    const teacherId = booking.teacher?._id || booking.teacher;
+    if (teacherId) {
+      sendPushNotification({
+        userIds: teacherId,
+        title: "Order Confirmed — Payment Released!",
+        body: `The buyer confirmed delivery for order #${String(booking._id).slice(-6)}. Funds are being transferred for payout.`,
+        data: { type: "booking", bookingId: String(booking._id) },
+      }).catch((err) => console.error("Order confirmation push error:", err));
+    }
+
+    return res.json({
+      status: true,
+      message: "Order confirmed and payment released to the seller.",
+      booking: finalized.claimed,
+    });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+export const requestListingRevision = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const rawNote = typeof req.body?.revisionNote === "string" ? req.body.revisionNote.trim() : "";
+    const revisionNote = rawNote.slice(0, 1000);
+
+    const booking = await Booking.findById(bookingId)
+      .populate("user", "_id name")
+      .populate("teacher", "_id name");
+
+    if (!booking) {
+      return res.status(404).json({ status: false, message: "Booking not found" });
+    }
+    if (booking.type !== "listing") {
+      return res.status(400).json({ status: false, message: "Only listing orders support revisions" });
+    }
+
+    const buyerId = String(booking.user?._id || booking.user || "");
+    if (!buyerId || buyerId !== String(req.user._id)) {
+      return res.status(403).json({
+        status: false,
+        message: "Only the buyer can request a revision",
+      });
+    }
+
+    const updated = await Booking.findOneAndUpdate(
+      {
+        _id: bookingId,
+        type: "listing",
+        paymentStatus: "paid",
+        status: "delivered",
+        refundStatus: { $nin: ["refunded", "disputed"] },
+      },
+      {
+        $set: {
+          status: "paid",
+          deliveredAt: null,
+          deliveredBy: null,
+          autoCompleteAt: null,
+          revisionNote,
+          revisionRequestedAt: new Date(),
+        },
+        $inc: { revisionCount: 1 },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(400).json({
+        status: false,
+        message: "Revision can only be requested for delivered orders",
+      });
+    }
+
+    const teacherId = booking.teacher?._id || booking.teacher;
+    if (teacherId) {
+      sendPushNotification({
+        userIds: teacherId,
+        title: "Revision Requested",
+        body: `The buyer requested updates on order #${String(booking._id).slice(-6)}. Funds remain safely in escrow.`,
+        data: { type: "booking", bookingId: String(booking._id) },
+      }).catch((err) => console.error("Revision request push error:", err));
+    }
+
+    return res.json({
+      status: true,
+      message: "Revision requested. Auto-completion has been paused and funds remain in escrow.",
+      booking: updated,
+    });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: error.message });
+  }
+};
+
 export const completeLessonByTeacher = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { type, lId } = req.body;
 
-    // 1. Fetch booking
     const booking = await Booking.findById(bookingId)
       .populate("user", "_id")
       .populate("teacher", "_id");
@@ -1957,76 +2809,131 @@ export const completeLessonByTeacher = async (req, res) => {
         .json({ status: false, message: "Booking not found" });
     }
 
-    // --------------------------------------------
-    //  TYPE = LESSON â†’ COMPLETE FULL BOOKING
-    // --------------------------------------------
-    if (type === "lesson" || type === "listing") {
-      booking.status = "completed";
+    const teacherId = String(booking.teacher?._id || booking.teacher || "");
+    const isAuthorized = (teacherId && teacherId === String(req.user._id)) || req.user.role === "admin";
+    if (!isAuthorized) {
+      return res.status(403).json({
+        status: false,
+        message: "Only the seller or admin can mark this order as complete",
+      });
+    }
 
-      await booking.save();
+    const bookingType = booking.type;
+    if (type && type !== bookingType) {
+      return res.status(400).json({
+        status: false,
+        message: "Booking type mismatch",
+      });
+    }
 
-      if (type === "listing") {
-        if (booking.teacher?._id) {
-          const earningCurrency = requireCurrency(booking.chargedCurrency || booking.currency || "USD");
-          const commissionRate = await getCommissionRate();
-          const teacherAmount = roundMoney(booking.amount - booking.amount * commissionRate, earningCurrency);
-          await User.findByIdAndUpdate(
-            booking.teacher._id,
-            {
-              $inc: {
-                [`balances.pending.${earningCurrency}`]: -teacherAmount,
-                [`balances.available.${earningCurrency}`]: teacherAmount,
-                [`balances.total.${earningCurrency}`]: teacherAmount,
-              },
-            },
-            { new: true }
-          );
-        }
-
-        if (booking.teacher?._id) {
-          processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
-            console.warn("Auto transfer on complete listing error:", err.message)
-          );
-        }
-
-        // 🔔 Send push notification to buyer that order is completed
-        if (booking.user?._id) {
-          sendPushNotification({
-            userIds: booking.user._id,
-            title: "Order Completed! ✅",
-            body: `Your order #${String(booking._id).slice(-6)} has been marked as completed.`,
-            data: {
-              type: "booking",
-              bookingId: String(booking._id),
-            },
-          }).catch((err) => console.error("Order completion push notification error:", err));
-        }
-
-        return res.json({
-          status: true,
-          message: "Order completed successfully",
-          booking,
+    if (bookingType === "listing") {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({
+          status: false,
+          message: "Sellers must mark the order as delivered. Funds release once the buyer confirms or after the review window.",
+        });
+      }
+      if (["refunded", "disputed"].includes(booking.refundStatus)) {
+        return res.status(400).json({
+          status: false,
+          message: "Refunded or disputed orders cannot be completed",
         });
       }
 
-      // Increment user stats
+      const finalized = await finalizeListingOrderCompletion(booking, {
+        completedBy: req.user._id,
+        autoCompleted: false,
+        allowedStatuses: ["paid", "scheduled", "pending", "delivered"],
+      });
+
+      if (!finalized) {
+        return res.status(400).json({
+          status: false,
+          message: "Only active paid orders can be completed",
+        });
+      }
+
+      if (booking.user?._id) {
+        sendPushNotification({
+          userIds: booking.user._id,
+          title: "Order Completed!",
+          body: `Your order #${String(booking._id).slice(-6)} has been marked as completed.`,
+          data: {
+            type: "booking",
+            bookingId: String(booking._id),
+          },
+        }).catch((err) => console.error("Order completion push notification error:", err));
+      }
+
+      return res.json({
+        status: true,
+        message: "Order completed successfully",
+        booking: finalized.claimed,
+      });
+    }
+
+    if (bookingType === "lesson") {
+      if (["refunded", "disputed"].includes(booking.refundStatus)) {
+        return res.status(400).json({
+          status: false,
+          message: "Refunded or disputed orders cannot be completed",
+        });
+      }
+
+      const nextPayoutStatus = ["direct", "transferred"].includes(booking.payoutStatus)
+        ? booking.payoutStatus
+        : "pending_connect";
+
+      const claimed = await Booking.findOneAndUpdate(
+        {
+          _id: bookingId,
+          paymentStatus: "paid",
+          status: { $nin: ["completed", "cancelled"] },
+          refundStatus: { $nin: ["refunded", "disputed"] },
+        },
+        {
+          $set: {
+            status: "completed",
+            completedAt: new Date(),
+            completedBy: req.user._id,
+            payoutStatus: nextPayoutStatus,
+          },
+        },
+        { new: true }
+      );
+
+      if (!claimed) {
+        return res.status(400).json({
+          status: false,
+          message: "Only active paid orders can be completed",
+        });
+      }
+
+      const earningCurrency = requireCurrency(
+        claimed.teacherPayoutCurrency ||
+          claimed.itemSnapshot?.currency ||
+          claimed.lesson_currency ||
+          claimed.currency ||
+          "USD"
+      );
+      const fallbackRate =
+        typeof claimed.commissionRate === "number"
+          ? claimed.commissionRate
+          : await getCommissionRate();
+      const teacherAmount =
+        claimed.teacherPayoutAmount != null
+          ? claimed.teacherPayoutAmount
+          : roundMoney(claimed.amount - claimed.amount * fallbackRate, earningCurrency);
+
       if (booking.user?._id) {
         await User.findByIdAndUpdate(
           booking.user._id,
-          {
-            $inc: {
-              classesAttended: 1,
-            },
-          },
+          { $inc: { classesAttended: 1 } },
           { new: true }
         );
       }
 
-      // Increment teacher stats
       if (booking.teacher?._id) {
-        const earningCurrency = requireCurrency(booking.lesson_currency || "USD");
-        const commissionRate = await getCommissionRate();
-        const teacherAmount = roundMoney(booking.amount - booking.amount * commissionRate, earningCurrency);
         await User.findByIdAndUpdate(
           booking.teacher._id,
           {
@@ -2040,21 +2947,31 @@ export const completeLessonByTeacher = async (req, res) => {
           { new: true }
         );
 
-        processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
-          console.warn("Auto transfer on complete lesson error:", err.message)
-        );
+        if (nextPayoutStatus === "pending_connect") {
+          processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
+            console.warn("Auto transfer on complete lesson error:", err.message)
+          );
+        }
       }
+
       return res.json({
         status: true,
         message: "Lesson completed successfully",
-        booking,
+        booking: claimed,
       });
     }
 
-    // --------------------------------------------
-    // TYPE = CURRICULUM â†’ COMPLETE ONLY ONE LESSON
-    // --------------------------------------------
-    if (type === "curriculum") {
+    if (bookingType === "curriculum") {
+      if (
+        booking.paymentStatus !== "paid" ||
+        booking.status === "cancelled" ||
+        ["refunded", "disputed"].includes(booking.refundStatus)
+      ) {
+        return res.status(400).json({
+          status: false,
+          message: "Only active paid bookings can be completed",
+        });
+      }
       if (!lId) {
         return res.status(400).json({
           status: false,
@@ -2062,7 +2979,6 @@ export const completeLessonByTeacher = async (req, res) => {
         });
       }
 
-      // find target lesson
       const index = booking.lessonPosition.findIndex(
         (ls) => ls.lId.toString() === lId.toString()
       );
@@ -2074,12 +2990,16 @@ export const completeLessonByTeacher = async (req, res) => {
         });
       }
 
-      // Update that specific lesson
-      booking.lessonPosition[index].status = "completed";
+      if (booking.lessonPosition[index].status === "completed") {
+        return res.status(400).json({
+          status: false,
+          message: "Curriculum lesson is already completed",
+        });
+      }
 
+      booking.lessonPosition[index].status = "completed";
       await booking.save();
 
-      // update classes attended/hosted
       if (booking.user?._id) {
         await User.findByIdAndUpdate(
           booking.user._id,
@@ -2096,14 +3016,88 @@ export const completeLessonByTeacher = async (req, res) => {
         );
       }
 
+      const allLessonsDone =
+        Array.isArray(booking.lessonPosition) &&
+        booking.lessonPosition.length > 0 &&
+        booking.lessonPosition.every(
+          (ls) => ls.status === "completed" || ls.status === "cancelled"
+        );
+
+      let responseBooking = booking;
+      if (allLessonsDone) {
+        const nextPayoutStatus = ["direct", "transferred"].includes(booking.payoutStatus)
+          ? booking.payoutStatus
+          : "pending_connect";
+
+        const claimedCurriculum = await Booking.findOneAndUpdate(
+          {
+            _id: bookingId,
+            paymentStatus: "paid",
+            status: { $nin: ["completed", "cancelled"] },
+            refundStatus: { $nin: ["refunded", "disputed"] },
+          },
+          {
+            $set: {
+              status: "completed",
+              completedAt: new Date(),
+              completedBy: req.user._id,
+              payoutStatus: nextPayoutStatus,
+            },
+          },
+          { new: true }
+        );
+
+        if (claimedCurriculum) {
+          responseBooking = claimedCurriculum;
+          const earningCurrency = requireCurrency(
+            claimedCurriculum.teacherPayoutCurrency ||
+              claimedCurriculum.lesson_currency ||
+              claimedCurriculum.currency ||
+              "USD"
+          );
+          const fallbackRate =
+            typeof claimedCurriculum.commissionRate === "number"
+              ? claimedCurriculum.commissionRate
+              : await getCommissionRate();
+          const teacherAmount =
+            claimedCurriculum.teacherPayoutAmount != null
+              ? claimedCurriculum.teacherPayoutAmount
+              : roundMoney(
+                  claimedCurriculum.amount - claimedCurriculum.amount * fallbackRate,
+                  earningCurrency
+                );
+
+          if (booking.teacher?._id) {
+            await User.findByIdAndUpdate(
+              booking.teacher._id,
+              {
+                $inc: {
+                  moneyPending: -teacherAmount,
+                  [`balances.available.${earningCurrency}`]: teacherAmount,
+                  [`balances.total.${earningCurrency}`]: teacherAmount,
+                },
+              },
+              { new: true }
+            );
+
+            if (nextPayoutStatus === "pending_connect") {
+              processPendingTeacherPayouts(booking.teacher._id).catch((err) =>
+                console.warn("Auto transfer on complete curriculum error:", err.message)
+              );
+            }
+          }
+        }
+      }
+
       return res.json({
         status: true,
-        message: "Curriculum lesson completed successfully",
-        booking,
+        message: allLessonsDone
+          ? "Curriculum completed successfully"
+          : "Curriculum lesson completed successfully",
+        booking: responseBooking,
       });
     }
 
-    // Invalid type
     return res.status(400).json({ status: false, message: "Invalid type." });
   } catch (error) {
     return res.status(500).json({ status: false, message: error.message });
@@ -2112,12 +3106,24 @@ export const completeLessonByTeacher = async (req, res) => {
 
 export const upcomingBookingsByUserId = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
     const { id } = req.params;
     if (!id) {
       return res.status(401).json({ status: false, message: "Unauthorized" });
+    }
+
+    const isSelfOrAdmin =
+      String(req.user?._id || "") === String(id) || req.user?.role === "admin";
+    if (!isSelfOrAdmin) {
+      const targetUser = await User.findById(id).select("publicType").lean();
+      if (!targetUser || targetUser.publicType !== true) {
+        return res.status(403).json({
+          status: false,
+          message: "This user's schedule is private",
+        });
+      }
     }
 
     const { scheduledAt, timezone } = req.query;
@@ -2137,6 +3143,8 @@ export const upcomingBookingsByUserId = async (req, res) => {
     // -------------------------------
     const filter = {
       user: id,
+      paymentStatus: "paid",
+      status: { $ne: "cancelled" },
       $or: [
         { scheduledAt: { $gte: newDateUTC } },
         { "lessonPosition.scheduledAt": { $gte: newDateUTC } },
@@ -2147,7 +3155,7 @@ export const upcomingBookingsByUserId = async (req, res) => {
     const total = await Booking.countDocuments(filter);
 
     const bookings = await Booking.find(filter)
-      .select("-lessonPosition -stripePaymentIntentId")
+      .select("_id scheduledAt timezone type status lesson curriculum teacher")
       .populate(
         "lesson",
         "title duration type images totalRatings averageRating"
@@ -2174,6 +3182,7 @@ export const upcomingBookingsByUserId = async (req, res) => {
 export const getBookingById = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
+      .select("-stripeSessionId -stripe_session_id")
       .populate(
         "lesson",
         "title duration type images totalRatings averageRating"
@@ -2196,6 +3205,12 @@ export const getBookingById = async (req, res) => {
       return res
         .status(404)
         .json({ status: false, message: "Booking not found" });
+    }
+
+    const isBuyer = String(booking.user || "") === String(req.user._id);
+    const isSeller = String(booking.teacher?._id || booking.teacher || "") === String(req.user._id);
+    if (!isBuyer && !isSeller && req.user.role !== "admin") {
+      return res.status(403).json({ status: false, message: "Not authorized to view this booking" });
     }
 
     return res.json({

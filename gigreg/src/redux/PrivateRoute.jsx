@@ -1,30 +1,46 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { getUser } from "./reducers/AuthReducer";
-import Spinner from "../components/Spinner";
 
 const PrivateRoute = () => {
   const dispatch = useDispatch();
+  const location = useLocation();
   const { userInfo } = useSelector((state) => state.auth);
-  const [ok, setOk] = useState(true);
-  
-  // Memoize the userInfo processing to avoid unnecessary computations
-  const processedUserInfo = useMemo(() => {
-    return userInfo ? userInfo : null;
-  }, [userInfo]);
+  const [checked, setChecked] = useState(Boolean(userInfo));
 
   useEffect(() => {
-    if (!processedUserInfo) {
-      dispatch(getUser());
+    let active = true;
+
+    if (userInfo) {
+      setChecked(true);
+      return;
     }
-  }, [dispatch, processedUserInfo]);
 
-  useEffect(() => {
-    setOk(!!processedUserInfo);
-  }, [processedUserInfo]);
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token) {
+      setChecked(true);
+      return;
+    }
 
-  return ok ? <Outlet /> : <Spinner />;
+    dispatch(getUser()).finally(() => {
+      if (active) setChecked(true);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [dispatch, userInfo]);
+
+  if (userInfo) {
+    return <Outlet />;
+  }
+
+  if (!checked) {
+    return null;
+  }
+
+  return <Navigate to="/login" replace state={location.pathname} />;
 };
 
 export default PrivateRoute;

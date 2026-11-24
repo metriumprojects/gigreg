@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect, useCallback, useMemo } from "react";
+import React, { memo, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   GalleryHorizontalEnd,
@@ -13,10 +13,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { startChat } from "../../../redux/reducers/ChatReducer";
 import { becomeTeacher, getUser } from "../../../redux/reducers/AuthReducer";
 import { getLoginUrl, getSafeRedirectPath } from "../../../utils/authRedirect";
-import { getMyListings } from "../../../redux/reducers/ListingReducer";
 import { toast } from "react-toastify";
 import {
-  createListingProposalUrl,
   isSellerProfileComplete,
   saveProposalRequest,
   sendProposalUrl,
@@ -47,6 +45,8 @@ const RequestCard = memo(function RequestCard({
   const effectiveUserInfo = userInfo || authUser;
   const isBuyer = effectiveUserInfo?.role === "user";
   const isSeller = effectiveUserInfo?.role === "teacher";
+  const hasSellerProfile = isSellerProfileComplete(effectiveUserInfo);
+  const [switchingToSeller, setSwitchingToSeller] = useState(false);
 
   const currentUserId = effectiveUserInfo?._id
     ? String(effectiveUserInfo._id)
@@ -186,8 +186,10 @@ const RequestCard = memo(function RequestCard({
     }
   };
 
-  const handleBecomeSeller = () => {
-    if (!userInfo?._id) {
+  const handleBecomeSeller = async () => {
+    if (switchingToSeller) return;
+
+    if (!effectiveUserInfo?._id) {
       saveProposalRequest(req);
       navigate("/login", { state: { from: "/create-seller-profile" } });
       return;
@@ -195,35 +197,34 @@ const RequestCard = memo(function RequestCard({
 
     saveProposalRequest(req);
 
-    if (!isSellerProfileComplete(userInfo)) {
+    if (!hasSellerProfile) {
       navigate("/create-seller-profile", { state: { request: req } });
       return;
     }
 
-    dispatch(becomeTeacher("teacher")).then((res) => {
+    setSwitchingToSeller(true);
+    try {
+      const res = await dispatch(becomeTeacher("teacher"));
       if (res.payload?.needsSellerSetup) {
         navigate("/create-seller-profile", { state: { request: req } });
         return;
       }
       if (res.payload?.status) {
-        dispatch(getUser());
-        navigate("/seller-created", { state: { request: req } });
+        await dispatch(getUser());
+        navigate(sendProposalUrl(req._id), {
+          state: { request: req, switchedFromBuyer: true },
+        });
         return;
       }
       toast.error(res.payload?.message || "Unable to switch to seller");
-    });
+    } finally {
+      setSwitchingToSeller(false);
+    }
   };
 
   const handlePropose = () => {
     saveProposalRequest(req);
-    dispatch(getMyListings({ page: 1, limit: 50 })).then((res) => {
-      const sellerListings = res.payload?.listings || [];
-      if (sellerListings.length > 0) {
-        navigate(sendProposalUrl(req._id));
-        return;
-      }
-      navigate(createListingProposalUrl(req._id));
-    });
+    navigate(sendProposalUrl(req._id), { state: { request: req } });
   };
 
   return (
@@ -299,10 +300,15 @@ const RequestCard = memo(function RequestCard({
               <button
                 type="button"
                 onClick={handleBecomeSeller}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90 cursor-pointer"
+                disabled={switchingToSeller}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60 cursor-pointer"
               >
                 <Smile size={14} />
-                Become a seller and send a proposal
+                {switchingToSeller
+                  ? "Switching..."
+                  : hasSellerProfile
+                    ? "Switch to seller & send a proposal"
+                    : "Become a seller and send a proposal"}
               </button>
             </div>
           )}

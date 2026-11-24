@@ -4,8 +4,9 @@ import { Loader, Search, X } from "lucide-react";
 import { motion as Motion } from "framer-motion";
 import api from "../redux/api";
 import { useCurrency } from "../currency/CurrencyContext";
+import { DEFAULT_LISTING_IMAGE } from "../utils/defaultImages";
 
-const fallbackImage = "https://i.ibb.co/tpV3m2GW/no-image.png";
+const fallbackImage = DEFAULT_LISTING_IMAGE;
 
 const normalizeListings = (data) =>
   (data?.listings || []).slice(0, 8).map((listing) => ({

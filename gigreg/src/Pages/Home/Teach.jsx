@@ -20,6 +20,7 @@ import SearchCategoryToolbar from "./Components/SearchCategoryToolbar";
 import { useCurrency } from "../../currency/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
 import { createListingProposalUrl, saveProposalRequest } from "../../utils/proposalRequest";
+import { useDocumentMeta } from "../../hooks/useDocumentMeta";
 
 const Teach = () => {
   const { currency } = useCurrency();
@@ -27,6 +28,12 @@ const Teach = () => {
   const navigate = useNavigate();
   const { categories } = useSelector((state) => state.category);
   const { proposes } = useSelector((state) => state.propose);
+
+  useDocumentMeta({
+    title: "Buyer Requests",
+    description:
+      "Browse live buyer project requests on GigMake and submit tailored service proposals.",
+  });
 
   const [isOnlineSelected, setIsOnlineSelected] = useState(true);
   const [isInPersonSelected, setIsInPersonSelected] = useState(true);

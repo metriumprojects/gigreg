@@ -1,10 +1,12 @@
-import dns from "dns";
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+import dotenv from "dotenv";
+dotenv.config();
 import mongoose from "mongoose";
 
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  "mongodb+srv://metriumprojects_db_user:pf7yj0tuHK74CuIz@multiporject.pv481jt.mongodb.net/gigslide";
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error("MONGO_URI environment variable is required to run seedDummyData.");
+  process.exit(1);
+}
 
 const TEACHER_AVATARS = [
   {

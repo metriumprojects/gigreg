@@ -9,6 +9,11 @@ import { Link } from "react-router-dom";
 import { Heart, Star, Plus } from "lucide-react";
 import { toast } from "react-toastify";
 import { GrLocation } from "react-icons/gr";
+import {
+  BADGE_POAC_IMAGE,
+  DEFAULT_AVATAR_IMAGE,
+  DEFAULT_LISTING_IMAGE,
+} from "../../../utils/defaultImages";
 
 export default function PublicFvrt({ id }) {
   const dispatch = useDispatch();
@@ -59,7 +64,7 @@ export default function PublicFvrt({ id }) {
         <div className="relative overflow-hidden h-[335px]">
           <Link to={`/curriculum-booking/${curriculum._id}`}>
             <img
-              src={curriculum.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+              src={curriculum.coverImage?.url || DEFAULT_LISTING_IMAGE}
               alt={curriculum.title}
               className="w-full h-full object-cover rounded-[20px]"
             />
@@ -97,7 +102,7 @@ export default function PublicFvrt({ id }) {
                 <img
                   src={
                     curriculum?.createdBy?.image?.url ||
-                    "https://i.ibb.co/tpV3m2GW/no-image.png"
+                    DEFAULT_AVATAR_IMAGE
                   }
                   alt={curriculum.createdBy?.name}
                   className="w-full h-[40px] object-cover"
@@ -162,7 +167,7 @@ export default function PublicFvrt({ id }) {
             }
           >
             <img
-              src={lesson.coverImage?.url || "https://i.ibb.co/tpV3m2GW/no-image.png"}
+              src={lesson.coverImage?.url || DEFAULT_LISTING_IMAGE}
               alt={lesson.title}
               className="w-full h-full object-cover rounded-[20px]"
             />
@@ -200,7 +205,7 @@ export default function PublicFvrt({ id }) {
                 <img
                   src={
                     lesson?.createdBy?.image?.url ||
-                    "https://i.ibb.co/tpV3m2GW/no-image.png"
+                    DEFAULT_AVATAR_IMAGE
                   }
                   alt={lesson.createdBy?.name}
                   className="w-full h-[40px] object-cover"
@@ -240,7 +245,7 @@ export default function PublicFvrt({ id }) {
             {lesson.isIndependent === true && lesson.curriculums?.length > 0 && (
               <button className="w-full bg-primary text-white text-base font-medium py-3 rounded-md flex justify-center items-center gap-2">
                 <img
-                  src="https://i.ibb.co/JJcS4sx/badge-poac.png"
+                  src={BADGE_POAC_IMAGE}
                   className="h-[20px]"
                   alt="badge"
                 />
@@ -281,7 +286,7 @@ export default function PublicFvrt({ id }) {
               <img
                 src={
                   propose?.user?.image?.url ||
-                  "https://i.ibb.co/tpV3m2GW/no-image.png"
+                  DEFAULT_AVATAR_IMAGE
                 }
                 className="h-full w-full object-cover"
                 alt="profile-img"

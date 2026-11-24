@@ -1,5 +1,5 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, optionalProtect, adminOnly } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/uploadMiddleware.js";
 import { compressImages } from "../middleware/compressImages.js";
 import {
@@ -15,20 +15,25 @@ import {
 
 const router = express.Router();
 
-// Admin: list all listings (protected + controller checks admin role)
-router.get("/", protect, getAllListings);
+const listingUploadFields = upload.fields([
+  { name: "coverImage", maxCount: 1 },
+  { name: "images", maxCount: 11 },
+]);
 
-router.post("/create", protect, upload.any(), compressImages, createListing);
+// Admin: list all listings
+router.get("/", protect, adminOnly, getAllListings);
+
+router.post("/create", protect, listingUploadFields, compressImages, createListing);
 router.get("/my-listings", protect, getMyListings);
 router.get("/active", getActiveListings);
 router.get("/slug/:slug", getListingBySlug);
 // Backward-compatible routes used by the main frontend.
-router.put("/update/:id", protect, upload.any(), compressImages, updateListing);
+router.put("/update/:id", protect, listingUploadFields, compressImages, updateListing);
 router.delete("/delete/:id", protect, deleteListing);
 
-router.get("/:id", getListingById);
+router.get("/:id", optionalProtect, getListingById);
 // Allow dashboard to call PUT /api/listings/:id and DELETE /api/listings/:id.
-router.put("/:id", protect, upload.any(), compressImages, updateListing);
+router.put("/:id", protect, listingUploadFields, compressImages, updateListing);
 router.delete("/:id", protect, deleteListing);
 
 export default router;

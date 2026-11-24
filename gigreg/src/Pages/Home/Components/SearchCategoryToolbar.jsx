@@ -2,8 +2,9 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode, Mousewheel } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/free-mode";
+import { DEFAULT_LISTING_IMAGE } from "../../../utils/defaultImages";
 
-const FALLBACK_CATEGORY_IMAGE = "https://i.ibb.co/tpV3m2GW/no-image.png";
+const FALLBACK_CATEGORY_IMAGE = DEFAULT_LISTING_IMAGE;
 
 export default function SearchCategoryToolbar({
   categories = [],

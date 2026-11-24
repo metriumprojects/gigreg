@@ -28,7 +28,7 @@ export const createReview = async (req, res) => {
         folder: "_reviews",
       });
       uploadedImage = { url: result.secure_url, public_id: result.public_id };
-      fs.unlinkSync(req.file.path);
+      fs.promises.unlink(req.file.path).catch(() => {});
     }
 
     const review = await Review.create({

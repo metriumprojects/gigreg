@@ -3,8 +3,10 @@ import Listing from "../models/Listing.js";
 import bcrypt from "bcryptjs";
 import Booking from "../models/Booking.js";
 import Withdrawal from "../models/Withdrawal.js";
-import { generateToken } from "../utils/utils.js";
+import { buildAuthCookieOptions, generateToken } from "../utils/utils.js";
+import { escapeRegex } from "../utils/sanitize.js";
 import { getAppSettings, updateAppSettings } from "../services/appSettingsService.js";
+import getFirebaseAdmin from "../middleware/firebaseAdmin.js";
 
 const ensureAdmin = (req, res) => {
     if (req.user?.role !== "admin") {
@@ -18,7 +20,13 @@ const ensureAdmin = (req, res) => {
 export const loginAdmin = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+        if (!normalizedEmail || typeof password !== "string" || !password) {
+            return res.status(401).json({ status: false, message: "Invalid credentials" });
+        }
+        const user =
+            (await User.findOne({ email: normalizedEmail })) ||
+            (email !== normalizedEmail ? await User.findOne({ email: String(email).trim() }) : null);
 
         if (!user) {
             return res.status(401).json({ status: false, message: "Invalid credentials" });
@@ -29,16 +37,9 @@ export const loginAdmin = async (req, res) => {
         }
 
         if (await user.matchPassword(password)) {
-            const token = generateToken(user._id);
+            const token = generateToken(user._id, user.tokenVersion);
 
-            // Cookie options compatible with both development and production
-            const isProduction = process.env.NODE_ENV === "production" && !req.headers.host?.includes("localhost");
-            res.cookie("token", token, {
-                httpOnly: true,
-                secure: isProduction,
-                sameSite: isProduction ? "None" : "lax",
-                maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
+            res.cookie("token", token, buildAuthCookieOptions(req));
 
             return res.json({
                 status: true,
@@ -63,15 +64,9 @@ export const loginUserByAdmin = async (req, res) => {
         const user = await User.findById(req.params.id);
 
         if (user) {
-            const token = generateToken(user._id);
+            const token = generateToken(user._id, user.tokenVersion);
 
-            const isProduction = process.env.NODE_ENV === "production" && !req.headers.host?.includes("localhost");
-            res.cookie("token", token, {
-                httpOnly: true,
-                secure: isProduction,
-                sameSite: isProduction ? "None" : "lax",
-                maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
+            res.cookie("token", token, buildAuthCookieOptions(req));
 
             return res.json({
                 status: true,
@@ -96,16 +91,18 @@ export const loginUserByAdmin = async (req, res) => {
 export const getAllUser = async (req, res) => {
     try {
 
-        const { page, limit, search} = req.query;
-
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+        const { search } = req.query;
 
         let query = {};
 
-        if (search) {
+        const safeSearch = typeof search === "string" ? escapeRegex(search) : "";
+        if (safeSearch) {
             query = {
                 $or: [
-                    { name: { $regex: search, $options: "i" } },
-                    { email: { $regex: search, $options: "i" } },
+                    { name: { $regex: safeSearch, $options: "i" } },
+                    { email: { $regex: safeSearch, $options: "i" } },
                 ],
             };
         }
@@ -138,7 +135,6 @@ export const getAllUser = async (req, res) => {
 export const updateUser = async (req, res) => {
     try {
         const userId = req.params.id;
-        console.log(req.body);
         const { name, email, password } = req.body;
 
         // 1️⃣ FIND USER
@@ -199,12 +195,32 @@ export const deleteUser = async (req, res) => {
             });
         }
 
-        // Delete user
+        // Delete user from MongoDB
         await User.findByIdAndDelete(userId);
+
+        // Best-effort sync deletion with Firebase Authentication
+        let firebaseDeleted = false;
+        if (user.email) {
+            try {
+                const firebaseAdmin = getFirebaseAdmin();
+                if (firebaseAdmin) {
+                    const fbUser = await firebaseAdmin.auth().getUserByEmail(user.email);
+                    if (fbUser?.uid) {
+                        await firebaseAdmin.auth().deleteUser(fbUser.uid);
+                        firebaseDeleted = true;
+                    }
+                }
+            } catch (fbErr) {
+                if (fbErr?.code !== "auth/user-not-found") {
+                    console.warn("Firebase Auth delete sync warning:", fbErr.message);
+                }
+            }
+        }
 
         res.json({
             status: true,
             message: "User deleted successfully",
+            firebaseDeleted,
             deletedUser: {
                 _id: user._id,
                 name: user.name,
@@ -281,39 +297,79 @@ export const getAllData = async (req, res) => {
         const endOfToday = new Date();
         endOfToday.setHours(23, 59, 59, 999);
 
-        const totalListings = await Listing.countDocuments();
-        const totalUser = await User.countDocuments();
-        const totalWithdraw = await Withdrawal.countDocuments();
-        const totalBooking = await Booking.countDocuments();
+        const paidBookingMatch = {
+            paymentStatus: "paid",
+            status: { $ne: "cancelled" },
+        };
 
-        const totalAmountResult = await Booking.aggregate([
-            { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
-        ]);
-        const totalAmount = totalAmountResult[0]?.totalAmount || 0;
-        const todayBookingCount = await Booking.countDocuments({
-            createdAt: { $gte: startOfToday, $lte: endOfToday }
-        });
-        const todayAmountResult = await Booking.aggregate([
-            {
-                $match: {
-                    createdAt: { $gte: startOfToday, $lte: endOfToday }
-                }
-            },
-            { $group: { _id: null, todayAmount: { $sum: "$amount" } } }
+        const [
+            totalListings,
+            totalUser,
+            totalWithdraw,
+            totalBooking,
+            paidBookingCount,
+            totalsByCurrency,
+            todayBookingCount,
+            todayTotalsByCurrency,
+            settings,
+        ] = await Promise.all([
+            Listing.countDocuments(),
+            User.countDocuments(),
+            Withdrawal.countDocuments(),
+            Booking.countDocuments(),
+            Booking.countDocuments(paidBookingMatch),
+            Booking.aggregate([
+                { $match: paidBookingMatch },
+                {
+                    $group: {
+                        _id: { $toUpper: { $ifNull: ["$currency", "USD"] } },
+                        amount: { $sum: "$amount" },
+                        count: { $sum: 1 },
+                    },
+                },
+                { $project: { _id: 0, currency: "$_id", amount: 1, count: 1 } },
+                { $sort: { currency: 1 } },
+            ]),
+            Booking.countDocuments({
+                ...paidBookingMatch,
+                createdAt: { $gte: startOfToday, $lte: endOfToday },
+            }),
+            Booking.aggregate([
+                {
+                    $match: {
+                        ...paidBookingMatch,
+                        createdAt: { $gte: startOfToday, $lte: endOfToday },
+                    },
+                },
+                {
+                    $group: {
+                        _id: { $toUpper: { $ifNull: ["$currency", "USD"] } },
+                        amount: { $sum: "$amount" },
+                        count: { $sum: 1 },
+                    },
+                },
+                { $project: { _id: 0, currency: "$_id", amount: 1, count: 1 } },
+                { $sort: { currency: 1 } },
+            ]),
+            getAppSettings(),
         ]);
 
-        const todayAmount = todayAmountResult[0]?.todayAmount || 0;
-        const settings = await getAppSettings();
+        const totalAmount = totalsByCurrency.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+        const todayAmount = todayTotalsByCurrency.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+
         res.json({
             success: true,
             totalListings,
             totalUser,
             totalWithdraw,
             totalBooking,
+            paidBookingCount,
             totalAmount,
             todayAmount,
+            totalsByCurrency,
+            todayTotalsByCurrency,
             todayBookingCount,
-            settings
+            settings,
         });
 
     } catch (error) {
