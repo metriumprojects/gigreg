@@ -26,12 +26,94 @@ const sanitizeCountry = (value) => {
   return country;
 };
 
-const assertSupportedConnectCountry = (countryCode) => {
-  const configured = String(process.env.STRIPE_CONNECT_COUNTRIES || "")
+export const clearConnectCountriesCache = () => {
+  countriesCache = { data: null, expiresAt: 0 };
+};
+
+export const buildSupportedConnectCountries = ({
+  platformCountry,
+  supportedTransferCountries = [],
+  allSpecs = [],
+  restrictCountries = "",
+} = {}) => {
+  const specCurrencyByCode = new Map();
+  for (const spec of allSpecs) {
+    const code = String(spec?.id || "").trim().toUpperCase();
+    if (!code) continue;
+    specCurrencyByCode.set(code, String(spec?.default_currency || "").trim().toUpperCase());
+  }
+
+  const restrictList = String(restrictCountries || "")
     .split(",")
     .map((c) => c.trim().toUpperCase())
     .filter(Boolean);
-  if (configured.length > 0 && !configured.includes(countryCode)) {
+
+  let candidateCodes;
+  if (Array.isArray(supportedTransferCountries) && supportedTransferCountries.length > 0) {
+    const allowedSet = new Set(
+      [platformCountry, ...supportedTransferCountries]
+        .map((c) => String(c || "").trim().toUpperCase())
+        .filter(Boolean)
+    );
+    candidateCodes = [...allowedSet].filter((code) => specCurrencyByCode.has(code));
+  } else {
+    candidateCodes = [...specCurrencyByCode.keys()];
+  }
+
+  if (restrictList.length > 0) {
+    const restrictSet = new Set(restrictList);
+    candidateCodes = candidateCodes.filter((code) => restrictSet.has(code));
+  }
+
+  return candidateCodes
+    .sort((a, b) => a.localeCompare(b))
+    .map((code) => ({
+      code,
+      defaultCurrency: specCurrencyByCode.get(code) || "",
+    }));
+};
+
+const fetchSupportedConnectCountries = async (stripe) => {
+  if (countriesCache.data && countriesCache.expiresAt > Date.now()) {
+    return countriesCache.data;
+  }
+
+  const platform = await stripe.accounts.retrieve();
+  const platformCountry = String(platform?.country || "").trim().toUpperCase();
+  const [platformSpec, firstSpecsPage] = await Promise.all([
+    platformCountry ? stripe.countrySpecs.retrieve(platformCountry) : Promise.resolve(null),
+    stripe.countrySpecs.list({ limit: 100 }),
+  ]);
+
+  const allSpecs = [...(firstSpecsPage?.data || [])];
+  let hasMore = Boolean(firstSpecsPage?.has_more);
+  let startingAfter = allSpecs.length > 0 ? allSpecs[allSpecs.length - 1].id : undefined;
+
+  while (hasMore && startingAfter) {
+    const nextPage = await stripe.countrySpecs.list({ limit: 100, starting_after: startingAfter });
+    const pageData = nextPage?.data || [];
+    allSpecs.push(...pageData);
+    hasMore = Boolean(nextPage?.has_more && pageData.length > 0);
+    startingAfter = pageData.length > 0 ? pageData[pageData.length - 1].id : undefined;
+  }
+
+  const countries = buildSupportedConnectCountries({
+    platformCountry,
+    supportedTransferCountries: platformSpec?.supported_transfer_countries || [],
+    allSpecs,
+    restrictCountries: process.env.STRIPE_CONNECT_RESTRICT_COUNTRIES || "",
+  });
+
+  countriesCache = {
+    data: countries,
+    expiresAt: Date.now() + COUNTRIES_CACHE_TTL_MS,
+  };
+  return countries;
+};
+
+const assertSupportedConnectCountry = async (countryCode, stripe) => {
+  const supported = await fetchSupportedConnectCountries(stripe);
+  if (supported.length > 0 && !supported.some((entry) => entry.code === countryCode)) {
     const error = new Error(`Payouts are not currently supported in ${countryCode}`);
     error.status = 400;
     throw error;
@@ -121,12 +203,12 @@ const ensureConnectAccount = async (user, country) => {
 
   const userId = String(user._id);
   const countryCode = sanitizeCountry(country);
-  assertSupportedConnectCountry(countryCode);
+  const stripe = getStripe();
+  await assertSupportedConnectCountry(countryCode, stripe);
 
   let createPromise = pendingConnectCreations.get(userId);
   if (!createPromise) {
     createPromise = (async () => {
-      const stripe = getStripe();
       const freshUser = await User.findById(user._id).select("stripeConnectAccountId stripeConnect email");
       let replacedAccountId = null;
 
@@ -300,24 +382,7 @@ const syncAccount = async (user) => {
 export const getConnectCountries = async (req, res) => {
   try {
     requireTeacher(req.user);
-    if (countriesCache.data && countriesCache.expiresAt > Date.now()) {
-      return res.json({ status: true, countries: countriesCache.data });
-    }
-    const stripe = getStripe();
-    const platform = await stripe.accounts.retrieve();
-    const configuredCountries = String(process.env.STRIPE_CONNECT_COUNTRIES || platform.country || "")
-      .split(",")
-      .map((country) => country.trim().toUpperCase())
-      .filter(Boolean);
-    const specs = await Promise.all(configuredCountries.map((country) => stripe.countrySpecs.retrieve(country)));
-    const countries = specs.map((spec) => ({
-      code: spec.id,
-      defaultCurrency: String(spec.default_currency).toUpperCase(),
-    }));
-    countriesCache = {
-      data: countries,
-      expiresAt: Date.now() + COUNTRIES_CACHE_TTL_MS,
-    };
+    const countries = await fetchSupportedConnectCountries(getStripe());
     res.json({ status: true, countries });
   } catch (error) {
     res.status(error.status || 500).json({ status: false, message: error.message });

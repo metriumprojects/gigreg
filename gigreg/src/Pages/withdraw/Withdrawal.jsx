@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Building2, ChevronRight, ExternalLink, Home, Info, Unlink } from "lucide-react";
 import { toast } from "react-toastify";
@@ -22,19 +22,40 @@ const EMPTY_BALANCE = {
 };
 
 const FALLBACK_COUNTRIES = [
-  { code: "US", defaultCurrency: "USD" },
-  { code: "GB", defaultCurrency: "GBP" },
-  { code: "FR", defaultCurrency: "EUR" },
-  { code: "DE", defaultCurrency: "EUR" },
-  { code: "ES", defaultCurrency: "EUR" },
-  { code: "IT", defaultCurrency: "EUR" },
-  { code: "NL", defaultCurrency: "EUR" },
-  { code: "BE", defaultCurrency: "EUR" },
-  { code: "IE", defaultCurrency: "EUR" },
-  { code: "PT", defaultCurrency: "EUR" },
   { code: "AT", defaultCurrency: "EUR" },
-  { code: "CH", defaultCurrency: "CHF" },
+  { code: "BE", defaultCurrency: "EUR" },
+  { code: "BG", defaultCurrency: "EUR" },
   { code: "CA", defaultCurrency: "CAD" },
+  { code: "CH", defaultCurrency: "CHF" },
+  { code: "CY", defaultCurrency: "EUR" },
+  { code: "CZ", defaultCurrency: "CZK" },
+  { code: "DE", defaultCurrency: "EUR" },
+  { code: "DK", defaultCurrency: "DKK" },
+  { code: "EE", defaultCurrency: "EUR" },
+  { code: "ES", defaultCurrency: "EUR" },
+  { code: "FI", defaultCurrency: "EUR" },
+  { code: "FR", defaultCurrency: "EUR" },
+  { code: "GB", defaultCurrency: "GBP" },
+  { code: "GI", defaultCurrency: "GBP" },
+  { code: "GR", defaultCurrency: "EUR" },
+  { code: "HR", defaultCurrency: "EUR" },
+  { code: "HU", defaultCurrency: "HUF" },
+  { code: "IE", defaultCurrency: "EUR" },
+  { code: "IT", defaultCurrency: "EUR" },
+  { code: "LI", defaultCurrency: "CHF" },
+  { code: "LT", defaultCurrency: "EUR" },
+  { code: "LU", defaultCurrency: "EUR" },
+  { code: "LV", defaultCurrency: "EUR" },
+  { code: "MT", defaultCurrency: "EUR" },
+  { code: "NL", defaultCurrency: "EUR" },
+  { code: "NO", defaultCurrency: "NOK" },
+  { code: "PL", defaultCurrency: "PLN" },
+  { code: "PT", defaultCurrency: "EUR" },
+  { code: "RO", defaultCurrency: "RON" },
+  { code: "SE", defaultCurrency: "SEK" },
+  { code: "SI", defaultCurrency: "EUR" },
+  { code: "SK", defaultCurrency: "EUR" },
+  { code: "US", defaultCurrency: "USD" },
 ];
 
 const regionNames =
@@ -117,6 +138,15 @@ export const Withdrawal = () => {
     load();
     window.scrollTo(0, 0);
   }, [load]);
+
+  const countryOptions = useMemo(() => {
+    const source = countries.length > 0 ? countries : FALLBACK_COUNTRIES;
+    return [...source].sort((a, b) =>
+      formatCountryLabel(a.code, a.defaultCurrency).localeCompare(
+        formatCountryLabel(b.code, b.defaultCurrency)
+      )
+    );
+  }, [countries]);
 
   const isSetupSubmitted = Boolean(connect?.detailsSubmitted || connect?.payoutsEnabled);
   const selectedCountry = country || connect?.country || "";
@@ -393,7 +423,7 @@ export const Withdrawal = () => {
                     <option value="" disabled>
                       Select your country
                     </option>
-                    {(countries.length > 0 ? countries : FALLBACK_COUNTRIES).map((c) => (
+                    {countryOptions.map((c) => (
                       <option key={c.code} value={c.code}>
                         {formatCountryLabel(c.code, c.defaultCurrency)}
                       </option>

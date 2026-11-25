@@ -88,6 +88,7 @@ import {
   handleConnectAccountUpdate,
   handleConnectAccountDeauthorized,
   evaluateDisconnectEligibility,
+  buildSupportedConnectCountries,
 } from "../controllers/stripeConnectController.js";
 import {
   roundMoney,
@@ -1952,4 +1953,51 @@ test("loginUser rejects seller setup with partial or invalid country", async () 
   } finally {
     User.findOne = origFindOne;
   }
+});
+
+test("buildSupportedConnectCountries intersects platform transfer countries with Stripe CountrySpecs", () => {
+  const allSpecs = [
+    { id: "US", default_currency: "usd" },
+    { id: "FR", default_currency: "eur" },
+    { id: "CA", default_currency: "cad" },
+    { id: "PL", default_currency: "pln" },
+    { id: "SE", default_currency: "sek" },
+    { id: "AU", default_currency: "aud" },
+    { id: "IN", default_currency: "inr" },
+  ];
+
+  const dynamic = buildSupportedConnectCountries({
+    platformCountry: "FR",
+    supportedTransferCountries: ["US", "CA", "PL", "SE", "IS", "MC", "SM"],
+    allSpecs,
+  });
+
+  assert.deepEqual(dynamic, [
+    { code: "CA", defaultCurrency: "CAD" },
+    { code: "FR", defaultCurrency: "EUR" },
+    { code: "PL", defaultCurrency: "PLN" },
+    { code: "SE", defaultCurrency: "SEK" },
+    { code: "US", defaultCurrency: "USD" },
+  ]);
+
+  const restricted = buildSupportedConnectCountries({
+    platformCountry: "FR",
+    supportedTransferCountries: ["US", "CA", "PL", "SE"],
+    allSpecs,
+    restrictCountries: "us, pl, au",
+  });
+
+  assert.deepEqual(restricted, [
+    { code: "PL", defaultCurrency: "PLN" },
+    { code: "US", defaultCurrency: "USD" },
+  ]);
+
+  const fallbackAll = buildSupportedConnectCountries({
+    platformCountry: "FR",
+    supportedTransferCountries: [],
+    allSpecs,
+  });
+
+  assert.equal(fallbackAll.length, allSpecs.length);
+  assert.ok(fallbackAll.some((entry) => entry.code === "AU" && entry.defaultCurrency === "AUD"));
 });
