@@ -8,6 +8,7 @@ import { buildAuthCookieOptions, generateToken } from "../utils/utils.js";
 import axios from "axios";
 import { normalizeCurrency, SUPPORTED_CURRENCIES } from "../services/currencyService.js";
 import { getFrontendUrl } from "../services/stripeService.js";
+import { isValidCountry, resolveCountry } from "../utils/countries.js";
 
 
 // export const registerUser = async (req, res) => {
@@ -41,7 +42,7 @@ import { getFrontendUrl } from "../services/stripeService.js";
 // };
 
 const isSellerProfileComplete = (user) =>
-  Boolean(user?.sellerName?.trim() && user?.dateOfBirth && user?.country?.trim());
+  Boolean(user?.sellerName?.trim() && user?.dateOfBirth && isValidCountry(user?.country));
 
 export const isPastDate = (dob) => {
   if (!dob) return false;
@@ -109,6 +110,7 @@ export const registerUser = async (req, res) => {
     const safeRole = role === "teacher" ? "teacher" : "user";
     const isSeller = safeRole === "teacher";
 
+    let validSellerCountry;
     if (isSeller) {
       if (!dateOfBirth || !country?.trim()) {
         return res.status(400).json({
@@ -120,6 +122,13 @@ export const registerUser = async (req, res) => {
         return res.status(400).json({
           status: false,
           message: "Date of birth must be a past date",
+        });
+      }
+      validSellerCountry = resolveCountry(country);
+      if (!validSellerCountry) {
+        return res.status(400).json({
+          status: false,
+          message: "Please select a valid country from the list",
         });
       }
     }
@@ -136,7 +145,7 @@ export const registerUser = async (req, res) => {
       buyerName: isSeller ? undefined : trimmedName,
       sellerName: isSeller ? trimmedName : undefined,
       dateOfBirth: isSeller ? new Date(dateOfBirth) : undefined,
-      country: isSeller ? country.trim() : undefined,
+      country: isSeller ? validSellerCountry : undefined,
       email: normalizedEmail,
       role: safeRole,
       password,
@@ -261,9 +270,16 @@ export const loginUser = async (req, res) => {
             message: "Date of birth must be a past date",
           });
         }
+        const validCountry = resolveCountry(country);
+        if (!validCountry) {
+          return res.status(400).json({
+            status: false,
+            message: "Please select a valid country from the list",
+          });
+        }
         user.sellerName = sellerName.trim();
         user.dateOfBirth = new Date(dateOfBirth);
-        user.country = country.trim();
+        user.country = validCountry;
       }
 
       user.role = "teacher";
@@ -446,9 +462,16 @@ export const googleLogin = async (req, res) => {
             message: "Date of birth must be a past date",
           });
         }
+        const validCountry = resolveCountry(country);
+        if (!validCountry) {
+          return res.status(400).json({
+            status: false,
+            message: "Please select a valid country from the list",
+          });
+        }
         user.sellerName = sellerName.trim();
         user.dateOfBirth = new Date(dateOfBirth);
-        user.country = country.trim();
+        user.country = validCountry;
       }
 
       user.role = "teacher";
@@ -726,7 +749,21 @@ export const updateProfile = async (req, res) => {
     if (dateOfBirth !== undefined && dateOfBirth !== "") {
       user.dateOfBirth = new Date(dateOfBirth);
     }
-    if (country !== undefined) user.country = String(country).trim();
+    if (country !== undefined) {
+      const trimmedCountry = typeof country === "string" ? country.trim() : "";
+      if (trimmedCountry === "") {
+        if (user.role === "teacher") {
+          return res.status(400).json({ message: "Please select a valid country from the list" });
+        }
+        user.country = "";
+      } else {
+        const validCountry = resolveCountry(trimmedCountry);
+        if (!validCountry) {
+          return res.status(400).json({ message: "Please select a valid country from the list" });
+        }
+        user.country = validCountry;
+      }
+    }
 
     // Keep legacy `name` in sync with active role display name
     if (name) {
@@ -849,7 +886,16 @@ export const becomeTeacher = async (req, res) => {
         }
         user.dateOfBirth = new Date(dateOfBirth);
       }
-      if (country?.trim()) user.country = country.trim();
+      if (country !== undefined && String(country).trim() !== "") {
+        const validCountry = resolveCountry(country);
+        if (!validCountry) {
+          return res.status(400).json({
+            status: false,
+            message: "Please select a valid country from the list",
+          });
+        }
+        user.country = validCountry;
+      }
 
       if (!isSellerProfileComplete(user)) {
         return res.status(400).json({

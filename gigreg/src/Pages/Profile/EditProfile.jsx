@@ -8,6 +8,7 @@ import { deleteUser } from "../../redux/reducers/DashboardReducer";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import CountryAutocomplete from "../Home/Components/CountryAutocomplete";
+import { resolveCountry } from "../../utils/countries";
 
 const toDateInput = (value) => {
   if (!value) return "";
@@ -98,8 +99,25 @@ export default function EditProfile() {
       }
     }
 
+    const trimmedCountry = (formData.country || "").trim();
+    let normalizedCountry = "";
+    if (trimmedCountry) {
+      normalizedCountry = resolveCountry(trimmedCountry);
+      if (!normalizedCountry) {
+        setErrorMessage("Please select a valid country from the list.");
+        return;
+      }
+    } else if (userInfo?.role === "teacher") {
+      setErrorMessage("Please select a valid country from the list.");
+      return;
+    }
+
     try {
-      const result = await dispatch(updateProfile(formData)).unwrap();
+      const payload = {
+        ...formData,
+        country: normalizedCountry,
+      };
+      const result = await dispatch(updateProfile(payload)).unwrap();
       if (result?.token) {
         localStorage.setItem("token", result.token);
       }

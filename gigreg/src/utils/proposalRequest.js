@@ -1,3 +1,5 @@
+import { isValidCountry } from "./countries";
+
 const STORAGE_KEY = "gigreg_proposal_request";
 const MESSAGE_STORAGE_KEY = "gigreg_proposal_message";
 
@@ -45,7 +47,7 @@ export const clearProposalRequest = () => {
 };
 
 export const isSellerProfileComplete = (user) =>
-  Boolean(user?.sellerName?.trim() && user?.dateOfBirth && user?.country?.trim());
+  Boolean(user?.sellerName?.trim() && user?.dateOfBirth && isValidCountry(user?.country));
 
 export const listingStateFromRequest = (request) => ({
   fromRequest: {

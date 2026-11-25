@@ -15,6 +15,7 @@ import {
   sendProposalUrl,
 } from "../../utils/proposalRequest";
 import ButtonSpinner from "../../components/ButtonSpinner";
+import { resolveCountry } from "../../utils/countries";
 
 const STEPS = ["name", "dateOfBirth", "country"];
 
@@ -78,17 +79,17 @@ export default function CreateSellerProfile() {
         ""
     );
     setDateOfBirth((prev) => prev || toDateInput(userInfo.dateOfBirth));
-    setCountry((prev) => prev || userInfo.country || "");
+    setCountry((prev) => prev || resolveCountry(userInfo.country) || "");
   }, [userInfo]);
 
-  const createSeller = () => {
+  const createSeller = (resolvedCountry) => {
     setLoading(true);
     dispatch(
       becomeTeacher({
         role: "teacher",
         sellerName: sellerName.trim(),
         dateOfBirth,
-        country: country.trim(),
+        country: resolvedCountry || resolveCountry(country),
       })
     )
       .then((res) => {
@@ -135,10 +136,16 @@ export default function CreateSellerProfile() {
 
     if (step === "country") {
       if (!country.trim()) {
-        toast.error("Please enter your country");
+        toast.error("Please select your country");
         return;
       }
-      createSeller();
+      const validCountry = resolveCountry(country);
+      if (!validCountry) {
+        toast.error("Please select a valid country from the list");
+        return;
+      }
+      setCountry(validCountry);
+      createSeller(validCountry);
     }
   };
 
@@ -217,7 +224,7 @@ export default function CreateSellerProfile() {
               <CountryAutocomplete
                 value={country}
                 onChange={setCountry}
-                placeholder="Select or type country"
+                placeholder="Search and select country"
                 label="Country"
                 variant="pill"
                 className="w-full"

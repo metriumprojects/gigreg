@@ -62,8 +62,10 @@ import {
   loginUser,
   logoutUser,
   updateProfile,
+  becomeTeacher,
   isAllowedGoogleAudience,
 } from "../controllers/userController.js";
+import { resolveCountry, isValidCountry } from "../utils/countries.js";
 import { buildAuthCookieOptions } from "../utils/utils.js";
 import { addTeacherRating } from "../controllers/ratingController.js";
 import { extractSocketToken } from "../socket/socketHandler.js";
@@ -1729,5 +1731,225 @@ test("deliverListingOrder, requestListingRevision, confirmListingDelivery, and a
     Booking.findOneAndUpdate = origBookingFindOneAndUpdate;
     Booking.find = origBookingFind;
     User.findByIdAndUpdate = origUserFindByIdAndUpdate;
+  }
+});
+
+test("country utility resolves valid names and aliases while rejecting partial text", () => {
+  assert.equal(resolveCountry("Pakistan"), "Pakistan");
+  assert.equal(resolveCountry("  pakistan "), "Pakistan");
+  assert.equal(resolveCountry("USA"), "United States of America");
+  assert.equal(resolveCountry("UK"), "United Kingdom");
+  assert.equal(isValidCountry("Pakistan"), true);
+
+  for (const invalid of ["pak", "ind", "invalid-country", "", "   ", null]) {
+    assert.equal(resolveCountry(invalid), null);
+    assert.equal(isValidCountry(invalid), false);
+  }
+});
+
+test("registerUser rejects seller registration with partial or invalid country", async () => {
+  const res = createMockRes();
+  await registerUser(
+    {
+      body: {
+        name: "Seller Test",
+        email: "seller@example.com",
+        password: "StrongPassword123",
+        role: "teacher",
+        dateOfBirth: "1995-05-10",
+        country: "pak",
+      },
+    },
+    res
+  );
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body?.status, false);
+  assert.equal(res.body?.message, "Please select a valid country from the list");
+});
+
+test("becomeTeacher validates country and rejects legacy invalid country in DB", async () => {
+  const origFindById = User.findById;
+  try {
+    let saved = false;
+    const mockUser = {
+      _id: "user-become-1",
+      role: "user",
+      name: "Ali",
+      buyerName: "Ali",
+      sellerName: "Ali",
+      dateOfBirth: new Date("1995-05-10"),
+      country: "pak",
+      save: async () => {
+        saved = true;
+      },
+    };
+    User.findById = async () => mockUser;
+
+    // 1. Existing DB country is invalid ("pak") and no country supplied -> needsSellerSetup
+    const resLegacy = createMockRes();
+    await becomeTeacher(
+      { user: { id: "user-become-1" }, body: { role: "teacher" } },
+      resLegacy
+    );
+    assert.equal(resLegacy.statusCode, 400);
+    assert.equal(resLegacy.body?.needsSellerSetup, true);
+    assert.equal(saved, false);
+
+    // 2. Submitting partial country "pak" -> HTTP 400
+    const resInvalid = createMockRes();
+    await becomeTeacher(
+      {
+        user: { id: "user-become-1" },
+        body: {
+          role: "teacher",
+          sellerName: "Ali Studio",
+          dateOfBirth: "1995-05-10",
+          country: "pak",
+        },
+      },
+      resInvalid
+    );
+    assert.equal(resInvalid.statusCode, 400);
+    assert.equal(resInvalid.body?.message, "Please select a valid country from the list");
+    assert.equal(saved, false);
+
+    // 3. Submitting valid country ("pakistan") -> normalized to "Pakistan" & succeeds
+    const resValid = createMockRes();
+    await becomeTeacher(
+      {
+        user: { id: "user-become-1" },
+        body: {
+          role: "teacher",
+          sellerName: "Ali Studio",
+          dateOfBirth: "1995-05-10",
+          country: "pakistan",
+        },
+      },
+      resValid
+    );
+    assert.equal(resValid.statusCode, 200);
+    assert.equal(resValid.body?.status, true);
+    assert.equal(saved, true);
+    assert.equal(mockUser.country, "Pakistan");
+  } finally {
+    User.findById = origFindById;
+  }
+});
+
+test("updateProfile enforces valid countries, blocks clearing for teachers, allows clearing for buyers", async () => {
+  const origFindById = User.findById;
+  try {
+    let saved = false;
+    const mockUser = {
+      _id: "user-country-upd-1",
+      name: "Sara",
+      buyerName: "Sara",
+      sellerName: "Sara Studio",
+      role: "teacher",
+      country: "Pakistan",
+      email: "sara@example.com",
+      save: async () => {
+        saved = true;
+      },
+    };
+    User.findById = async () => mockUser;
+
+    // 1. Invalid free text rejected
+    const resBad = createMockRes();
+    await updateProfile(
+      {
+        user: { _id: "user-country-upd-1" },
+        body: { country: "pak" },
+        headers: { host: "localhost:5001" },
+      },
+      resBad
+    );
+    assert.equal(resBad.statusCode, 400);
+    assert.equal(resBad.body?.message, "Please select a valid country from the list");
+    assert.equal(saved, false);
+
+    // 2. Teacher clearing country rejected
+    const resClearTeacher = createMockRes();
+    await updateProfile(
+      {
+        user: { _id: "user-country-upd-1" },
+        body: { country: "" },
+        headers: { host: "localhost:5001" },
+      },
+      resClearTeacher
+    );
+    assert.equal(resClearTeacher.statusCode, 400);
+    assert.equal(saved, false);
+
+    // 3. Lowercase country normalized to canonical name
+    const resNormalize = createMockRes();
+    await updateProfile(
+      {
+        user: { _id: "user-country-upd-1" },
+        body: { country: "pakistan" },
+        headers: { host: "localhost:5001" },
+      },
+      resNormalize
+    );
+    assert.equal(resNormalize.statusCode, 200);
+    assert.equal(mockUser.country, "Pakistan");
+    assert.equal(saved, true);
+
+    // 4. Buyer clearing country allowed
+    mockUser.role = "user";
+    const resClearBuyer = createMockRes();
+    await updateProfile(
+      {
+        user: { _id: "user-country-upd-1" },
+        body: { country: "" },
+        headers: { host: "localhost:5001" },
+      },
+      resClearBuyer
+    );
+    assert.equal(resClearBuyer.statusCode, 200);
+    assert.equal(mockUser.country, "");
+  } finally {
+    User.findById = origFindById;
+  }
+});
+
+test("loginUser rejects seller setup with partial or invalid country", async () => {
+  const origFindOne = User.findOne;
+  try {
+    let saved = false;
+    User.findOne = async () => ({
+      _id: "user-login-country-1",
+      email: "buyer@example.com",
+      role: "user",
+      isVerified: true,
+      buyerName: "Buyer",
+      matchPassword: async () => true,
+      save: async () => {
+        saved = true;
+      },
+    });
+
+    const res = createMockRes();
+    await loginUser(
+      {
+        body: {
+          email: "buyer@example.com",
+          password: "StrongPassword123",
+          loginAs: "seller",
+          sellerName: "Buyer Seller",
+          dateOfBirth: "1995-05-10",
+          country: "pak",
+        },
+        headers: { host: "localhost:5001" },
+      },
+      res
+    );
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body?.status, false);
+    assert.equal(res.body?.message, "Please select a valid country from the list");
+    assert.equal(saved, false);
+  } finally {
+    User.findOne = origFindOne;
   }
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Eye, EyeOff, Calendar, Mail, User } from "lucide-react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import MainLayout from "../../components/MainLayout";
@@ -12,6 +12,7 @@ import ButtonSpinner from "../../components/ButtonSpinner";
 import { loadProposalRequest } from "../../utils/proposalRequest";
 import Logo from "../../components/Logo";
 import { getLoginUrl, getSafeRedirectPath, AUTH_REDIRECT_STORAGE_KEY } from "../../utils/authRedirect";
+import { resolveCountry } from "../../utils/countries";
 
 export default function Register() {
   const dispatch = useDispatch();
@@ -77,6 +78,7 @@ export default function Register() {
       return;
     }
 
+    let validCountry = null;
     if (registerAs === "seller") {
       if (!dateOfBirth) {
         toast.error("Please enter your date of birth");
@@ -90,7 +92,12 @@ export default function Register() {
         return;
       }
       if (!country.trim()) {
-        toast.error("Please enter your country");
+        toast.error("Please select your country");
+        return;
+      }
+      validCountry = resolveCountry(country);
+      if (!validCountry) {
+        toast.error("Please select a valid country from the list");
         return;
       }
     }
@@ -119,7 +126,7 @@ export default function Register() {
     };
     if (registerAs === "seller") {
       payload.dateOfBirth = dateOfBirth;
-      payload.country = country.trim();
+      payload.country = validCountry;
     }
 
     dispatch(registerUser(payload))
@@ -307,7 +314,7 @@ export default function Register() {
                 <CountryAutocomplete
                   value={country}
                   onChange={setCountry}
-                  placeholder="Select or type country"
+                  placeholder="Search and select country"
                   label="Country"
                   variant="pill"
                   className="w-full"

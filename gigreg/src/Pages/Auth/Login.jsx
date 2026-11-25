@@ -12,6 +12,7 @@ import ButtonSpinner from "../../components/ButtonSpinner";
 import { loadProposalRequest } from "../../utils/proposalRequest";
 import Logo from "../../components/Logo";
 import { getRegisterUrl, getSafeRedirectPath, AUTH_REDIRECT_STORAGE_KEY } from "../../utils/authRedirect";
+import { resolveCountry } from "../../utils/countries";
 
 const SELLER_SETUP_STEPS = ["name", "dateOfBirth", "country"];
 
@@ -136,8 +137,9 @@ export default function Login() {
       .finally(() => setLoading(false));
   };
 
-  const submitSellerSetup = () => {
+  const submitSellerSetup = (resolvedCountry) => {
     setLoading(true);
+    const finalCountry = resolvedCountry || resolveCountry(country);
 
     const request = googleIdToken
       ? GoogleloginUser({
@@ -145,7 +147,7 @@ export default function Login() {
           loginAs: "seller",
           sellerName: sellerName.trim(),
           dateOfBirth,
-          country: country.trim(),
+          country: finalCountry,
         })
       : loginUser({
           email: email.trim(),
@@ -153,7 +155,7 @@ export default function Login() {
           loginAs: "seller",
           sellerName: sellerName.trim(),
           dateOfBirth,
-          country: country.trim(),
+          country: finalCountry,
         });
 
     dispatch(request)
@@ -194,10 +196,16 @@ export default function Login() {
 
     if (sellerSetupStep === "country") {
       if (!country.trim()) {
-        toast.error("Please select or enter your country");
+        toast.error("Please select your country");
         return;
       }
-      submitSellerSetup();
+      const validCountry = resolveCountry(country);
+      if (!validCountry) {
+        toast.error("Please select a valid country from the list");
+        return;
+      }
+      setCountry(validCountry);
+      submitSellerSetup(validCountry);
     }
   };
 
@@ -419,7 +427,7 @@ export default function Login() {
               <CountryAutocomplete
                 value={country}
                 onChange={setCountry}
-                placeholder="Select or type country"
+                placeholder="Search and select country"
                 label="Country"
                 variant="pill"
                 className="w-full"
